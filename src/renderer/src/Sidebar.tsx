@@ -61,6 +61,10 @@ export function Sidebar() {
         <Icon name="edit" />
         {t('新对话')}
       </button>
+      <button className={`nav-item ${view === 'images' ? 'active' : ''}`} title={t('所有对话生成过的图片')} onClick={() => setView(view === 'images' ? 'chat' : 'images')}>
+        <Icon name="image" />
+        {t('图片')}
+      </button>
       <div className="sidebar-label">
         <span className="grow">{t('项目')}</span>
         <button className="icon-btn" title={t('添加项目文件夹，并在里面开始新对话')} onClick={() => void addProject()}>

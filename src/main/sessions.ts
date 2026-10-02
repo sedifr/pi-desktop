@@ -12,11 +12,19 @@ interface Bucket {
   usage: Usage
 }
 
+/** 对话里某个工具存下来的一张图 */
+interface SavedImage {
+  path: string
+  prompt?: string
+  tool?: string
+}
+
 interface CacheEntry {
   size: number
   mtime: number
   meta: SessionMeta
   buckets: Bucket[]
+  images: SavedImage[]
 }
 
 type Entry = Record<string, any>
@@ -100,10 +108,15 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
     if (!bucket) buckets.set(key, (bucket = { day, model, usage: emptyUsage() }))
     addUsage(bucket.usage, u)
   }
+  const images: SavedImage[] = []
   for (const e of entries) {
     if (e.type === 'message' && e.message) {
       const m = e.message
       if (m.role === 'system') continue
+      // 出图工具会在结果里说明图片存到了哪
+      if (m.role === 'toolResult' && !m.isError && typeof m.details?.path === 'string' && /\.(png|jpe?g|webp|gif)$/i.test(m.details.path)) {
+        images.push({ path: m.details.path, prompt: typeof m.details.prompt === 'string' ? m.details.prompt.slice(0, 600) : undefined, tool: m.toolName })
+      }
       meta.messageCount++
       if (m.role === 'user' && !meta.firstUserText) meta.firstUserText = textOf(m.content).slice(0, 200)
       count(m.usage, m.model ?? '@other', e.timestamp)
@@ -113,11 +126,11 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
       count(e.usage, e.model ?? '@summaries', e.timestamp)
     }
   }
-  return { size: stat.size, mtime: stat.mtimeMs, meta, buckets: [...buckets.values()] }
+  return { size: stat.size, mtime: stat.mtimeMs, meta, buckets: [...buckets.values()], images }
 }
 
 let cache: Record<string, CacheEntry> | undefined
-const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v3.json')
+const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v4.json')
 
 function refresh(): Record<string, CacheEntry> {
   cache ??= readJson<Record<string, CacheEntry>>(cacheFile(), {})
@@ -164,6 +177,13 @@ export function listSessions(): SessionMeta[] {
   return Object.values(refresh())
     .map((entry) => entry.meta)
     .sort((a, b) => b.modified - a.modified)
+}
+
+/** 每个对话存下过哪些图片，给图库用 */
+export function sessionImages(): { file: string; cwd: string; title?: string; images: SavedImage[] }[] {
+  return Object.values(refresh())
+    .filter((entry) => entry.images?.length)
+    .map((entry) => ({ file: entry.meta.file, cwd: entry.meta.cwd, title: entry.meta.name ?? entry.meta.firstUserText, images: entry.images }))
 }
 
 export function usageTotals(): UsageTotals {

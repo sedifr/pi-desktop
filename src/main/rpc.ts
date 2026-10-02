@@ -2,6 +2,7 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { StringDecoder } from 'node:string_decoder'
 import { t } from '@shared/i18n'
+import { getConfig } from './config'
 import { cleanEnvPath, nodeExecPath, piCliPath, shellEnv } from './env'
 
 interface Pending {
@@ -30,7 +31,11 @@ export class PiProcess extends EventEmitter {
   }
 
   async start(): Promise<void> {
-    const env = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1' }
+    const env: NodeJS.ProcessEnv = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1' }
+    // 用户定了统一的存图文件夹时告诉 Pi 里的出图工具；认这个变量的工具会把图存到那里
+    const imageDir = getConfig().imageDir
+    if (imageDir) env.PI_DESKTOP_IMAGE_DIR = imageDir
+    else delete env.PI_DESKTOP_IMAGE_DIR
     // 取环境变量要一会儿；这期间如果已经被要求结束，就不用起了
     if (this.killed) return this.finish()
     const child = spawn(nodeExecPath(), ['-r', cleanEnvPath(), piCliPath(), '--mode', 'rpc', ...this.args], {

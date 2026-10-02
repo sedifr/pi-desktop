@@ -1776,3 +1776,197 @@ div.cap-tile {
 .live-box:not(.mono) {
   white-space: normal;
 }
+
+/* ---- 图库 ---- */
+.gallery {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 28px 28px;
+}
+.gallery-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.gallery-chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.gallery-chips .chip {
+  max-width: 220px;
+}
+.gallery-bar .cap-search {
+  flex: none;
+}
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+.gallery-tile {
+  position: relative;
+  min-width: 0;
+}
+.gallery-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--bg-soft);
+  border: 0.5px solid var(--border);
+}
+.gallery-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.2s ease;
+}
+.gallery-thumb:hover img {
+  transform: scale(1.03);
+}
+.gallery-tile.picked .gallery-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* 左上角的小圆圈：悬停或选中了才出现 */
+.gallery-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1.5px solid #fff;
+  color: #fff;
+  opacity: 0;
+}
+.gallery-tile:hover .gallery-check,
+.gallery-tile.picked .gallery-check {
+  opacity: 1;
+}
+.gallery-tile.picked .gallery-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.gallery-caption {
+  padding: 6px 2px 0;
+  font-size: 12.5px;
+}
+.gallery-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 80px 24px;
+  color: var(--text-2);
+  text-align: center;
+}
+.gallery-empty svg {
+  color: var(--text-3);
+}
+.gallery-where {
+  margin-top: 28px;
+  border-top: 0.5px solid var(--border);
+  border-bottom: 0;
+}
+/* 选中图片后底部浮出来的那一条 */
+.gallery-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 420px;
+  padding: 8px 8px 8px 18px;
+  border-radius: var(--r-pill);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+/* 放大看一张图 */
+.overlay.preview {
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 45;
+}
+.preview-box {
+  display: flex;
+  max-width: calc(100% - 64px);
+  max-height: calc(100% - 64px);
+  background: var(--bg);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.preview-box > img {
+  display: block;
+  min-width: 0;
+  max-width: min(72vw, 1100px);
+  max-height: calc(100vh - 110px);
+  object-fit: contain;
+  background: var(--bg-soft);
+}
+.preview-side {
+  flex: none;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 16px 16px;
+  overflow-y: auto;
+}
+.preview-side .btn {
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.preview-title {
+  font-weight: 600;
+  word-break: break-all;
+}
+.preview-prompt {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-soft);
+}
+
+/* 对话正文里的本机图片 */
+.md-image,
+.gen-images img.clickable {
+  cursor: zoom-in;
+}
+.md-image {
+  display: block;
+  max-width: min(100%, 420px);
+  max-height: 420px;
+  margin: 6px 0;
+  border-radius: var(--r-md);
+  border: 0.5px solid var(--border);
+}
+.img-missing {
+  font-size: 12px;
+  color: var(--text-3);
+}

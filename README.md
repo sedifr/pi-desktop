@@ -23,6 +23,7 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **MCP servers**: add, edit, and remove servers in *Settings → MCP*. Secrets in environment variables and headers are never shown back.
 - **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for. For items that have none yet, a button lets a model draft them.
 - **Install skills**: *Settings → Install skills* installs and removes pi packages (npm, git, or a local folder) — the same as `pi install` — and lets you add extra skill folders.
+- **Images in one place**: the *Images* page lists every image generated in any conversation and project — browse, search, open the conversation that made one, copy, save a copy, or move a batch to the Trash. Images an answer mentions by local path are shown inline.
 - **See sub-agents**: when the AI starts sub-agents, a chip next to the title lists them; open one to read what it did, and jump back to the main conversation.
 - **Pick what a conversation can use**: turn each skill, MCP server, and tool on or off per conversation, then save the setup as the default for the project or for everything. Skills have three states: *auto* (the model decides), *on* (always loaded), *off* (hidden from the model).
 - **Usage at a glance**: cost, tokens, cache hit rate, and context usage for the conversation, plus totals for today and this month.
@@ -94,6 +95,10 @@ If you already use the pi CLI, your existing sessions, models, skills, and MCP s
 | Extensions loaded only by this app | `~/.pi/agent/desktop/extensions/` |
 
 On/off choices made in the app do not change pi's own `settings.json`, so the CLI is not affected. Signing in or adding a model does change pi's `auth.json` and `models.json`, because those are shared.
+
+### For authors of image tools
+
+The *Images* page finds an image when a tool result carries its saved location in `details.path` (and, optionally, the prompt in `details.prompt`). If the user chose one folder for all new images, the app passes it to pi as the `PI_DESKTOP_IMAGE_DIR` environment variable; save there when it is set.
 
 ## How it works
 

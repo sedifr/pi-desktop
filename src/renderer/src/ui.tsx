@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef, type ReactNode } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { createContext, memo, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { t } from '@shared/i18n'
 
@@ -19,6 +19,7 @@ const ICONS: Record<string, ReactNode> = {
   terminal: <path d="M2.5 3.5h11v9h-11zM5 6.5 7 8.5 5 10.5M8.5 10.5H11" />,
   file: <path d="M4 2.5h5L12 5.5v8H4zM9 2.5v3h3" />,
   search: <path d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM11 11l3 3" />,
+  image: <path d="M2.5 3.5h11v9h-11zM2.5 10.5l3-3 2.5 2.5 2-2 3.5 3.5M10.2 6.2a.6.6 0 1 0 0-.01" />,
   star: <path d="M8 2.2l1.75 3.6 3.95.55-2.86 2.77.68 3.93L8 11.2l-3.52 1.85.68-3.93L2.3 6.35l3.95-.55L8 2.2z" />,
   chart: <path d="M8 2a6 6 0 1 0 6 6H8V2zM10.5 2.6A6 6 0 0 1 13.4 5.5h-2.9V2.6z" />,
   tool: <path d="M10.5 2.5a3 3 0 0 0-2.9 3.9L2.5 11.5l2 2 5.1-5.1a3 3 0 0 0 3.9-2.9l-2 1-1.5-1.5 1-2c-.2 0-.3-.5-.5-.5z" />,
@@ -54,10 +55,66 @@ export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   )
 }
 
+/** 界面不能直接读本机文件，图片走主进程给的这个地址 */
+export const imgUrl = (file: string): string => `pi-img://local/${encodeURIComponent(file)}`
+
+/**
+ * 正文里的图片需要知道的两件事：相对路径是相对哪个项目文件夹；
+ * 哪些图在上面已经显示过了（模型常常在回答里把刚生成的图再写一遍，不用显示两次）；
+ * 以及点了图片之后做什么。
+ */
+export const ImageContext = createContext<{ cwd?: string; home?: string; shown?: Set<string>; open?: (file: string) => void }>({})
+
+/** 把正文里写的图片地址换成本机的完整路径。不是本机文件就返回 undefined */
+function localPath(src: string, cwd?: string, home?: string): string | undefined {
+  let value = src
+  try {
+    value = decodeURIComponent(src)
+  } catch {
+    // 本来就不是转义过的
+  }
+  if (value.startsWith('file://')) return value.slice(7)
+  if (value.startsWith('/')) return value
+  if (value.startsWith('~/')) return home ? `${home}${value.slice(1)}` : undefined
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) || !cwd) return undefined
+  return `${cwd}/${value.replace(/^\.\//, '')}`
+}
+
+function MdImage({ src, alt }: { src?: string; alt?: string }) {
+  const { cwd, home, shown, open } = useContext(ImageContext)
+  const [failed, setFailed] = useState(false)
+  if (!src) return null
+  if (/^data:image\//.test(src)) return <img src={src} alt={alt} />
+  // 网上的图片不自动加载（一加载就等于告诉对方你看了什么），给一个链接自己点
+  if (/^https?:/i.test(src)) {
+    return (
+      <a href={src} target="_blank" rel="noreferrer">
+        {alt || src}
+      </a>
+    )
+  }
+  const file = localPath(src, cwd, home)
+  if (!file || shown?.has(file)) return null
+  if (failed) return <span className="img-missing">{t('这张图片不在了：{path}', { path: src })}</span>
+  return <img className="md-image" src={imgUrl(file)} alt={alt} onError={() => setFailed(true)} onClick={() => open?.(file)} />
+}
+
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
     <div className="md">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a> }}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        // 图片地址自己处理（见 MdImage），不让默认规则把 file:// 之类的滤掉；链接仍按默认规则
+        urlTransform={(url, key) => (key === 'src' ? url : defaultUrlTransform(url))}
+        components={{
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noreferrer">
+              {children}
+            </a>
+          ),
+          img: ({ src, alt }) => <MdImage src={typeof src === 'string' ? src : undefined} alt={alt} />
+        }}
+      >
         {text}
       </ReactMarkdown>
     </div>

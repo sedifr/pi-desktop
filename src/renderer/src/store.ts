@@ -89,7 +89,11 @@ export interface AppState {
   models: Record<string, ModelInfo>
   /** 用户手动加进来、还没有会话的项目目录 */
   extraProjects: string[]
-  view: 'chat' | 'settings'
+  view: 'chat' | 'settings' | 'images'
+  /** 正在放大看的那张图 */
+  preview?: string
+  /** 图片有增减时加一，让开着的图库重新读 */
+  imagesVersion: number
   settingsTab: SettingsTab
   prefs: Prefs
   /** 每个提供商的登录是否有效。来自主动检测，也来自对话里真实请求的成败 */
@@ -137,6 +141,7 @@ let state: AppState = {
   models: {},
   extraProjects: stored<string[]>('extraProjects', [], (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')),
   view: 'chat',
+  imagesVersion: 0,
   settingsTab: 'look',
   authStatus: stored<Record<string, AuthStatus>>('authStatus', {}, isRecord),
   authChecking: {},
@@ -704,6 +709,11 @@ export function activate(key: string): void {
 
 export function setConfig(config: DesktopConfig): void {
   set({ config })
+}
+
+/** 放大看一张图；传空是关掉。changed 为真表示图片有增减，开着的图库要刷新 */
+export function previewImage(path: string | undefined, changed = false): void {
+  set(changed ? { preview: path, imagesVersion: state.imagesVersion + 1 } : { preview: path })
 }
 
 /** 把一个模型加进常用，或者拿出来 */

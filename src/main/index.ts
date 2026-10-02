@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
-import { BrowserWindow, app, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { pathToFileURL } from 'node:url'
+import { BrowserWindow, app, dialog, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
 import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
@@ -9,6 +10,7 @@ import { cleanRunDir, forget, getGlobal, getItems, resetSession, saveAs, setGlob
 import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary } from './catalog'
 import { getConfig, setConfig } from './config'
 import { searchFiles } from './files'
+import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
 import { listMcp, removeMcp, saveMcp } from './mcp'
 import { installPackage, listPackages, removePackage } from './packages'
 import { generateSummaries, itemsWithoutSummary } from './summarize'
@@ -27,6 +29,10 @@ if (DEBUG_RENDER) {
   // 调试实例用自己的数据目录，这样能和平时开着的那个同时运行，互不抢界面设置
   app.setPath('userData', `${app.getPath('userData')} Debug`)
 }
+
+// 界面要显示本机的图片（生成的图、图库的缩略图），但它不能直接读文件。
+// 给它一个只能取图片的地址：pi-img://local/<完整路径>
+protocol.registerSchemesAsPrivileged([{ scheme: 'pi-img', privileges: { secure: true, stream: true } }])
 
 // 平时只开一个。再启动一次时不开第二个窗口，而是把已有的带到前面：
 // 两个实例会抢同一份界面设置，还会互相清掉对方给 Pi 准备的临时文件
@@ -136,6 +142,28 @@ function registerIpc(): void {
       if (!fs.existsSync(MCP_CONFIG)) writeJson(MCP_CONFIG, { mcpServers: {} })
       shell.showItemInFolder(MCP_CONFIG)
     } else void shell.openPath(paths[target])
+  })
+  handle('images:list', () => listImages())
+  handle('images:trash', (files: string[]) => trashImages(files))
+  ipcMain.on('images:reveal', (_event, file: string) => {
+    try {
+      revealImage(file)
+    } catch {
+      // 图已经不在了
+    }
+  })
+  handle('images:copy', (file: string) => copyImage(file))
+  handle('images:saveAs', (file: string) => saveImageAs(win!, file))
+  // 存图的位置是启动 Pi 时告诉它的，所以改了以后闲着的进程要重启
+  handle('config:imageDirPick', async () => {
+    const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'] })
+    if (result.canceled) return getConfig()
+    agents.restartIdle()
+    return setConfig({ imageDir: result.filePaths[0] })
+  })
+  handle('config:imageDirClear', () => {
+    agents.restartIdle()
+    return setConfig({ imageDir: undefined })
   })
   // 包装上或卸掉以后，技能清单要重新问，闲着的 Pi 进程下次用时重启
   const send = (channel: string, ...args: unknown[]) => {
@@ -260,6 +288,12 @@ function registerIpc(): void {
 
 void app.whenReady().then(() => {
   if (!PRIMARY) return
+  protocol.handle('pi-img', (request) => {
+    const file = decodeURIComponent(new URL(request.url).pathname.slice(1))
+    // 只给图片，别的文件一概不给
+    if (!IMAGE_EXT.test(file)) return new Response(null, { status: 403 })
+    return net.fetch(pathToFileURL(file).toString())
+  })
   setLang(resolveLang(app.getLocale()))
   buildMenu(() => win)
   void shellEnv()

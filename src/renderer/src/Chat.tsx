@@ -1,7 +1,7 @@
 import { type ReactNode, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import { type Conv, type ToolRun, activityOf, copyText, forkFrom } from './store'
-import { Icon, Markdown } from './ui'
+import { type Conv, type ToolRun, activityOf, copyText, forkFrom, previewImage, useApp } from './store'
+import { Icon, ImageContext, Markdown } from './ui'
 import { t } from '@shared/i18n'
 
 type Step = { kind: 'thinking'; text: string } | { kind: 'text'; text: string } | { kind: 'tool'; call: ContentBlock; result?: Msg }
@@ -281,7 +281,11 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
   const tools = block.steps.filter((s) => s.kind === 'tool').length
   // 进行中默认展开让人看到在做什么，结束后默认收起只留答案
   const expanded = open ?? live
+  const home = useApp((s) => s.defaults?.home)
+  // 正文里提到的本机图片：相对路径按项目文件夹算；这一轮已经显示过的生成图不再重复显示
+  const images = useMemo(() => ({ cwd, home, shown: new Set(block.images.map((image) => image.path).filter((file): file is string => Boolean(file))), open: (file: string) => previewImage(file) }), [cwd, home, block.images])
   return (
+    <ImageContext.Provider value={images}>
     <div className="turn">
       {block.steps.length > 0 && (
         <div className="steps">
@@ -310,7 +314,7 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
         <div className="gen-images">
           {block.images.map((image, index) => (
             <figure key={index}>
-              <img src={image.src} alt={t('生成的图片')} />
+              <img src={image.src} alt={t('生成的图片')} className={image.path ? 'clickable' : ''} onClick={() => image.path && previewImage(image.path)} />
               {image.path && <figcaption title={image.path}>{t('已保存到 {path}', { path: image.path.replace(`${cwd}/`, '') })}</figcaption>}
             </figure>
           ))}
@@ -327,6 +331,7 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
       {block.error && <div className="banner error">{block.error}</div>}
       {block.aborted && <div className="muted small">{t('已停止')}</div>}
     </div>
+    </ImageContext.Provider>
   )
 })
 

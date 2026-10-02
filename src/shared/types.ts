@@ -287,6 +287,22 @@ export interface CustomProviderDetail {
 /** 设置页里能在访达中打开的位置 */
 export type OpenTarget = 'agent' | 'desktop' | 'summaries' | 'extensions' | 'mcp'
 
+/** 图库里的一张图 */
+export interface ImageInfo {
+  path: string
+  name: string
+  size: number
+  modified: number
+  /** 属于哪个项目文件夹 */
+  cwd?: string
+  /** 是哪个对话生成的（会话文件）。对话已经删掉、图还留着时没有 */
+  session?: string
+  sessionTitle?: string
+  /** 生成它时的要求 */
+  prompt?: string
+  tool?: string
+}
+
 /** 一个装上的 Pi 包 */
 export interface PackageInfo {
   /** 装的时候写的来源，比如 npm:包名、git 地址、本机路径 */
@@ -329,6 +345,8 @@ export interface DesktopConfig {
   extraSkillDirs: string[]
   /** 常用模型，形如「提供商/模型」。在模型菜单里排在最前面 */
   favoriteModels: string[]
+  /** 新生成的图片统一存到这个文件夹。不设就由出图的工具自己决定（一般是各项目里的 pi-images） */
+  imageDir?: string
 }
 
 export interface PiApi {
@@ -383,6 +401,17 @@ export interface PiApi {
   /** 全局默认：所有项目的新对话一开始的状态 */
   capsGlobalGet(): Promise<CapItem[]>
   capsGlobalSet(changes: Record<string, CapState>): Promise<CapItem[]>
+
+  imagesList(): Promise<ImageInfo[]>
+  /** 把这些图片移到废纸篓，返回移走了几张 */
+  imagesTrash(paths: string[]): Promise<number>
+  imageReveal(path: string): void
+  imageCopy(path: string): Promise<void>
+  imageSaveAs(path: string): Promise<string | undefined>
+  /** 弹出选文件夹窗口，定下新图片统一存到哪 */
+  imageDirPick(): Promise<DesktopConfig>
+  /** 不再统一存放，交回给出图工具自己决定 */
+  imageDirClear(): Promise<DesktopConfig>
 
   packagesList(): Promise<PackageInfo[]>
   packageInstall(source: string): Promise<void>

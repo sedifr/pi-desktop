@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UsageTotals } from '@shared/types'
 import { Chat } from './Chat'
 import { Composer } from './Composer'
+import { Gallery, ImagePreview } from './Gallery'
 import { Settings } from './Settings'
 import { Sidebar } from './Sidebar'
 import {
@@ -320,6 +321,7 @@ export function App() {
   const conv = useApp((s) => (s.activeKey ? s.convs[s.activeKey] : undefined))
   const toasts = useApp((s) => s.toasts)
   const view = useApp((s) => s.view)
+  const preview = useApp((s) => s.preview)
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed)
   const empty = conv && !conv.messages.length && !conv.pending.length && !conv.loading
 
@@ -329,6 +331,8 @@ export function App() {
       <main className="main">
         {view === 'settings' ? (
           <Settings />
+        ) : view === 'images' ? (
+          <Gallery />
         ) : conv ? (
           <>
             <Header conv={conv} />
@@ -345,6 +349,7 @@ export function App() {
             </button>
           </div>
         )}
+        {preview && <ImagePreview key={preview} path={preview} />}
       </main>
       <div className="toasts">
         {toasts.map((t) => (

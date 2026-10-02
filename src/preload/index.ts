@@ -53,6 +53,13 @@ const api: PiApi = {
   capsGlobalGet: call('caps:globalGet'),
   capsGlobalSet: call('caps:globalSet'),
 
+  imagesList: call('images:list'),
+  imagesTrash: call('images:trash'),
+  imageReveal: (file) => ipcRenderer.send('images:reveal', file),
+  imageCopy: call('images:copy'),
+  imageSaveAs: call('images:saveAs'),
+  imageDirPick: call('config:imageDirPick'),
+  imageDirClear: call('config:imageDirClear'),
   packagesList: call('pkg:list'),
   packageInstall: call('pkg:install'),
   packageRemove: call('pkg:remove'),
