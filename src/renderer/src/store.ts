@@ -101,7 +101,7 @@ export interface AppState {
   config?: DesktopConfig
 }
 
-export type SettingsTab = 'look' | 'caps' | 'commands' | 'accounts' | 'keys' | 'about'
+export type SettingsTab = 'look' | 'caps' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
 
 export interface Prefs {
   /** 界面语言。system 表示跟随系统 */

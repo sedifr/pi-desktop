@@ -32,6 +32,18 @@ interface Summary {
 }
 
 const SUMMARIES_FILE = path.join(DESKTOP_DIR, 'summaries.json')
+
+/** 改一项在界面上显示的那句简介。留空就是去掉自己写的，回到它自带的说明 */
+export function setSummary(id: string, summary: string): void {
+  const all = readJson<Record<string, Summary>>(SUMMARIES_FILE, {})
+  const text = summary.trim()
+  if (text) all[id] = { ...all[id], summary: text }
+  else if (all[id]) {
+    delete all[id].summary
+    if (!all[id].label) delete all[id]
+  }
+  writeJson(SUMMARIES_FILE, all)
+}
 const BUILTIN_TOOLS: { name: string; label: string; summary: string }[] = [
   { name: 'read', label: '读文件', summary: '读取文本文件和图片' },
   { name: 'bash', label: '运行命令', summary: '在终端里执行命令' },
@@ -219,11 +231,12 @@ function listDesktopExtensions(): ExtensionInfo[] {
 export const MCP_CONFIG = path.join(AGENT_DIR, 'mcp.json')
 
 function listMcpServers(): { name: string; enabled: boolean; hint: string }[] {
-  const config = readJson<{ mcpServers?: Record<string, { command?: string; url?: string; disabled?: boolean }> }>(MCP_CONFIG, {})
+  const config = readJson<{ mcpServers?: Record<string, { command?: string; url?: string; description?: string; disabled?: boolean; enabled?: boolean }> }>(MCP_CONFIG, {})
   return Object.entries(config.mcpServers ?? {}).map(([name, server]) => ({
     name,
-    enabled: server.disabled !== true,
-    hint: server.url ?? (server.command ? path.basename(server.command) : '')
+    enabled: server.disabled !== true && server.enabled !== false,
+    // 服务自己带了说明就用它，没有就显示它连的是什么
+    hint: server.description || server.url || (server.command ? path.basename(server.command) : '')
   }))
 }
 

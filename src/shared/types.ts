@@ -270,7 +270,34 @@ export interface CustomProviderInput {
 }
 
 /** 设置页里能在访达中打开的位置 */
-export type OpenTarget = 'agent' | 'desktop' | 'summaries' | 'extensions'
+export type OpenTarget = 'agent' | 'desktop' | 'summaries' | 'extensions' | 'mcp'
+
+/** 一个 MCP 服务。环境变量和请求头里可能有密钥，所以只给名字 */
+export interface McpServerInfo {
+  name: string
+  /** stdio 是在本机启动一个程序，http 是连一个网址 */
+  kind: 'stdio' | 'http'
+  command?: string
+  args: string[]
+  url?: string
+  description: string
+  envKeys: string[]
+  headerKeys: string[]
+  enabled: boolean
+}
+
+export interface McpServerInput {
+  name: string
+  /** 修改已有服务时，它原来的名字 */
+  originalName?: string
+  kind: 'stdio' | 'http'
+  command?: string
+  args?: string[]
+  url?: string
+  description: string
+  /** 环境变量（stdio）或请求头（http）。不传表示保持原样 */
+  secrets?: Record<string, string>
+}
 
 /** 桌面端自己的设置，存在 Pi 数据目录下的 desktop/config.json */
 export interface DesktopConfig {
@@ -332,6 +359,13 @@ export interface PiApi {
   /** 全局默认：所有项目的新对话一开始的状态 */
   capsGlobalGet(): Promise<CapItem[]>
   capsGlobalSet(changes: Record<string, CapState>): Promise<CapItem[]>
+
+  mcpList(): Promise<McpServerInfo[]>
+  mcpSave(input: McpServerInput): Promise<void>
+  mcpRemove(name: string): Promise<void>
+
+  /** 改一项的简介；传空字符串是恢复成它自带的说明 */
+  summarySet(id: string, summary: string): Promise<void>
 
   configGet(): Promise<DesktopConfig>
   /** 弹出选文件夹窗口，把选中的文件夹加进额外技能文件夹 */

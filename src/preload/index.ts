@@ -53,6 +53,10 @@ const api: PiApi = {
   capsGlobalGet: call('caps:globalGet'),
   capsGlobalSet: call('caps:globalSet'),
 
+  mcpList: call('mcp:list'),
+  mcpSave: call('mcp:save'),
+  mcpRemove: call('mcp:remove'),
+  summarySet: call('summary:set'),
   configGet: call('config:get'),
   skillDirAdd: call('config:skillDirAdd'),
   skillDirRemove: call('config:skillDirRemove'),

@@ -2,13 +2,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme, shell } from 'electron'
-import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, OpenTarget, TemplateInput, Theme } from '@shared/types'
+import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
 import { cleanRunDir, forget, getGlobal, getItems, resetSession, saveAs, setGlobal, setStates } from './caps'
-import { DESKTOP_EXT_DIR, forgetProbe } from './catalog'
+import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetProbe, setSummary } from './catalog'
 import { getConfig, setConfig } from './config'
 import { searchFiles } from './files'
+import { listMcp, removeMcp, saveMcp } from './mcp'
 import { buildMenu } from './menu'
 import { listTemplates, saveTemplate, trashTemplate } from './templates'
 import { setTrust, trustStatus } from './trust'
@@ -104,15 +105,29 @@ function registerIpc(): void {
   handle('customProvider:save', (input: CustomProviderInput) => afterAccountChange(accounts.saveCustomProvider(input)))
   handle('customProvider:remove', (id: string) => afterAccountChange(Promise.resolve(accounts.removeCustomProvider(id))))
   ipcMain.on('openPath', (_event, target: OpenTarget) => {
-    const paths: Record<OpenTarget, string> = { agent: AGENT_DIR, desktop: DESKTOP_DIR, summaries: path.join(DESKTOP_DIR, 'summaries.json'), extensions: DESKTOP_EXT_DIR }
+    const paths: Record<OpenTarget, string> = { agent: AGENT_DIR, desktop: DESKTOP_DIR, summaries: path.join(DESKTOP_DIR, 'summaries.json'), extensions: DESKTOP_EXT_DIR, mcp: MCP_CONFIG }
     if (!paths[target]) return
     if (target === 'extensions') fs.mkdirSync(DESKTOP_EXT_DIR, { recursive: true })
     if (target === 'summaries') {
       // 这个文件默认不存在；第一次打开时建一个空的，用户才有东西可改
       if (!fs.existsSync(paths.summaries)) writeJson(paths.summaries, {})
       shell.showItemInFolder(paths[target])
+    } else if (target === 'mcp') {
+      if (!fs.existsSync(MCP_CONFIG)) writeJson(MCP_CONFIG, { mcpServers: {} })
+      shell.showItemInFolder(MCP_CONFIG)
     } else void shell.openPath(paths[target])
   })
+  // MCP 服务变了以后，闲着的 Pi 进程下次用时重启才连得上新的
+  handle('mcp:list', () => listMcp())
+  handle('mcp:save', (input: McpServerInput) => {
+    saveMcp(input)
+    agents.restartIdle()
+  })
+  handle('mcp:remove', (name: string) => {
+    removeMcp(name)
+    agents.restartIdle()
+  })
+  handle('summary:set', (id: string, summary: string) => setSummary(id, summary))
   handle('config:get', () => getConfig())
   handle('config:skillDirAdd', async () => {
     const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })

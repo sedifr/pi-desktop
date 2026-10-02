@@ -1560,3 +1560,36 @@ kbd {
 .star:hover {
   color: var(--text);
 }
+
+/* 技能卡片上改简介 */
+div.cap-tile {
+  cursor: default;
+}
+.cap-pen {
+  display: inline-flex;
+  flex: none;
+  padding: 3px;
+  border-radius: 5px;
+  color: var(--text-3);
+  opacity: 0;
+}
+.cap-tile:hover .cap-pen {
+  opacity: 1;
+}
+.cap-pen:hover {
+  color: var(--text);
+  background: var(--bg-soft);
+}
+.cap-tile.editing {
+  border-color: var(--accent);
+}
+.cap-edit {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}

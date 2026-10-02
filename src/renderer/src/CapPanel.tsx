@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CapItem, CapKind, CapState } from '@shared/types'
-import { type Conv, changeCaps, loadCaps, resetCaps, saveCapsAs } from './store'
+import { type Conv, api, changeCaps, errorText, loadCaps, openSettings, resetCaps, saveCapsAs, toast } from './store'
 import { Icon, Popover } from './ui'
 import { t } from '@shared/i18n'
 
@@ -22,15 +22,76 @@ export function capCount(items: CapItem[] | undefined, kind: CapKind): number | 
   return items?.filter((item) => item.kind === kind && item.state !== 'off').length
 }
 
-export function Tile({ item, onToggle }: { item: CapItem; onToggle: () => void }) {
+/** 自带的四个工具的名字和说明跟着界面语言走，不让改 */
+const FIXED = new Set(['tool:read', 'tool:bash', 'tool:edit', 'tool:write'])
+
+/**
+ * 一项技能、MCP 或工具。点一下切换状态；传了 onEdit 时，悬停会出现一支笔，
+ * 可以把那句简介改成自己记得住的话。
+ */
+export function Tile({ item, onToggle, onEdit }: { item: CapItem; onToggle: () => void; onEdit?: (summary: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState('')
+  if (editing) {
+    return (
+      <div className="cap-tile editing">
+        <span className="cap-text">
+          <span className="cap-name ellipsis">{item.name}</span>
+          <input
+            autoFocus
+            className="cap-edit"
+            value={value}
+            placeholder={t('用一句话写下它是干什么的。留空就用它自带的说明')}
+            onChange={(event) => setValue(event.target.value)}
+            onBlur={() => setEditing(false)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return
+              if (event.key !== 'Enter' && event.key !== 'Escape') return
+              // 这两个键在这里只管这个输入框，不要顺带把面板或设置页关掉
+              event.stopPropagation()
+              event.nativeEvent.stopPropagation()
+              if (event.key === 'Enter' && value.trim() !== item.summary) onEdit?.(value.trim())
+              setEditing(false)
+            }}
+          />
+        </span>
+      </div>
+    )
+  }
   return (
-    <button className={`cap-tile state-${item.state}`} title={item.description || item.summary} onClick={onToggle}>
+    <div
+      role="button"
+      tabIndex={0}
+      className={`cap-tile state-${item.state}`}
+      title={item.description || item.summary}
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onToggle()
+        }
+      }}
+    >
       <span className="cap-text">
         <span className="cap-name ellipsis">{item.name}</span>
         {item.summary && <span className="cap-desc ellipsis">{item.summary}</span>}
       </span>
+      {onEdit && !FIXED.has(item.id) && (
+        <button
+          className="cap-pen"
+          tabIndex={-1}
+          title={t('改这句简介')}
+          onClick={(event) => {
+            event.stopPropagation()
+            setValue(item.summary)
+            setEditing(true)
+          }}
+        >
+          <Icon name="edit" size={12} />
+        </button>
+      )}
       <span className="cap-state">{LABEL[item.state]}</span>
-    </button>
+    </div>
   )
 }
 
@@ -49,6 +110,11 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
   }, [all, kind, query])
 
   const toggle = (item: CapItem) => void changeCaps(conv.key, { [item.id]: nextState(item) })
+  const edit = (item: CapItem, summary: string) =>
+    void api.summarySet(item.id, summary).then(
+      () => loadCaps(conv.key),
+      (error) => toast(errorText(error), 'error')
+    )
   const setAllSkills = (target: 'auto' | 'off') => {
     const changes: Record<string, CapState> = {}
     for (const item of all ?? []) if (item.kind === 'skill') changes[item.id] = target
@@ -91,7 +157,7 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
           )}
           <div className={`cap-grid ${wide ? '' : 'one'}`}>
             {(wide ? on : items).map((item) => (
-              <Tile key={item.id} item={item} onToggle={() => toggle(item)} />
+              <Tile key={item.id} item={item} onToggle={() => toggle(item)} onEdit={(summary) => edit(item, summary)} />
             ))}
           </div>
           {wide && off.length > 0 && (
@@ -99,7 +165,7 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
               <div className="cap-section muted small">{t('没开的（{n}）', { n: off.length })}</div>
               <div className="cap-grid">
                 {off.map((item) => (
-                  <Tile key={item.id} item={item} onToggle={() => toggle(item)} />
+                  <Tile key={item.id} item={item} onToggle={() => toggle(item)} onEdit={(summary) => edit(item, summary)} />
                 ))}
               </div>
             </>
@@ -109,6 +175,17 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
       )}
       <div className="cap-foot">
         <span className="muted small grow">{conv.caps?.dirty ? t('改动会从下一条消息起生效') : t('这里的改动只影响这次对话')}</span>
+        {kind === 'mcp' && (
+          <button
+            className="link-btn"
+            onClick={() => {
+              onClose()
+              openSettings('mcp')
+            }}
+          >
+            {t('添加或管理服务…')}
+          </button>
+        )}
         {hasOverrides && (
           <button className="link-btn" onClick={() => void resetCaps(conv.key)}>
             {t('恢复默认')}

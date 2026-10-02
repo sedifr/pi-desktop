@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CapItem, DesktopConfig, Theme } from '@shared/types'
 import { Accounts } from './Accounts'
 import { Commands, Shortcuts } from './Commands'
+import { Mcp } from './Mcp'
 import { Tile, nextState } from './CapPanel'
 import { type SettingsTab, api, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
@@ -11,6 +12,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'look', label: t('外观') },
   { id: 'caps', label: t('技能与工具') },
   { id: 'commands', label: t('快捷指令') },
+  { id: 'mcp', label: 'MCP' },
   { id: 'accounts', label: t('模型') },
   { id: 'keys', label: t('快捷键') },
   { id: 'about', label: t('关于') }
@@ -146,6 +148,8 @@ function Caps() {
     api.capsGlobalSet({ [item.id]: state }).then(setItems, () => toast(t('保存失败'), 'error'))
   }
 
+  const edit = (item: CapItem, summary: string) => void api.summarySet(item.id, summary).then(reload, () => toast(t('保存失败'), 'error'))
+
   const section = (title: string, list: CapItem[], columns = '') =>
     list.length > 0 && (
       <>
@@ -155,7 +159,7 @@ function Caps() {
         </div>
         <div className={`cap-grid ${columns}`}>
           {list.map((item) => (
-            <Tile key={item.id} item={item} onToggle={() => toggle(item)} />
+            <Tile key={item.id} item={item} onToggle={() => toggle(item)} onEdit={(summary) => edit(item, summary)} />
           ))}
         </div>
       </>
@@ -167,6 +171,8 @@ function Caps() {
         {t('这里设的是全局默认：所有项目里新开的对话，一开始就是这个状态。单个项目或单次对话想不一样，在对话输入栏的面板里改。')}
         <br />
         {t('技能有三档：自动（AI 自己判断要不要用）、开（一定带上）、关（AI 看不到）。')}
+        <br />
+        {t('每一项下面那句简介可以改：鼠标移上去点那支笔，写成你自己记得住的话。')}
       </div>
       <label className="cap-search wide">
         <Icon name="search" size={13} />
@@ -269,6 +275,7 @@ export function Settings() {
             {tab === 'look' && <Look />}
             {tab === 'caps' && <Caps />}
             {tab === 'commands' && <Commands />}
+            {tab === 'mcp' && <Mcp />}
             {tab === 'accounts' && <Accounts />}
             {tab === 'keys' && <Shortcuts />}
             {tab === 'about' && <About />}

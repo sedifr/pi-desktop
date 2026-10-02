@@ -15,9 +15,15 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **Access level**: one switch for *read only*, *can edit files*, or *full access*.
 - **Steer while it works**: send a message during an answer to slip it in after the current step, or hold Option to queue it until the answer is done.
 - **Branch and tidy up**: start a new conversation from any earlier message, rename conversations, copy answers, compact the context, or export a conversation as a web page.
+- **Run a command yourself**: start a message with `!` to run a shell command and show its output in the conversation; the output goes to pi with your next message. Use `!!` to keep it to yourself.
+- **Queue and take back**: messages sent during an answer wait in a queue you can take back into the input box. Stopping an answer returns the queue too.
+- **Context under control**: a switch for automatic compaction, a *Compact now* button, and a hint when the context is nearly full.
+- **Know when it is done**: a system notification when an answer finishes while the window is in the background, and a dot in the sidebar for conversations that finished out of sight.
+- **MCP servers**: add, edit, and remove servers in *Settings → MCP*. Secrets in environment variables and headers are never shown back.
+- **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for.
 - **Pick what a conversation can use**: turn each skill, MCP server, and tool on or off per conversation, then save the setup as the default for the project or for everything. Skills have three states: *auto* (the model decides), *on* (always loaded), *off* (hidden from the model).
 - **Usage at a glance**: cost, tokens, cache hit rate, and context usage for the conversation, plus totals for today and this month.
-- **Models**: sign in with a subscription, add an API key, or add an OpenAI- or Anthropic-compatible endpoint. A dot next to each provider shows whether its sign-in still works.
+- **Models**: sign in with a subscription, add an API key, or add an OpenAI- or Anthropic-compatible endpoint. A dot next to each provider shows whether its sign-in still works. Search the model menu and star the models you use most.
 
 ## Requirements
 
@@ -66,6 +72,7 @@ pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extens
 | `⌘⇧C` | Copy the last answer |
 | `⌘.` or `Esc` | Stop the answer in progress |
 | `Enter` / `⇧Enter` | Send / new line |
+| `!` / `!!` at the start | Run a shell command (with / without passing the output to pi) |
 | `⌥Enter` | While answering: handle this message after everything is done |
 
 If you already use the pi CLI, your existing sessions, models, skills, and MCP servers show up right away.
@@ -77,6 +84,7 @@ If you already use the pi CLI, your existing sessions, models, skills, and MCP s
 | Sessions, credentials, models, skills, MCP config | pi's own directory, `~/.pi/agent/` |
 | Commands (prompt templates) | `~/.pi/agent/prompts/`, or `.pi/prompts/` inside a project |
 | Project trust decisions | `~/.pi/agent/trust.json` |
+| MCP servers | `~/.pi/agent/mcp.json` |
 | On/off choices for skills, MCP, and tools | `~/.pi/agent/desktop/capabilities.json` |
 | One-line descriptions shown in the app | `~/.pi/agent/desktop/summaries.json` |
 | App settings | `~/.pi/agent/desktop/config.json` |
@@ -97,6 +105,7 @@ The interface is available in English and Simplified Chinese (*Settings → Appe
 - macOS only. Windows and Linux are untested.
 - No installer yet.
 - MCP on/off relies on the `pi-mcp-adapter` extension.
+- OAuth sign-in for remote MCP servers is not in the app yet; do it once from the pi CLI.
 
 ## License
 
