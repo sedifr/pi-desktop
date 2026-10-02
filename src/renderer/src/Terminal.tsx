@@ -47,6 +47,9 @@ export function TerminalView({ cwd, active }: { cwd: string; active: boolean }) 
   const [ended, setEnded] = useState(false)
   const [round, setRound] = useState(0)
   const id = `term:${cwd}`
+  // 现在是不是真的在眼前。藏起来的时候不能去量大小
+  const shown = useRef(active)
+  shown.current = active
 
   useEffect(() => {
     const el = host.current
@@ -71,8 +74,9 @@ export function TerminalView({ cwd, active }: { cwd: string; active: boolean }) 
     if (import.meta.env.DEV) (el as HTMLDivElement & { __term?: Xterm }).__term = xterm
 
     const resize = () => {
-      // 藏起来的时候量不到大小，等显示出来再说
-      if (!el.offsetWidth || !el.offsetHeight) return
+      // 面板收起或切到别的页时，这块地方会被压得很窄。那时去量大小，终端会被改成只有两三列宽，
+      // 里面已有的内容全被折成一列一列的。只在真的看得见、够宽的时候才量
+      if (!shown.current || el.offsetWidth < 160 || el.offsetHeight < 80) return
       try {
         fitter.fit()
         api.termResize(id, xterm.cols, xterm.rows)
@@ -113,9 +117,12 @@ export function TerminalView({ cwd, active }: { cwd: string; active: boolean }) 
   useEffect(() => {
     if (!active) return
     const timer = setTimeout(() => {
+      const el = host.current
       try {
-        fit.current?.fit()
-        if (term.current) api.termResize(id, term.current.cols, term.current.rows)
+        if (el && el.offsetWidth >= 160 && el.offsetHeight >= 80) {
+          fit.current?.fit()
+          if (term.current) api.termResize(id, term.current.cols, term.current.rows)
+        }
       } catch {
         // 同上
       }
