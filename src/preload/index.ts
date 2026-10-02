@@ -53,6 +53,21 @@ const api: PiApi = {
   capsGlobalGet: call('caps:globalGet'),
   capsGlobalSet: call('caps:globalSet'),
 
+  packagesList: call('pkg:list'),
+  packageInstall: call('pkg:install'),
+  packageRemove: call('pkg:remove'),
+  onPackageLine: (cb) => {
+    const listener = (_event: unknown, line: string) => cb(line)
+    ipcRenderer.on('pkg:line', listener)
+    return () => ipcRenderer.removeListener('pkg:line', listener)
+  },
+  summariesMissing: call('summaries:missing'),
+  summariesGenerate: call('summaries:generate'),
+  onSummaryProgress: (cb) => {
+    const listener = (_event: unknown, done: number, total: number) => cb(done, total)
+    ipcRenderer.on('summaries:progress', listener)
+    return () => ipcRenderer.removeListener('summaries:progress', listener)
+  },
   mcpList: call('mcp:list'),
   mcpSave: call('mcp:save'),
   mcpRemove: call('mcp:remove'),
@@ -68,6 +83,7 @@ const api: PiApi = {
   authAbort: () => ipcRenderer.send('auth:abort'),
   authLogout: call('auth:logout'),
   authCheck: call('auth:check'),
+  customProviderGet: call('customProvider:get'),
   customProviderSave: call('customProvider:save'),
   customProviderRemove: call('customProvider:remove'),
   onAuthEvent: (cb) => {

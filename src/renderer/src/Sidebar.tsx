@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { SessionMeta } from '@shared/types'
-import { type Conv, activate, addProject, newConv, openSession, removeProject, setPrefs, setView, trashSession, useApp } from './store'
+import { type Conv, activate, addProject, isSubagent, newConv, openSession, removeProject, setPrefs, setView, trashSession, useApp } from './store'
 import { Icon, baseName, relTime } from './ui'
 import { t } from '@shared/i18n'
 
 const VISIBLE = 6
-/** 子 Agent 自己的会话（名字形如 Explore#d0c8da8a），不在列表里占位置 */
-const isSubagent = (meta: SessionMeta) => /#[0-9a-f]{8}$/.test(meta.name ?? '')
 
 interface Project {
   cwd: string

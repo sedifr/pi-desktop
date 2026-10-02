@@ -1,11 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { UsageTotals } from '@shared/types'
 import { Chat } from './Chat'
 import { Composer } from './Composer'
 import { Settings } from './Settings'
 import { Sidebar } from './Sidebar'
-import { type Conv, type UiRequest, addProject, answerUi, api, rename, runCommand, setAutoCompaction, setPrefs, setRenaming, setTrust, useApp } from './store'
-import { Icon, Popover, baseName, fmtCost, fmtTokens } from './ui'
+import {
+  type Conv,
+  type UiRequest,
+  addProject,
+  answerUi,
+  api,
+  isSubagent,
+  openSession,
+  rename,
+  runCommand,
+  setAutoCompaction,
+  setPrefs,
+  setRenaming,
+  setTrust,
+  subagentLabel,
+  useApp
+} from './store'
+import { Icon, Popover, baseName, fmtCost, fmtTokens, relTime } from './ui'
 import { t } from '@shared/i18n'
 import { type UsageView, contextPercent, usageOf } from './usage'
 
@@ -114,8 +130,15 @@ function Header({ conv }: { conv: Conv }) {
   const renaming = useApp((s) => s.renamingKey === conv.key)
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed)
   const trust = useApp((s) => s.trust[conv.cwd])
+  const sessions = useApp((s) => s.sessions)
   const [open, setOpen] = useState(false)
   const [menu, setMenu] = useState(false)
+  const [agents, setAgents] = useState(false)
+  const file = conv.sessionFile
+  // 这个对话里 AI 开出来的子代理，和（如果它自己就是子代理）开它的那个对话
+  const children = useMemo(() => (file ? sessions.filter((meta) => meta.parentSession === file && isSubagent(meta)).sort((a, b) => b.modified - a.modified) : []), [sessions, file])
+  const self = useMemo(() => sessions.find((meta) => meta.file === file), [sessions, file])
+  const parent = useMemo(() => (self && isSubagent(self) && self.parentSession ? sessions.find((meta) => meta.file === self.parentSession) : undefined), [sessions, self])
   const usage = usageOf(conv, (provider, id) => models[`${provider}/${id}`]?.contextWindow)
   const exact = contextPercent(usage)
   const percent = exact === undefined ? undefined : Math.round(exact)
@@ -173,6 +196,41 @@ function Header({ conv }: { conv: Conv }) {
           </Popover>
         )}
       </div>
+      {parent && (
+        <button className="chip no-drag" title={t('这是子代理的对话。回到开它的那个对话')} onClick={() => void openSession(parent)}>
+          <Icon name="left" size={12} />
+          {t('主对话')}
+        </button>
+      )}
+      {children.length > 0 && (
+        <div className="anchor no-drag">
+          <button className="chip" data-popover-trigger="header-agents" title={t('这个对话里 AI 开出来的子代理')} onClick={() => setAgents(!agents)}>
+            <Icon name="branch" size={13} />
+            {t('子代理 {n}', { n: children.length })}
+          </button>
+          {agents && (
+            <Popover onClose={() => setAgents(false)} className="menu below wide" group="header-agents">
+              <div className="menu-label">{t('点开看它做了什么')}</div>
+              {children.map((meta) => (
+                <button
+                  key={meta.file}
+                  className="menu-item two-line"
+                  onClick={() => {
+                    setAgents(false)
+                    void openSession(meta)
+                  }}
+                >
+                  <span className="grow">
+                    {subagentLabel(meta)}
+                    <span className="menu-hint ellipsis">{(meta.firstUserText ?? '').split('\n')[0].slice(0, 80)}</span>
+                  </span>
+                  <span className="session-time">{relTime(meta.modified)}</span>
+                </button>
+              ))}
+            </Popover>
+          )}
+        </div>
+      )}
       <span className="grow" />
       {usage && (
         <div className="anchor no-drag">

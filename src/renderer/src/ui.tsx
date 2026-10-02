@@ -8,6 +8,7 @@ const ICONS: Record<string, ReactNode> = {
   edit: <path d="M3 13h2.5l7-7-2.5-2.5-7 7V13zM9.5 4.5l2.5 2.5" />,
   folder: <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.6l1.4 1.5h5A1.5 1.5 0 0 1 14 6v5.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5v-7z" />,
   right: <path d="M6 3.5 10.5 8 6 12.5" />,
+  left: <path d="M10 3.5 5.5 8 10 12.5" />,
   down: <path d="M3.5 6 8 10.5 12.5 6" />,
   up: <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />,
   stop: <rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor" stroke="none" />,

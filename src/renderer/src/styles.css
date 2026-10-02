@@ -1593,3 +1593,29 @@ div.cap-tile {
   font: inherit;
   font-size: 12px;
 }
+
+/* 设置里装包那一行 */
+.install-row {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 6px;
+}
+.install-row .field {
+  flex: 1;
+  min-width: 0;
+}
+.install-log {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.install-log .dot-running {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.menu.below.wide {
+  width: 320px;
+}

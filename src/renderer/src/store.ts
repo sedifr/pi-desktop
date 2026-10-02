@@ -101,7 +101,7 @@ export interface AppState {
   config?: DesktopConfig
 }
 
-export type SettingsTab = 'look' | 'caps' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
+export type SettingsTab = 'look' | 'caps' | 'sources' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
 
 export interface Prefs {
   /** 界面语言。system 表示跟随系统 */
@@ -348,6 +348,8 @@ function handleEvent(key: string, event: ConvEvent): void {
       break
     case 'tool_execution_end':
       updateConv(key, (c) => (c.toolRuns = { ...c.toolRuns, [e.toolCallId]: { running: false } }))
+      // 子代理的会话是在工具调用里建出来的，顺便更新一下列表
+      refreshSessionsSoon()
       break
     case 'bash_execution_update':
       updateConv(key, (c) => {
@@ -422,6 +424,12 @@ function handleUiRequest(key: string, e: Record<string, any>): void {
   }
 }
 
+/** 子代理自己的会话：名字形如 Explore#d0c8da8a */
+export const isSubagent = (meta: SessionMeta): boolean => /#[0-9a-f]{8}$/.test(meta.name ?? '')
+
+/** 子代理名字里给人看的那部分 */
+export const subagentLabel = (meta: SessionMeta): string => (meta.name ?? '').replace(/#[0-9a-f]{8}$/, '')
+
 // ---- 提醒 ----
 
 /**
@@ -463,6 +471,15 @@ function announceLater(key: string): void {
 
 export async function refreshSessions(): Promise<void> {
   set({ sessions: await api.listSessions() })
+}
+
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+/** 短时间内多次要求刷新时只刷一次 */
+function refreshSessionsSoon(): void {
+  refreshTimer ??= setTimeout(() => {
+    refreshTimer = undefined
+    void refreshSessions()
+  }, 3000)
 }
 
 function applyPrefs(prefs: Prefs): void {

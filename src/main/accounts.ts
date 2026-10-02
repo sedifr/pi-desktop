@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, shell } from 'electron'
 import { getLang, t } from '@shared/i18n'
-import type { AuthFlowEvent, AuthStatus, CustomProviderInput, ProviderInfo } from '@shared/types'
+import type { AuthFlowEvent, AuthStatus, CustomProviderDetail, CustomProviderInput, ProviderInfo } from '@shared/types'
 import { AGENT_DIR, nodeExecPath, readJson, shellEnv } from './env'
 
 const MODELS_FILE = path.join(AGENT_DIR, 'models.json')
@@ -119,16 +119,33 @@ export async function saveCustomProvider(input: CustomProviderInput): Promise<vo
   if (!models.length) throw new Error(t('至少填一个模型 ID'))
   const data = readJson<ModelsFile>(MODELS_FILE, {})
   data.providers ??= {}
-  if (!data.providers[id] && (await listProviders()).some((provider) => provider.id === id)) throw new Error(t('「{id}」是内置提供商的名字，换一个', { id }))
+  const existing = data.providers[id]
+  if (existing && !input.editing) throw new Error(t('已经有一个叫「{id}」的接口了。要改它就点它旁边的「修改」', { id }))
+  if (!existing && (await listProviders()).some((provider) => provider.id === id)) throw new Error(t('「{id}」是内置提供商的名字，换一个', { id }))
+  // 原来就有的模型保留它的其它设置（显示名、上下文长度等），只按 ID 增减
+  const known = new Map((Array.isArray(existing?.models) ? (existing.models as { id?: string }[]) : []).map((model) => [model.id, model]))
   data.providers[id] = {
-    ...data.providers[id],
+    ...existing,
     api: input.api,
     baseUrl: input.baseUrl.trim(),
-    // 本地服务不需要密钥，但 Pi 要求这里有值才会把模型列出来
-    apiKey: input.apiKey.trim() || 'none',
-    models: models.map((model) => ({ id: model }))
+    // 改已有接口时 Key 留空就是不换。本地服务不需要密钥，但 Pi 要求这里有值才会把模型列出来
+    apiKey: input.apiKey.trim() || (input.editing && typeof existing?.apiKey === 'string' ? existing.apiKey : 'none'),
+    models: models.map((model) => known.get(model) ?? { id: model })
   }
   writeModels(data)
+}
+
+/** 读一个自定义接口现在的配置，给「修改」表单用。Key 不送到界面上 */
+export function getCustomProvider(id: string): CustomProviderDetail | undefined {
+  const entry = readJson<ModelsFile>(MODELS_FILE, {}).providers?.[id]
+  if (!entry) return undefined
+  return {
+    id,
+    api: entry.api === 'anthropic-messages' ? 'anthropic-messages' : 'openai-completions',
+    baseUrl: typeof entry.baseUrl === 'string' ? entry.baseUrl : '',
+    models: (Array.isArray(entry.models) ? (entry.models as { id?: string }[]) : []).map((model) => String(model.id ?? '')).filter(Boolean),
+    hasKey: typeof entry.apiKey === 'string' && entry.apiKey !== '' && entry.apiKey !== 'none'
+  }
 }
 
 export function removeCustomProvider(id: string): void {

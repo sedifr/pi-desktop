@@ -6,10 +6,12 @@ import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, D
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
 import { cleanRunDir, forget, getGlobal, getItems, resetSession, saveAs, setGlobal, setStates } from './caps'
-import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetProbe, setSummary } from './catalog'
+import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary } from './catalog'
 import { getConfig, setConfig } from './config'
 import { searchFiles } from './files'
 import { listMcp, removeMcp, saveMcp } from './mcp'
+import { installPackage, listPackages, removePackage } from './packages'
+import { generateSummaries, itemsWithoutSummary } from './summarize'
 import { buildMenu } from './menu'
 import { listTemplates, saveTemplate, trashTemplate } from './templates'
 import { setTrust, trustStatus } from './trust'
@@ -20,7 +22,24 @@ let win: BrowserWindow | undefined
 
 // 调试用：窗口被挡住时也继续渲染，这样不用把窗口抢到前台就能截图检查
 const DEBUG_RENDER = process.env.PI_DESKTOP_DEBUG === '1'
-if (DEBUG_RENDER) app.commandLine.appendSwitch('disable-features', 'MacWebContentsOcclusion')
+if (DEBUG_RENDER) {
+  app.commandLine.appendSwitch('disable-features', 'MacWebContentsOcclusion')
+  // 调试实例用自己的数据目录，这样能和平时开着的那个同时运行，互不抢界面设置
+  app.setPath('userData', `${app.getPath('userData')} Debug`)
+}
+
+// 平时只开一个。再启动一次时不开第二个窗口，而是把已有的带到前面：
+// 两个实例会抢同一份界面设置，还会互相清掉对方给 Pi 准备的临时文件
+const PRIMARY = DEBUG_RENDER || app.requestSingleInstanceLock()
+if (!PRIMARY) app.quit()
+
+function focusWindow(): void {
+  if (!win || win.isDestroyed()) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  app.focus({ steal: true })
+}
+app.on('second-instance', focusWindow)
 
 const agents = new AgentManager((key: string, event: ConvEvent) => {
   if (win && !win.isDestroyed()) win.webContents.send('conv:event', key, event)
@@ -102,6 +121,7 @@ function registerIpc(): void {
   ipcMain.on('auth:abort', () => accounts.abortLogin())
   handle('auth:logout', (provider: string) => afterAccountChange(accounts.logout(provider)))
   handle('auth:check', (provider: string) => accounts.checkProvider(provider))
+  handle('customProvider:get', (id: string) => accounts.getCustomProvider(id))
   handle('customProvider:save', (input: CustomProviderInput) => afterAccountChange(accounts.saveCustomProvider(input)))
   handle('customProvider:remove', (id: string) => afterAccountChange(Promise.resolve(accounts.removeCustomProvider(id))))
   ipcMain.on('openPath', (_event, target: OpenTarget) => {
@@ -117,6 +137,23 @@ function registerIpc(): void {
       shell.showItemInFolder(MCP_CONFIG)
     } else void shell.openPath(paths[target])
   })
+  // 包装上或卸掉以后，技能清单要重新问，闲着的 Pi 进程下次用时重启
+  const send = (channel: string, ...args: unknown[]) => {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
+  }
+  const afterPackageChange = async (work: Promise<void>) => {
+    try {
+      await work
+    } finally {
+      forgetAllProbes()
+      agents.restartIdle()
+    }
+  }
+  handle('pkg:list', () => listPackages())
+  handle('pkg:install', (source: string) => afterPackageChange(installPackage(source, (line) => send('pkg:line', line))))
+  handle('pkg:remove', (source: string) => afterPackageChange(removePackage(source, (line) => send('pkg:line', line))))
+  handle('summaries:missing', async () => (await itemsWithoutSummary()).length)
+  handle('summaries:generate', (model: string) => generateSummaries(model, (done, total) => send('summaries:progress', done, total)))
   // MCP 服务变了以后，闲着的 Pi 进程下次用时重启才连得上新的
   handle('mcp:list', () => listMcp())
   handle('mcp:save', (input: McpServerInput) => {
@@ -174,12 +211,7 @@ function registerIpc(): void {
   handle('conv:bash', (key: string, command: string, exclude: boolean) => agents.bash(key, command, exclude))
   handle('conv:abortBash', (key: string) => agents.abortBash(key))
   handle('conv:setAutoCompaction', (key: string, enabled: boolean) => agents.setAutoCompaction(key, enabled))
-  ipcMain.on('window:focus', () => {
-    if (!win || win.isDestroyed()) return
-    if (win.isMinimized()) win.restore()
-    win.show()
-    app.focus({ steal: true })
-  })
+  ipcMain.on('window:focus', focusWindow)
   handle('conv:setModel', (key: string, provider: string, id: string) => agents.setModel(key, provider, id))
   handle('conv:setThinking', (key: string, level: string) => agents.setThinking(key, level))
   handle('conv:compact', (key: string, instructions?: string) => agents.compact(key, instructions))
@@ -222,10 +254,12 @@ function registerIpc(): void {
 }
 
 void app.whenReady().then(() => {
+  if (!PRIMARY) return
   setLang(resolveLang(app.getLocale()))
   buildMenu(() => win)
   void shellEnv()
-  cleanRunDir()
+  // 调试实例可能和正常的实例共用同一个 Pi 配置目录，不去动那边的临时文件
+  if (!DEBUG_RENDER) cleanRunDir()
   registerIpc()
   createWindow()
   app.on('activate', () => {
@@ -239,5 +273,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   agents.closeAll()
-  cleanRunDir()
+  if (PRIMARY && !DEBUG_RENDER) cleanRunDir()
 })

@@ -33,6 +33,11 @@ interface Summary {
 
 const SUMMARIES_FILE = path.join(DESKTOP_DIR, 'summaries.json')
 
+/** 这一项有没有用户自己写（或让模型写）过的简介 */
+export function hasOwnSummary(id: string): boolean {
+  return Boolean(readJson<Record<string, Summary>>(SUMMARIES_FILE, {})[id]?.summary)
+}
+
 /** 改一项在界面上显示的那句简介。留空就是去掉自己写的，回到它自带的说明 */
 export function setSummary(id: string, summary: string): void {
   const all = readJson<Record<string, Summary>>(SUMMARIES_FILE, {})
@@ -106,6 +111,12 @@ async function probeSkills(cwd: string): Promise<ProbedSkill[]> {
   })()
   probing.set(cwd, task)
   return task
+}
+
+/** 装了或卸了包以后，所有项目之前问到的技能清单都作废 */
+export function forgetAllProbes(): void {
+  probeCache.clear()
+  writeJson(probeFile(), {})
 }
 
 /** 项目的信任状态变了，之前问到的技能清单作废 */

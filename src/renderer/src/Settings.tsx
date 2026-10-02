@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { CapItem, DesktopConfig, Theme } from '@shared/types'
+import type { CapItem, DesktopConfig, PackageInfo, Theme } from '@shared/types'
 import { Accounts } from './Accounts'
 import { Commands, Shortcuts } from './Commands'
 import { Mcp } from './Mcp'
 import { Tile, nextState } from './CapPanel'
-import { type SettingsTab, api, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
+import { type SettingsTab, api, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
 import { t } from '@shared/i18n'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'look', label: t('外观') },
   { id: 'caps', label: t('技能与工具') },
+  { id: 'sources', label: t('安装技能') },
   { id: 'commands', label: t('快捷指令') },
   { id: 'mcp', label: 'MCP' },
   { id: 'accounts', label: t('模型') },
@@ -85,6 +86,139 @@ function Look() {
   )
 }
 
+const PACKAGE_KIND: Record<PackageInfo['kind'], string> = { npm: 'npm', git: 'git', local: t('本机文件夹') }
+
+/** 装上的 Pi 包：别人打包好的技能、扩展和指令。相当于界面版的 pi install / pi remove */
+function Packages({ onChanged }: { onChanged: () => void }) {
+  const [list, setList] = useState<PackageInfo[]>()
+  const [source, setSource] = useState('')
+  const [busy, setBusy] = useState<string>()
+  const [lines, setLines] = useState<string[]>([])
+  const reload = useCallback(() => {
+    api.packagesList().then(setList, () => setList([]))
+  }, [])
+  useEffect(reload, [reload])
+  useEffect(() => api.onPackageLine((line) => setLines((current) => [...current.slice(-5), line])), [])
+
+  const run = async (label: string, work: () => Promise<void>, done: string) => {
+    setBusy(label)
+    setLines([])
+    try {
+      await work()
+      toast(done)
+      setSource('')
+    } catch (error) {
+      toast(errorText(error).slice(-400), 'error')
+    }
+    setBusy(undefined)
+    reload()
+    onChanged()
+  }
+  const install = () => {
+    const target = source.trim()
+    if (target) void run(t('正在安装 {source}…', { source: target }), () => api.packageInstall(target), t('已安装。新的技能和工具从下一条消息起可用'))
+  }
+  const remove = (item: PackageInfo) => {
+    if (!window.confirm(t('移除「{source}」？它带来的技能、扩展和指令都会一起拿掉。', { source: item.source }))) return
+    void run(t('正在移除 {source}…', { source: item.source }), () => api.packageRemove(item.source), t('已移除'))
+  }
+
+  return (
+    <>
+      <div className="cap-section">{t('安装技能和扩展')}</div>
+      <div className="muted small">
+        {t('Pi 的技能、扩展和指令可以打成一个包来分享。在这里填包的来源就能装上，和命令行里的 pi install 是一回事。')}
+        <br />
+        {t('包里的扩展能在你的电脑上运行代码，只装你信得过的来源。')}
+      </div>
+      <div className="install-row">
+        <input
+          className="field mono"
+          value={source}
+          disabled={Boolean(busy)}
+          placeholder="npm:@scope/name　·　git:github.com/user/repo　·　/path/to/folder"
+          onChange={(event) => setSource(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing) install()
+          }}
+        />
+        <button className="btn" disabled={Boolean(busy)} title={t('选一个本机文件夹')} onClick={() => void api.pickFolder().then((dir) => dir && setSource(dir))}>
+          <Icon name="folder" size={13} />
+        </button>
+        <button className="btn primary" disabled={Boolean(busy) || !source.trim()} onClick={install}>
+          {t('安装')}
+        </button>
+      </div>
+      {busy && (
+        <div className="install-log">
+          <div>
+            <span className="dot-running" /> {busy}
+          </div>
+          {lines.map((line, index) => (
+            <div key={index} className="muted ellipsis">
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
+      {list?.map((item) => (
+        <div key={item.source} className="set-row">
+          <div className="set-label grow">
+            <span className="mono ellipsis">{item.source}</span>
+            <div className="muted small">
+              {PACKAGE_KIND[item.kind]}
+              {item.filtered && ` · ${t('只加载了其中一部分')}`}
+            </div>
+          </div>
+          <button className="btn" disabled={Boolean(busy)} onClick={() => remove(item)}>
+            {t('移除')}
+          </button>
+        </div>
+      ))}
+      {list && !list.length && <div className="cap-empty">{t('还没有装任何包')}</div>}
+      <div className="set-gap" />
+    </>
+  )
+}
+
+/** 让模型给还没有简介的项各写一句。会花一点额度，所以要点了才做 */
+function SummaryHelper({ version, onChanged }: { version: number; onChanged: () => void }) {
+  const [missing, setMissing] = useState(0)
+  const [progress, setProgress] = useState<string>()
+  useEffect(() => {
+    api.summariesMissing().then(setMissing, () => setMissing(0))
+  }, [version])
+  useEffect(() => api.onSummaryProgress((done, total) => setProgress(`${done}/${total}`)), [])
+  if (!missing) return null
+
+  const generate = async () => {
+    const { activeKey, convs, defaults } = getState()
+    const current = activeKey ? convs[activeKey]?.info.model : undefined
+    const model = current ? `${current.provider}/${current.id}` : defaults?.defaultProvider && defaults.defaultModel ? `${defaults.defaultProvider}/${defaults.defaultModel}` : undefined
+    if (!model) return toast(t('先在「模型」里连接一个模型'), 'warning')
+    if (!window.confirm(t('让 {model} 给 {n} 项各写一句简介？会花一点模型额度。写完以后每一句都还能自己改。', { model, n: missing }))) return
+    setProgress(`0/${missing}`)
+    try {
+      const written = await api.summariesGenerate(model)
+      toast(t('写好了 {n} 句简介', { n: written }))
+    } catch (error) {
+      toast(errorText(error).slice(-300), 'error')
+    }
+    setProgress(undefined)
+    onChanged()
+  }
+
+  return (
+    <div className="trust-banner">
+      <Icon name="spark" size={15} />
+      <div className="grow">{t('有 {n} 项还没有自己的简介，现在显示的是它们自带说明的第一句。', { n: missing })}</div>
+      <button className="btn" disabled={Boolean(progress)} onClick={() => void generate()}>
+        {progress ? t('正在写… {progress}', { progress }) : t('让模型各写一句')}
+      </button>
+    </div>
+  )
+}
+
 /** 额外的技能文件夹，和只在桌面端加载的扩展。两样默认都是空的 */
 function Sources({ onChanged }: { onChanged: () => void }) {
   const [dirs, setDirs] = useState<string[]>([])
@@ -132,8 +266,10 @@ function Sources({ onChanged }: { onChanged: () => void }) {
 function Caps() {
   const [items, setItems] = useState<CapItem[]>()
   const [query, setQuery] = useState('')
+  const [version, setVersion] = useState(0)
   const reload = useCallback(() => {
     api.capsGlobalGet().then(setItems, () => toast(t('读取技能列表失败'), 'error'))
+    setVersion((current) => current + 1)
   }, [])
   useEffect(reload, [reload])
 
@@ -178,6 +314,7 @@ function Caps() {
         <Icon name="search" size={13} />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('搜名字或用途')} />
       </label>
+      <SummaryHelper version={version} onChanged={reload} />
       {!items ? (
         <div className="cap-empty">{t('正在读取…')}</div>
       ) : (
@@ -200,8 +337,15 @@ function Caps() {
           {!filtered.length && <div className="cap-empty">{t('没有匹配的项')}</div>}
         </>
       )}
-      <div className="set-gap" />
-      <Sources onChanged={reload} />
+      <div className="set-row">
+        <div className="set-label grow">
+          {t('想要更多技能和工具？')}
+          <div className="muted small">{t('装别人打包好的技能和扩展，或者把自己的技能文件夹加进来')}</div>
+        </div>
+        <button className="btn" onClick={() => setSettingsTab('sources')}>
+          {t('去「安装技能」')}
+        </button>
+      </div>
     </>
   )
 }
@@ -274,6 +418,12 @@ export function Settings() {
           <div className={`settings-column ${tab === 'caps' ? 'wide' : ''}`}>
             {tab === 'look' && <Look />}
             {tab === 'caps' && <Caps />}
+            {tab === 'sources' && (
+              <>
+                <Packages onChanged={() => {}} />
+                <Sources onChanged={() => {}} />
+              </>
+            )}
             {tab === 'commands' && <Commands />}
             {tab === 'mcp' && <Mcp />}
             {tab === 'accounts' && <Accounts />}

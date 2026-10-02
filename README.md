@@ -20,7 +20,9 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **Context under control**: a switch for automatic compaction, a *Compact now* button, and a hint when the context is nearly full.
 - **Know when it is done**: a system notification when an answer finishes while the window is in the background, and a dot in the sidebar for conversations that finished out of sight.
 - **MCP servers**: add, edit, and remove servers in *Settings → MCP*. Secrets in environment variables and headers are never shown back.
-- **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for.
+- **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for. For items that have none yet, a button lets a model draft them.
+- **Install skills**: *Settings → Install skills* installs and removes pi packages (npm, git, or a local folder) — the same as `pi install` — and lets you add extra skill folders.
+- **See sub-agents**: when the AI starts sub-agents, a chip next to the title lists them; open one to read what it did, and jump back to the main conversation.
 - **Pick what a conversation can use**: turn each skill, MCP server, and tool on or off per conversation, then save the setup as the default for the project or for everything. Skills have three states: *auto* (the model decides), *on* (always loaded), *off* (hidden from the model).
 - **Usage at a glance**: cost, tokens, cache hit rate, and context usage for the conversation, plus totals for today and this month.
 - **Models**: sign in with a subscription, add an API key, or add an OpenAI- or Anthropic-compatible endpoint. A dot next to each provider shows whether its sign-in still works. Search the model menu and star the models you use most.

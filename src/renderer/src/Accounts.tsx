@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AuthFlowEvent, AuthNotice, AuthPrompt, AuthStatus, AuthType, CustomProviderInput, ProviderInfo } from '@shared/types'
+import type { AuthFlowEvent, AuthNotice, AuthPrompt, AuthStatus, AuthType, CustomProviderDetail, CustomProviderInput, ProviderInfo } from '@shared/types'
 import { accountsChanged, api, checkProvider, clearAuthStatus, errorText, toast, useApp } from './store'
 import { type DotState, Icon, StatusDot, relTime } from './ui'
 import { t } from '@shared/i18n'
@@ -112,13 +112,19 @@ function PromptInput({ prompt, onSubmit }: { prompt: AuthPrompt; onSubmit: (valu
   )
 }
 
-function CustomForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
-  const [form, setForm] = useState({ id: '', api: 'openai-completions' as CustomProviderInput['api'], baseUrl: '', apiKey: '', models: '' })
+function CustomForm({ initial, onSaved, onCancel }: { initial?: CustomProviderDetail; onSaved: () => void; onCancel: () => void }) {
+  const [form, setForm] = useState({
+    id: initial?.id ?? '',
+    api: initial?.api ?? ('openai-completions' as CustomProviderInput['api']),
+    baseUrl: initial?.baseUrl ?? '',
+    apiKey: '',
+    models: initial?.models.join('\n') ?? ''
+  })
   const [error, setError] = useState<string>()
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
   const save = async () => {
     try {
-      await api.customProviderSave({ ...form, models: form.models.split(/[\n,，]/) })
+      await api.customProviderSave({ ...form, models: form.models.split(/[\n,，]/), editing: Boolean(initial) })
       onSaved()
     } catch (e) {
       setError(errorText(e))
@@ -126,11 +132,11 @@ function CustomForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () =
   }
   return (
     <div className="custom-form">
-      <div className="pop-title">{t('添加自定义接口')}</div>
+      <div className="pop-title">{initial ? t('修改自定义接口「{name}」', { name: initial.id }) : t('添加自定义接口')}</div>
       <div className="muted small">{t('适用于中转站、Ollama、LM Studio 等兼容 OpenAI 或 Anthropic 格式的接口。')}</div>
       <label>
         {t('名称')}
-        <input className="field" value={form.id} placeholder={t('my-proxy（小写字母、数字、连字符）')} onChange={(event) => set({ id: event.target.value })} />
+        <input className="field" value={form.id} disabled={Boolean(initial)} placeholder={t('my-proxy（小写字母、数字、连字符）')} onChange={(event) => set({ id: event.target.value })} />
       </label>
       <label>
         {t('接口格式')}
@@ -149,7 +155,7 @@ function CustomForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () =
       </label>
       <label>
         API Key
-        <input className="field" type="password" value={form.apiKey} placeholder={t('本地服务不需要的话可以留空')} onChange={(event) => set({ apiKey: event.target.value })} />
+        <input className="field" type="password" value={form.apiKey} placeholder={initial?.hasKey ? t('已经存着一个 Key。留空就不换') : t('本地服务不需要的话可以留空')} onChange={(event) => set({ apiKey: event.target.value })} />
       </label>
       <label>
         {t('模型 ID')}
@@ -173,6 +179,7 @@ export function Accounts() {
   const [query, setQuery] = useState('')
   const [flow, setFlow] = useState<Flow>()
   const [custom, setCustom] = useState(false)
+  const [editing, setEditing] = useState<CustomProviderDetail>()
   const authStatus = useApp((s) => s.authStatus)
   const authChecking = useApp((s) => s.authChecking)
 
@@ -281,6 +288,11 @@ export function Accounts() {
                 {t('换 Key')}
               </button>
             )}
+            {provider.configured === 'config' && (
+              <button className="btn" onClick={() => void api.customProviderGet(provider.id).then((detail) => detail && setEditing(detail))}>
+                {t('修改')}
+              </button>
+            )}
             <button className="btn" onClick={() => void disconnect(provider)}>
               {provider.configured === 'config' ? t('移除') : t('退出')}
             </button>
@@ -288,6 +300,20 @@ export function Accounts() {
         </div>
         )
       })}
+      {editing && (
+        <CustomForm
+          key={editing.id}
+          initial={editing}
+          onCancel={() => setEditing(undefined)}
+          onSaved={() => {
+            const id = editing.id
+            setEditing(undefined)
+            toast(t('自定义接口已保存'))
+            changed()
+            void checkProvider(id)
+          }}
+        />
+      )}
 
       <div className="cap-section spaced">
         {t('添加模型')}

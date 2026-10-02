@@ -267,10 +267,30 @@ export interface CustomProviderInput {
   baseUrl: string
   apiKey: string
   models: string[]
+  /** 是在改一个已有的接口。这时 Key 留空表示不换 */
+  editing?: boolean
+}
+
+/** 一个自定义接口现在的配置。Key 只说有没有，不给值 */
+export interface CustomProviderDetail {
+  id: string
+  api: CustomProviderInput['api']
+  baseUrl: string
+  models: string[]
+  hasKey: boolean
 }
 
 /** 设置页里能在访达中打开的位置 */
 export type OpenTarget = 'agent' | 'desktop' | 'summaries' | 'extensions' | 'mcp'
+
+/** 一个装上的 Pi 包 */
+export interface PackageInfo {
+  /** 装的时候写的来源，比如 npm:包名、git 地址、本机路径 */
+  source: string
+  kind: 'npm' | 'git' | 'local'
+  /** 只加载了包里挑出来的一部分 */
+  filtered: boolean
+}
 
 /** 一个 MCP 服务。环境变量和请求头里可能有密钥，所以只给名字 */
 export interface McpServerInfo {
@@ -360,6 +380,18 @@ export interface PiApi {
   capsGlobalGet(): Promise<CapItem[]>
   capsGlobalSet(changes: Record<string, CapState>): Promise<CapItem[]>
 
+  packagesList(): Promise<PackageInfo[]>
+  packageInstall(source: string): Promise<void>
+  packageRemove(source: string): Promise<void>
+  /** 安装或移除过程中 Pi 打出来的话，一行一行送来 */
+  onPackageLine(cb: (line: string) => void): () => void
+
+  /** 还有几项没有自己的简介 */
+  summariesMissing(): Promise<number>
+  /** 让这个模型（提供商/模型）给没有简介的项各写一句，返回写了几条 */
+  summariesGenerate(model: string): Promise<number>
+  onSummaryProgress(cb: (done: number, total: number) => void): () => void
+
   mcpList(): Promise<McpServerInfo[]>
   mcpSave(input: McpServerInput): Promise<void>
   mcpRemove(name: string): Promise<void>
@@ -381,6 +413,7 @@ export interface PiApi {
   authLogout(provider: string): Promise<void>
   /** 发一个最小的请求，检测这个提供商的登录现在是否有效 */
   authCheck(provider: string): Promise<AuthStatus>
+  customProviderGet(id: string): Promise<CustomProviderDetail | undefined>
   customProviderSave(input: CustomProviderInput): Promise<void>
   customProviderRemove(id: string): Promise<void>
   onAuthEvent(cb: (event: AuthFlowEvent) => void): () => void
