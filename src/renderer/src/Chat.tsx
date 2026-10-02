@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'rea
 import type { ContentBlock, Msg } from '@shared/types'
 import type { Conv, ToolRun } from './store'
 import { Icon, Markdown } from './ui'
+import { t } from '@shared/i18n'
 
 type Step = { kind: 'thinking'; text: string } | { kind: 'text'; text: string } | { kind: 'tool'; call: ContentBlock; result?: Msg }
 
@@ -70,7 +71,7 @@ function buildBlocks(messages: Msg[]): Block[] {
       lastAssistant = msg
       finalFrom = turn.steps.length
       turn.model = msg.model
-      turn.error = msg.stopReason === 'error' ? (msg.errorMessage ?? '请求出错') : undefined
+      turn.error = msg.stopReason === 'error' ? (msg.errorMessage ?? t('请求出错')) : undefined
       turn.aborted = msg.stopReason === 'aborted'
       for (const block of blocksOf(msg.content)) {
         if (block.type === 'thinking' && block.thinking?.trim()) turn.steps.push({ kind: 'thinking', text: block.thinking })
@@ -87,13 +88,13 @@ function buildBlocks(messages: Msg[]): Block[] {
       }
     } else if (msg.role === 'compactionSummary') {
       closeTurn()
-      blocks.push({ kind: 'note', id, label: '更早的内容已压缩成摘要', text: msg.summary ?? '' })
+      blocks.push({ kind: 'note', id, label: t('更早的内容已压缩成摘要'), text: msg.summary ?? '' })
     } else if (msg.role === 'branchSummary') {
       closeTurn()
-      blocks.push({ kind: 'note', id, label: '另一条分支的摘要', text: msg.summary ?? '' })
+      blocks.push({ kind: 'note', id, label: t('另一条分支的摘要'), text: msg.summary ?? '' })
     } else if (msg.role === 'custom' && msg.display) {
       closeTurn()
-      blocks.push({ kind: 'note', id, label: msg.customType ?? '扩展消息', text: textOf(msg.content) })
+      blocks.push({ kind: 'note', id, label: msg.customType ?? t('扩展消息'), text: textOf(msg.content) })
     }
   })
   closeTurn()
@@ -105,20 +106,20 @@ function toolTitle(call: ContentBlock, cwd: string): { icon: string; label: stri
   const rel = (p: unknown) => String(p ?? '').replace(`${cwd}/`, '')
   switch (call.name) {
     case 'bash':
-      return { icon: 'terminal', label: '运行', detail: String(args.command ?? '').split('\n')[0] }
+      return { icon: 'terminal', label: t('运行'), detail: String(args.command ?? '').split('\n')[0] }
     case 'read':
-      return { icon: 'file', label: '读取', detail: rel(args.path ?? args.file_path) }
+      return { icon: 'file', label: t('读取'), detail: rel(args.path ?? args.file_path) }
     case 'edit':
-      return { icon: 'edit', label: '修改', detail: rel(args.path ?? args.file_path) }
+      return { icon: 'edit', label: t('修改'), detail: rel(args.path ?? args.file_path) }
     case 'write':
-      return { icon: 'edit', label: '写入', detail: rel(args.path ?? args.file_path) }
+      return { icon: 'edit', label: t('写入'), detail: rel(args.path ?? args.file_path) }
     case 'grep':
     case 'find':
     case 'ls':
       return { icon: 'search', label: call.name, detail: String(args.pattern ?? args.path ?? '') }
     default: {
       const first = Object.values(args).find((v) => typeof v === 'string') as string | undefined
-      return { icon: 'tool', label: call.name ?? '工具', detail: first?.split('\n')[0] ?? '' }
+      return { icon: 'tool', label: call.name ?? t('工具'), detail: first?.split('\n')[0] ?? '' }
     }
   }
 }
@@ -131,11 +132,11 @@ function ToolResult({ msg }: { msg: Msg }) {
     .join('\n')
   return (
     <>
-      {text && <pre className={msg.isError ? 'tool-output error' : 'tool-output'}>{text.length > 20000 ? `${text.slice(0, 20000)}\n…（输出太长，已截断显示）` : text}</pre>}
+      {text && <pre className={msg.isError ? 'tool-output error' : 'tool-output'}>{text.length > 20000 ? `${text.slice(0, 20000)}\n${t('…（输出太长，已截断显示）')}` : text}</pre>}
       {blocks
         .filter((b) => b.type === 'image' && b.data)
         .map((b, i) => (
-          <img key={i} className="tool-image" src={`data:${b.mimeType};base64,${b.data}`} alt="工具返回的图片" />
+          <img key={i} className="tool-image" src={`data:${b.mimeType};base64,${b.data}`} alt={t('工具返回的图片')} />
         ))}
     </>
   )
@@ -175,7 +176,7 @@ function ThinkingStep({ text }: { text: string }) {
         <span className="step-icon">
           <Icon name="brain" size={14} />
         </span>
-        <span className="step-label">思考</span>
+        <span className="step-label">{t('思考')}</span>
         <span className="step-detail ellipsis">{first}</span>
       </div>
       {open && (
@@ -198,9 +199,9 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
         <div className="steps">
           <div className="steps-head" onClick={() => setOpen(!expanded)}>
             <Icon name={expanded ? 'down' : 'right'} size={12} />
-            {live ? '正在处理' : '处理过程'}
+            {live ? t('正在处理') : t('处理过程')}
             <span className="muted">
-              {block.steps.length} 步{tools ? `，调用工具 ${tools} 次` : ''}
+              {tools ? t('{steps} 步，调用工具 {tools} 次', { steps: block.steps.length, tools }) : t('{steps} 步', { steps: block.steps.length })}
             </span>
           </div>
           {expanded &&
@@ -221,15 +222,15 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
         <div className="gen-images">
           {block.images.map((image, index) => (
             <figure key={index}>
-              <img src={image.src} alt="生成的图片" />
-              {image.path && <figcaption title={image.path}>已保存到 {image.path.replace(`${cwd}/`, '')}</figcaption>}
+              <img src={image.src} alt={t('生成的图片')} />
+              {image.path && <figcaption title={image.path}>{t('已保存到 {path}', { path: image.path.replace(`${cwd}/`, '') })}</figcaption>}
             </figure>
           ))}
         </div>
       )}
       {block.final && <Markdown text={block.final} />}
       {block.error && <div className="banner error">{block.error}</div>}
-      {block.aborted && <div className="muted small">已停止</div>}
+      {block.aborted && <div className="muted small">{t('已停止')}</div>}
     </div>
   )
 })
@@ -242,7 +243,7 @@ function UserMessage({ msg }: { msg: Msg }) {
         {blocks
           .filter((b) => b.type === 'image' && b.data)
           .map((b, i) => (
-            <img key={i} className="user-image" src={`data:${b.mimeType};base64,${b.data}`} alt="附带的图片" />
+            <img key={i} className="user-image" src={`data:${b.mimeType};base64,${b.data}`} alt={t('附带的图片')} />
           ))}
         {textOf(msg.content)}
       </div>
@@ -300,7 +301,7 @@ export function Chat({ conv }: { conv: Conv }) {
       <div className="chat-column">
         {blocks.length > shown && (
           <button className="load-more" onClick={() => setShown(shown + PAGE)}>
-            显示更早的消息（还有 {blocks.length - shown} 条）
+            {t('显示更早的消息（还有 {n} 条）', { n: blocks.length - shown })}
           </button>
         )}
         {visible.map((block) =>
@@ -318,7 +319,7 @@ export function Chat({ conv }: { conv: Conv }) {
         {(conv.pending.length > 0 || (conv.streaming && blocks[blocks.length - 1]?.kind === 'user')) && (
           <div className="working">
             <span className="dot-running" />
-            {conv.status === 'starting' ? '正在启动 Pi…' : '正在思考…'}
+            {conv.status === 'starting' ? t('正在启动 Pi…') : t('正在思考…')}
           </div>
         )}
         {conv.notice && <div className="banner">{conv.notice}</div>}

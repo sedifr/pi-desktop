@@ -4,18 +4,25 @@ import { Accounts } from './Accounts'
 import { Tile, nextState } from './CapPanel'
 import { type SettingsTab, api, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
+import { t } from '@shared/i18n'
 
 const TABS: { id: SettingsTab; label: string }[] = [
-  { id: 'look', label: '外观' },
-  { id: 'caps', label: '技能与工具' },
-  { id: 'accounts', label: '模型' },
-  { id: 'about', label: '关于' }
+  { id: 'look', label: t('外观') },
+  { id: 'caps', label: t('技能与工具') },
+  { id: 'accounts', label: t('模型') },
+  { id: 'about', label: t('关于') }
 ]
 
 const THEMES: { id: Theme; label: string }[] = [
-  { id: 'system', label: '跟随系统' },
-  { id: 'light', label: '浅色' },
-  { id: 'dark', label: '深色' }
+  { id: 'system', label: t('跟随系统') },
+  { id: 'light', label: t('浅色') },
+  { id: 'dark', label: t('深色') }
+]
+
+const LANGUAGES: { id: 'system' | 'zh' | 'en'; label: string }[] = [
+  { id: 'system', label: t('跟随系统') },
+  { id: 'zh', label: '中文' },
+  { id: 'en', label: 'English' }
 ]
 
 function Look() {
@@ -23,7 +30,17 @@ function Look() {
   return (
     <>
       <div className="set-row">
-        <div className="set-label">主题</div>
+        <div className="set-label">{t('语言')}</div>
+        <div className="segmented">
+          {LANGUAGES.map((language) => (
+            <button key={language.id} className={prefs.language === language.id ? 'on' : ''} onClick={() => setPrefs({ language: language.id })}>
+              {language.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="set-row">
+        <div className="set-label">{t('主题')}</div>
         <div className="segmented">
           {THEMES.map((theme) => (
             <button key={theme.id} className={prefs.theme === theme.id ? 'on' : ''} onClick={() => setPrefs({ theme: theme.id })}>
@@ -34,8 +51,8 @@ function Look() {
       </div>
       <div className="set-row">
         <div className="set-label">
-          对话字号
-          <div className="muted small">只影响对话正文，不影响侧栏和菜单</div>
+          {t('对话字号')}
+          <div className="muted small">{t('只影响对话正文，不影响侧栏和菜单')}</div>
         </div>
         <div className="set-control">
           <input type="range" min={12} max={18} step={1} value={prefs.fontSize} onChange={(event) => setPrefs({ fontSize: Number(event.target.value) })} />
@@ -43,7 +60,7 @@ function Look() {
         </div>
       </div>
       <div className="set-preview" style={{ fontSize: prefs.fontSize }}>
-        这是对话正文的预览。The quick brown fox jumps over the lazy dog.
+        {t('这是对话正文的预览。The quick brown fox jumps over the lazy dog.')}
       </div>
     </>
   )
@@ -62,31 +79,31 @@ function Sources({ onChanged }: { onChanged: () => void }) {
   return (
     <>
       <div className="cap-section">
-        额外的技能文件夹
+        {t('额外的技能文件夹')}
         <span className="grow" />
         <button className="btn" onClick={() => void api.skillDirAdd().then(apply)}>
-          <Icon name="plus" size={13} /> 添加文件夹
+          <Icon name="plus" size={13} /> {t('添加文件夹')}
         </button>
       </div>
       <div className="muted small">
-        这些文件夹里的技能默认不启用，但会出现在技能列表里，可以在对话中按需打开。适合放平时不想让 Pi 自动加载、偶尔才用的技能。
+        {t('这些文件夹里的技能默认不启用，但会出现在技能列表里，可以在对话中按需打开。适合放平时不想让 Pi 自动加载、偶尔才用的技能。')}
       </div>
       {dirs.map((dir) => (
         <div key={dir} className="set-row">
           <div className="set-label grow">{dir}</div>
           <button className="btn" onClick={() => void api.skillDirRemove(dir).then(apply)}>
-            移除
+            {t('移除')}
           </button>
         </div>
       ))}
-      {!dirs.length && <div className="cap-empty">还没有添加</div>}
+      {!dirs.length && <div className="cap-empty">{t('还没有添加')}</div>}
       <div className="set-row">
         <div className="set-label grow">
-          只在桌面端加载的扩展
-          <div className="muted small">把 Pi 扩展放进这个文件夹，它们只在桌面端生效，命令行不受影响。放进去后会出现在「工具」里。</div>
+          {t('只在桌面端加载的扩展')}
+          <div className="muted small">{t('把 Pi 扩展放进这个文件夹，它们只在桌面端生效，命令行不受影响。放进去后会出现在「工具」里。')}</div>
         </div>
         <button className="btn" onClick={() => api.openPath('extensions')}>
-          打开文件夹
+          {t('打开文件夹')}
         </button>
       </div>
     </>
@@ -97,7 +114,7 @@ function Caps() {
   const [items, setItems] = useState<CapItem[]>()
   const [query, setQuery] = useState('')
   const reload = useCallback(() => {
-    api.capsGlobalGet().then(setItems, () => toast('读取技能列表失败', 'error'))
+    api.capsGlobalGet().then(setItems, () => toast(t('读取技能列表失败'), 'error'))
   }, [])
   useEffect(reload, [reload])
 
@@ -109,7 +126,7 @@ function Caps() {
   const toggle = (item: CapItem) => {
     const state = nextState(item)
     setItems((current) => current?.map((it) => (it.id === item.id ? { ...it, state } : it)))
-    api.capsGlobalSet({ [item.id]: state }).then(setItems, () => toast('保存失败', 'error'))
+    api.capsGlobalSet({ [item.id]: state }).then(setItems, () => toast(t('保存失败'), 'error'))
   }
 
   const section = (title: string, list: CapItem[], columns = '') =>
@@ -117,7 +134,7 @@ function Caps() {
       <>
         <div className="cap-section">
           {title}
-          <span className="muted small">{list.filter((item) => item.state !== 'off').length} 个开着，共 {list.length} 个</span>
+          <span className="muted small">{t('{on} 个开着，共 {total} 个', { on: list.filter((item) => item.state !== 'off').length, total: list.length })}</span>
         </div>
         <div className={`cap-grid ${columns}`}>
           {list.map((item) => (
@@ -130,20 +147,20 @@ function Caps() {
   return (
     <>
       <div className="set-note">
-        这里设的是全局默认：所有项目里新开的对话，一开始就是这个状态。单个项目或单次对话想不一样，在对话输入栏的面板里改。
+        {t('这里设的是全局默认：所有项目里新开的对话，一开始就是这个状态。单个项目或单次对话想不一样，在对话输入栏的面板里改。')}
         <br />
-        技能有三档：自动（AI 自己判断要不要用）、开（一定带上）、关（AI 看不到）。
+        {t('技能有三档：自动（AI 自己判断要不要用）、开（一定带上）、关（AI 看不到）。')}
       </div>
       <label className="cap-search wide">
         <Icon name="search" size={13} />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜名字或用途" />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('搜名字或用途')} />
       </label>
       {!items ? (
-        <div className="cap-empty">正在读取…</div>
+        <div className="cap-empty">{t('正在读取…')}</div>
       ) : (
         <>
           {section(
-            '技能',
+            t('技能'),
             filtered.filter((item) => item.kind === 'skill'),
             'three'
           )}
@@ -153,11 +170,11 @@ function Caps() {
             'three'
           )}
           {section(
-            '工具',
+            t('工具'),
             filtered.filter((item) => item.kind === 'tool'),
             'three'
           )}
-          {!filtered.length && <div className="cap-empty">没有匹配的项</div>}
+          {!filtered.length && <div className="cap-empty">{t('没有匹配的项')}</div>}
         </>
       )}
       <div className="set-gap" />
@@ -171,29 +188,29 @@ function About() {
   return (
     <>
       <div className="set-row">
-        <div className="set-label">桌面端版本</div>
+        <div className="set-label">{t('桌面端版本')}</div>
         <span className="muted">{defaults?.appVersion}</span>
       </div>
       <div className="set-row">
-        <div className="set-label">Pi 内核版本</div>
+        <div className="set-label">{t('Pi 内核版本')}</div>
         <span className="muted">{defaults?.piVersion}</span>
       </div>
       <div className="set-row">
         <div className="set-label">
-          Pi 数据目录
+          {t('Pi 数据目录')}
           <div className="muted small">{defaults?.agentDir}</div>
         </div>
         <button className="btn" onClick={() => api.openPath('agent')}>
-          在访达中打开
+          {t('在访达中打开')}
         </button>
       </div>
       <div className="set-row">
         <div className="set-label">
-          技能简介文件
-          <div className="muted small">每个技能那一句中文说明存在这里，可以直接改</div>
+          {t('简介文件')}
+          <div className="muted small">{t('技能、MCP、工具在界面上显示的那句简介存在这里，可以直接改')}</div>
         </div>
         <button className="btn" onClick={() => api.openPath('summaries')}>
-          在访达中显示
+          {t('在访达中显示')}
         </button>
       </div>
     </>
@@ -205,11 +222,11 @@ export function Settings() {
   return (
     <div className="settings">
       <header className="header">
-        <span className="header-title">设置</span>
+        <span className="header-title">{t('设置')}</span>
         <span className="grow" />
         <button className="chip" onClick={() => setView('chat')}>
           <Icon name="x" size={14} />
-          关闭
+          {t('关闭')}
         </button>
       </header>
       <div className="settings-body">

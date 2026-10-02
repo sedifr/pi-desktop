@@ -50,6 +50,7 @@ const api: PiApi = {
   },
   openPath: (target) => ipcRenderer.send('openPath', target),
   setTheme: (theme) => ipcRenderer.send('setTheme', theme),
+  setLang: (lang) => ipcRenderer.send('setLang', lang),
 
   onEvent: (cb) => {
     const listener = (_event: unknown, key: string, event: ConvEvent) => cb(key, event)

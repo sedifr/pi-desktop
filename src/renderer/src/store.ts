@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, Usage } from '@shared/types'
+import { type Lang, getLang, resolveLang, t } from '@shared/i18n'
 
 declare global {
   interface Window {
@@ -79,12 +80,14 @@ export interface AppState {
 export type SettingsTab = 'look' | 'caps' | 'accounts' | 'about'
 
 export interface Prefs {
+  /** 界面语言。system 表示跟随系统 */
+  language: 'system' | Lang
   theme: Theme
   /** 对话正文的字号（像素） */
   fontSize: number
 }
 
-const DEFAULT_PREFS: Prefs = { theme: 'system', fontSize: 14 }
+const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14 }
 
 let state: AppState = {
   sessions: [],
@@ -320,21 +323,21 @@ function handleEvent(key: string, event: ConvEvent): void {
       updateConv(key, (c) => (c.queue = [...(e.steering ?? []), ...(e.followUp ?? [])]))
       break
     case 'compaction_start':
-      updateConv(key, (c) => (c.notice = '正在压缩上下文…'))
+      updateConv(key, (c) => (c.notice = t('正在压缩上下文…')))
       break
     case 'compaction_end':
       updateConv(key, (c) => (c.notice = undefined))
-      if (e.errorMessage) toast(`压缩失败：${e.errorMessage}`, 'error')
+      if (e.errorMessage) toast(t('压缩失败：{error}', { error: e.errorMessage }), 'error')
       break
     case 'auto_retry_start':
-      updateConv(key, (c) => (c.notice = `请求出错，${Math.round((e.delayMs ?? 0) / 1000)} 秒后重试（第 ${e.attempt}/${e.maxAttempts} 次）`))
+      updateConv(key, (c) => (c.notice = t('请求出错，{seconds} 秒后重试（第 {attempt}/{max} 次）', { seconds: Math.round((e.delayMs ?? 0) / 1000), attempt: e.attempt, max: e.maxAttempts })))
       break
     case 'auto_retry_end':
       updateConv(key, (c) => (c.notice = undefined))
-      if (!e.success && e.finalError) toast(`重试后仍然失败：${e.finalError}`, 'error')
+      if (!e.success && e.finalError) toast(t('重试后仍然失败：{error}', { error: e.finalError }), 'error')
       break
     case 'extension_error':
-      toast(`扩展出错：${e.error}`, 'error')
+      toast(t('扩展出错：{error}', { error: e.error }), 'error')
       break
     case 'extension_ui_request':
       handleUiRequest(key, e)
@@ -386,12 +389,22 @@ export async function refreshSessions(): Promise<void> {
 }
 
 function applyPrefs(prefs: Prefs): void {
+  api.setLang(getLang())
   api.setTheme(prefs.theme)
   document.documentElement.style.setProperty('--chat-size', `${prefs.fontSize}px`)
 }
 
 export function setPrefs(patch: Partial<Prefs>): void {
   const prefs = { ...state.prefs, ...patch }
+  const next = prefs.language === 'system' ? resolveLang(navigator.language) : prefs.language
+  if (next !== getLang()) {
+    // 换语言要重新加载界面，正在输出的对话会从画面上消失（对话本身照常保存）
+    const busy = Object.values(state.convs).some((conv) => conv.streaming)
+    if (busy && !window.confirm(t('切换语言会重新加载界面，正在进行的对话会从画面上消失，但内容照常保存。继续吗？'))) return
+    localStorage.setItem('prefs', JSON.stringify(prefs))
+    location.reload()
+    return
+  }
   localStorage.setItem('prefs', JSON.stringify(prefs))
   applyPrefs(prefs)
   set({ prefs })
@@ -596,7 +609,7 @@ export async function setModel(key: string, model: ModelInfo): Promise<void> {
     await ensureProcess(key)
     await api.convSetModel(key, model.provider, model.id)
   } catch (error) {
-    toast(`切换模型失败：${errorText(error)}`, 'error')
+    toast(t('切换模型失败：{error}', { error: errorText(error) }), 'error')
   }
 }
 
@@ -606,7 +619,7 @@ export async function setThinking(key: string, level: string): Promise<void> {
     await ensureProcess(key)
     await api.convSetThinking(key, level)
   } catch (error) {
-    toast(`切换推理级别失败：${errorText(error)}`, 'error')
+    toast(t('切换推理级别失败：{error}', { error: errorText(error) }), 'error')
   }
 }
 
@@ -624,7 +637,7 @@ export async function loadCaps(key: string): Promise<void> {
     const caps = await api.capsGet(key, conv.cwd)
     updateConv(key, (c) => (c.caps = caps))
   } catch (error) {
-    toast(`读取技能列表失败：${errorText(error)}`, 'error')
+    toast(t('读取技能列表失败：{error}', { error: errorText(error) }), 'error')
   }
 }
 
@@ -643,7 +656,7 @@ export async function saveCapsAs(key: string, scope: 'project' | 'global'): Prom
   if (!conv) return
   const caps = await api.capsSaveAs(key, conv.cwd, scope)
   updateConv(key, (c) => (c.caps = caps))
-  toast(scope === 'project' ? '已设为这个项目的默认' : '已设为全局默认')
+  toast(scope === 'project' ? t('已设为这个项目的默认') : t('已设为全局默认'))
 }
 
 export async function resetCaps(key: string): Promise<void> {
@@ -655,7 +668,7 @@ export async function resetCaps(key: string): Promise<void> {
 
 export async function trashSession(meta: SessionMeta): Promise<void> {
   const conv = Object.values(state.convs).find((c) => c.key === meta.file || c.sessionFile === meta.file)
-  if (conv?.streaming) return toast('这个对话正在运行，先停下来再删', 'warning')
+  if (conv?.streaming) return toast(t('这个对话正在运行，先停下来再删'), 'warning')
   try {
     await api.trashSession(meta.file)
     if (conv) {
@@ -667,6 +680,6 @@ export async function trashSession(meta: SessionMeta): Promise<void> {
     }
     await refreshSessions()
   } catch (error) {
-    toast(`删除失败：${errorText(error)}`, 'error')
+    toast(t('删除失败：{error}', { error: errorText(error) }), 'error')
   }
 }

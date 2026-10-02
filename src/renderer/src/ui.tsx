@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { t } from '@shared/i18n'
 
 const ICONS: Record<string, ReactNode> = {
   plus: <path d="M8 3v10M3 8h10" />,
@@ -102,13 +103,13 @@ export function fmtCost(n: number | undefined): string {
 export function relTime(ms: number): string {
   const diff = Date.now() - ms
   const min = Math.floor(diff / 60_000)
-  if (min < 1) return '刚刚'
-  if (min < 60) return `${min} 分钟前`
+  if (min < 1) return t('刚刚')
+  if (min < 60) return t('{n} 分钟前', { n: min })
   const hours = Math.floor(min / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return t('{n} 小时前', { n: hours })
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days} 天前`
-  return `${Math.floor(days / 30)} 个月前`
+  if (days < 30) return t('{n} 天前', { n: days })
+  return t('{n} 个月前', { n: Math.floor(days / 30) })
 }
 
 export const baseName = (p: string): string => p.split('/').filter(Boolean).pop() ?? p

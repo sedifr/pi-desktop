@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import * as store from './store'
 import './styles.css'
+import { t } from '@shared/i18n'
 
 /** 界面某处渲染出错时显示出错信息，而不是整个窗口变空白 */
 class Boundary extends Component<{ children: ReactNode }, { error?: Error }> {
@@ -11,16 +12,16 @@ class Boundary extends Component<{ children: ReactNode }, { error?: Error }> {
     return { error }
   }
   componentDidCatch(error: Error) {
-    console.error('界面渲染出错：', error.stack ?? error.message)
+    console.error(t('界面渲染出错：'), error.stack ?? error.message)
   }
   render() {
     if (!this.state.error) return this.props.children
     return (
       <div className="welcome">
-        <div className="welcome-title">界面出错了</div>
+        <div className="welcome-title">{t('界面出错了')}</div>
         <div className="banner error">{this.state.error.message}</div>
         <button className="btn primary" onClick={() => location.reload()}>
-          重新加载
+          {t('重新加载')}
         </button>
       </div>
     )

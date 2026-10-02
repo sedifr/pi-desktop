@@ -1,3 +1,4 @@
+import { t } from '@shared/i18n'
 import type { ConvEvent, ConvInfo, ModelInfo } from '@shared/types'
 import { launchArgs, rekey } from './caps'
 import { PiProcess } from './rpc'
@@ -34,7 +35,7 @@ export class AgentManager {
   private conv(key: string, cwd?: string, sessionFile?: string): Conv {
     let conv = this.convs.get(key)
     if (!conv) {
-      if (!cwd) throw new Error('对话还没有打开')
+      if (!cwd) throw new Error(t('对话还没有打开'))
       conv = { key, cwd, sessionFile, streaming: false, info: {}, lastUsed: Date.now() }
       this.convs.set(key, conv)
     }

@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CapItem, CapKind, CapState } from '@shared/types'
 import { type Conv, changeCaps, loadCaps, resetCaps, saveCapsAs } from './store'
 import { Icon, Popover } from './ui'
+import { t } from '@shared/i18n'
 
-const LABEL: Record<CapState, string> = { auto: '自动', on: '开', off: '关' }
-const KIND_TITLE: Record<CapKind, string> = { skill: '技能', mcp: 'MCP', tool: '工具' }
+const LABEL: Record<CapState, string> = { auto: t('自动'), on: t('开'), off: t('关') }
+const KIND_TITLE: Record<CapKind, string> = { skill: t('技能'), mcp: 'MCP', tool: t('工具') }
 const KIND_HINT: Record<CapKind, string> = {
-  skill: '点一下切换：自动 → 开 → 关',
-  mcp: '点一下开关。关掉的服务这次对话不连接',
-  tool: '点一下开关。关掉的工具这次对话 AI 用不了'
+  skill: t('点一下切换：自动 → 开 → 关'),
+  mcp: t('点一下开关。关掉的服务这次对话不连接'),
+  tool: t('点一下开关。关掉的工具这次对话 AI 用不了')
 }
 
 export function nextState(item: CapItem): CapState {
@@ -68,23 +69,23 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
         {wide && (
           <label className="cap-search">
             <Icon name="search" size={13} />
-            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜名字或用途" />
+            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('搜名字或用途')} />
           </label>
         )}
       </div>
       {!all ? (
-        <div className="cap-empty">正在读取…</div>
+        <div className="cap-empty">{t('正在读取…')}</div>
       ) : (
         <div className="cap-col">
           {wide && (
             <div className="cap-section">
-              <span className="muted small">开着的（{on.length}）</span>
+              <span className="muted small">{t('开着的（{n}）', { n: on.length })}</span>
               <span className="grow" />
               <button className="link-btn" onClick={() => setAllSkills('auto')}>
-                全部交给 AI
+                {t('全部交给 AI')}
               </button>
               <button className="link-btn" onClick={() => setAllSkills('off')}>
-                全部关掉
+                {t('全部关掉')}
               </button>
             </div>
           )}
@@ -95,7 +96,7 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
           </div>
           {wide && off.length > 0 && (
             <>
-              <div className="cap-section muted small">没开的（{off.length}）</div>
+              <div className="cap-section muted small">{t('没开的（{n}）', { n: off.length })}</div>
               <div className="cap-grid">
                 {off.map((item) => (
                   <Tile key={item.id} item={item} onToggle={() => toggle(item)} />
@@ -103,21 +104,21 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
               </div>
             </>
           )}
-          {!items.length && <div className="cap-empty">{query ? '没有匹配的项' : '这里还没有东西'}</div>}
+          {!items.length && <div className="cap-empty">{query ? t('没有匹配的项') : t('这里还没有东西')}</div>}
         </div>
       )}
       <div className="cap-foot">
-        <span className="muted small grow">{conv.caps?.dirty ? '改动会从下一条消息起生效' : '这里的改动只影响这次对话'}</span>
+        <span className="muted small grow">{conv.caps?.dirty ? t('改动会从下一条消息起生效') : t('这里的改动只影响这次对话')}</span>
         {hasOverrides && (
           <button className="link-btn" onClick={() => void resetCaps(conv.key)}>
-            恢复默认
+            {t('恢复默认')}
           </button>
         )}
-        <button className="link-btn" title="技能、MCP、工具现在的开关一起存为这个项目的默认" onClick={() => void saveCapsAs(conv.key, 'project')}>
-          设为本项目默认
+        <button className="link-btn" title={t('技能、MCP、工具现在的开关一起存为这个项目的默认')} onClick={() => void saveCapsAs(conv.key, 'project')}>
+          {t('设为本项目默认')}
         </button>
-        <button className="link-btn" title="技能、MCP、工具现在的开关一起存为所有项目的默认" onClick={() => void saveCapsAs(conv.key, 'global')}>
-          设为全局默认
+        <button className="link-btn" title={t('技能、MCP、工具现在的开关一起存为所有项目的默认')} onClick={() => void saveCapsAs(conv.key, 'global')}>
+          {t('设为全局默认')}
         </button>
       </div>
     </Popover>

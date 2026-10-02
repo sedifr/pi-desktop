@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { SessionMeta } from '@shared/types'
 import { type Conv, activate, addProject, newConv, openSession, removeProject, setView, trashSession, useApp } from './store'
 import { Icon, baseName, relTime } from './ui'
+import { t } from '@shared/i18n'
 
 const VISIBLE = 6
 /** 子 Agent 自己的会话（名字形如 Explore#d0c8da8a），不在列表里占位置 */
@@ -55,11 +56,11 @@ export function Sidebar() {
       <div className="sidebar-drag" />
       <button className="nav-item" onClick={() => (active ? newConv(active.cwd) : projects[0] ? newConv(projects[0].cwd) : void addProject())}>
         <Icon name="edit" />
-        新对话
+        {t('新对话')}
       </button>
       <div className="sidebar-label">
-        <span className="grow">项目</span>
-        <button className="icon-btn" title="添加项目文件夹，并在里面开始新对话" onClick={() => void addProject()}>
+        <span className="grow">{t('项目')}</span>
+        <button className="icon-btn" title={t('添加项目文件夹，并在里面开始新对话')} onClick={() => void addProject()}>
           <Icon name="plus" size={14} />
         </button>
       </div>
@@ -75,7 +76,7 @@ export function Sidebar() {
                 <span className="grow ellipsis">{baseName(project.cwd)}</span>
                 <button
                   className="icon-btn hover-only"
-                  title="在这个项目里新建对话"
+                  title={t('在这个项目里新建对话')}
                   onClick={(event) => {
                     event.stopPropagation()
                     newConv(project.cwd)
@@ -88,7 +89,7 @@ export function Sidebar() {
                 <>
                   {project.drafts.map((conv) => (
                     <div key={conv.key} className={`session-row ${conv.key === activeKey ? 'active' : ''}`} onClick={() => activate(conv.key)}>
-                      <span className="grow ellipsis">{conv.title ?? '新对话'}</span>
+                      <span className="grow ellipsis">{conv.title ?? t('新对话')}</span>
                       {conv.streaming && <span className="dot-running" />}
                     </div>
                   ))}
@@ -96,14 +97,14 @@ export function Sidebar() {
                     const isActive = active && (active.key === meta.file || active.sessionFile === meta.file)
                     return (
                       <div key={meta.file} className={`session-row ${isActive ? 'active' : ''}`} onClick={() => void openSession(meta)}>
-                        <span className="grow ellipsis">{meta.name ?? meta.firstUserText ?? '（空对话）'}</span>
+                        <span className="grow ellipsis">{meta.name ?? meta.firstUserText ?? t('（空对话）')}</span>
                         {runningFiles.has(meta.file) ? <span className="dot-running" /> : <span className="session-time">{relTime(meta.modified)}</span>}
                         <button
                           className="icon-btn hover-only"
-                          title="移到废纸篓"
+                          title={t('移到废纸篓')}
                           onClick={(event) => {
                             event.stopPropagation()
-                            if (window.confirm(`把这个对话移到废纸篓？\n\n${meta.name ?? meta.firstUserText ?? ''}`)) void trashSession(meta)
+                            if (window.confirm(`${t('把这个对话移到废纸篓？')}\n\n${meta.name ?? meta.firstUserText ?? ''}`)) void trashSession(meta)
                           }}
                         >
                           <Icon name="trash" size={14} />
@@ -113,21 +114,21 @@ export function Sidebar() {
                   })}
                   {project.sessions.length > VISIBLE && (
                     <div className="session-row muted" onClick={() => setExpanded({ ...expanded, [project.cwd]: !showAll })}>
-                      {showAll ? '收起' : `显示全部 ${project.sessions.length} 个`}
+                      {showAll ? t('收起') : t('显示全部 {n} 个', { n: project.sessions.length })}
                     </div>
                   )}
                   {!project.sessions.length && !project.drafts.length && (
                     <div className="session-row muted">
-                      <span className="grow">还没有对话</span>
+                      <span className="grow">{t('还没有对话')}</span>
                       <button
                         className="link-btn"
-                        title="只是从列表里拿掉，不会删除文件夹"
+                        title={t('只是从列表里拿掉，不会删除文件夹')}
                         onClick={(event) => {
                           event.stopPropagation()
                           removeProject(project.cwd)
                         }}
                       >
-                        移除
+                        {t('移除')}
                       </button>
                     </div>
                   )}
@@ -139,7 +140,7 @@ export function Sidebar() {
       </div>
       <button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => setView(view === 'settings' ? 'chat' : 'settings')}>
         <Icon name="gear" />
-        设置
+        {t('设置')}
       </button>
     </aside>
   )

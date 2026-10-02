@@ -2,6 +2,7 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { app, shell } from 'electron'
+import { getLang, t } from '@shared/i18n'
 import type { AuthFlowEvent, AuthStatus, CustomProviderInput, ProviderInfo } from '@shared/types'
 import { AGENT_DIR, nodeExecPath, readJson, shellEnv } from './env'
 
@@ -10,7 +11,7 @@ const helperPath = () => path.join(app.getAppPath(), 'resources', 'auth-helper.m
 
 /** 登录、退出、列表都交给一个用 Pi SDK 写的小脚本去做，这里只负责启动它和转发消息 */
 async function runHelper(args: string[], onMessage?: (message: AuthFlowEvent) => void): Promise<{ child: ChildProcessWithoutNullStreams; done: Promise<void> }> {
-  const env = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1' }
+  const env = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1', PI_DESKTOP_LANG: getLang() }
   const child = spawn(nodeExecPath(), [helperPath(), ...args], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   let buffer = ''
   let stderr = ''
@@ -39,7 +40,7 @@ async function runHelper(args: string[], onMessage?: (message: AuthFlowEvent) =>
     child.on('error', reject)
     child.on('exit', () => {
       if (finished) resolve()
-      else reject(new Error(failure ?? (stderr.trim() || '操作没有完成')))
+      else reject(new Error(failure ?? (stderr.trim() || t('操作没有完成'))))
     })
   })
   return { child, done }
@@ -55,7 +56,7 @@ export async function listProviders(): Promise<ProviderInfo[]> {
 }
 
 export async function checkProvider(provider: string): Promise<AuthStatus> {
-  let status: AuthStatus = { state: 'error', message: '检测没有完成', at: Date.now() }
+  let status: AuthStatus = { state: 'error', message: t('检测没有完成'), at: Date.now() }
   try {
     const { done } = await runHelper(['check', provider], (message) => {
       if (message.t === 'status') status = { state: message.state, message: message.message, model: message.model, at: Date.now() }
@@ -70,7 +71,7 @@ export async function checkProvider(provider: string): Promise<AuthStatus> {
 let flow: ChildProcessWithoutNullStreams | undefined
 
 export async function login(provider: string, type: 'oauth' | 'api_key', emit: (event: AuthFlowEvent) => void): Promise<void> {
-  if (flow) throw new Error('已经有一个登录在进行中')
+  if (flow) throw new Error(t('已经有一个登录在进行中'))
   const { child, done } = await runHelper(['login', provider, type], (message) => {
     // 需要去浏览器里完成的步骤，直接帮用户打开
     if (message.t === 'notify' && message.event.type === 'auth_url' && message.event.url) void shell.openExternal(message.event.url)
@@ -112,13 +113,13 @@ function writeModels(data: ModelsFile): void {
 /** 添加一个 OpenAI 或 Anthropic 兼容的接口，写进 Pi 的 models.json */
 export async function saveCustomProvider(input: CustomProviderInput): Promise<void> {
   const id = input.id.trim()
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error('名称只能用小写字母、数字和连字符')
-  if (!/^https?:\/\//.test(input.baseUrl.trim())) throw new Error('接口地址要以 http:// 或 https:// 开头')
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(t('名称只能用小写字母、数字和连字符'))
+  if (!/^https?:\/\//.test(input.baseUrl.trim())) throw new Error(t('接口地址要以 http:// 或 https:// 开头'))
   const models = input.models.map((model) => model.trim()).filter(Boolean)
-  if (!models.length) throw new Error('至少填一个模型 ID')
+  if (!models.length) throw new Error(t('至少填一个模型 ID'))
   const data = readJson<ModelsFile>(MODELS_FILE, {})
   data.providers ??= {}
-  if (!data.providers[id] && (await listProviders()).some((provider) => provider.id === id)) throw new Error(`「${id}」是内置提供商的名字，换一个`)
+  if (!data.providers[id] && (await listProviders()).some((provider) => provider.id === id)) throw new Error(t('「{id}」是内置提供商的名字，换一个', { id }))
   data.providers[id] = {
     ...data.providers[id],
     api: input.api,

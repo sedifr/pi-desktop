@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import YAML from 'yaml'
+import { t } from '@shared/i18n'
 import type { CapKind, CapState } from '@shared/types'
 import { getConfig } from './config'
 import { AGENT_DIR, DESKTOP_DIR, readJson, writeJson } from './env'
@@ -248,7 +249,8 @@ export async function loadCatalog(cwd: string): Promise<CatalogItem[]> {
   }
 
   for (const tool of BUILTIN_TOOLS) {
-    items.push({ id: `tool:${tool.name}`, kind: 'tool', name: tool.label, summary: tool.summary, defaultState: 'on', tri: false })
+    // 这张表在模块加载时就定了，文字要到用的时候再翻译，语言才跟得上设置
+    items.push({ id: `tool:${tool.name}`, kind: 'tool', name: t(tool.label), summary: t(tool.summary), defaultState: 'on', tri: false })
   }
   for (const ext of listExtensions()) {
     const id = `ext:${ext.name}`

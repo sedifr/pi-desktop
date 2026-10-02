@@ -6,6 +6,7 @@ import { Settings } from './Settings'
 import { Sidebar } from './Sidebar'
 import { type Conv, type UiRequest, addProject, answerUi, api, useApp } from './store'
 import { Icon, Popover, baseName, fmtCost, fmtTokens } from './ui'
+import { t } from '@shared/i18n'
 
 interface UsageView {
   cost: number
@@ -49,15 +50,15 @@ function UsagePopover({ usage, onClose }: { usage: UsageView; onClose: () => voi
   const percent = usage.contextTokens != null && usage.contextWindow ? (usage.contextTokens / usage.contextWindow) * 100 : undefined
   return (
     <Popover onClose={onClose} className="usage-pop" group="header">
-      <div className="pop-title">本次对话用量</div>
-      <Row label="费用" value={fmtCost(usage.cost)} />
-      <Row label="输入" value={usage.input.toLocaleString()} />
-      <Row label="输出" value={usage.output.toLocaleString()} />
-      <Row label="缓存读取" value={usage.cacheRead.toLocaleString()} />
-      <Row label="缓存命中率" value={`${hit.toFixed(1)}%`} />
-      {usage.toolCalls != null && <Row label="工具调用" value={`${usage.toolCalls} 次`} />}
+      <div className="pop-title">{t('本次对话用量')}</div>
+      <Row label={t('费用')} value={fmtCost(usage.cost)} />
+      <Row label={t('输入')} value={usage.input.toLocaleString()} />
+      <Row label={t('输出')} value={usage.output.toLocaleString()} />
+      <Row label={t('缓存读取')} value={usage.cacheRead.toLocaleString()} />
+      <Row label={t('缓存命中率')} value={`${hit.toFixed(1)}%`} />
+      {usage.toolCalls != null && <Row label={t('工具调用')} value={t('{n} 次', { n: usage.toolCalls })} />}
       <div className="kv gap">
-        <span className="muted">上下文</span>
+        <span className="muted">{t('上下文')}</span>
         <span>
           {fmtTokens(usage.contextTokens)}
           {usage.contextWindow ? ` / ${fmtTokens(usage.contextWindow)}` : ''}
@@ -71,11 +72,11 @@ function UsagePopover({ usage, onClose }: { usage: UsageView; onClose: () => voi
       )}
       {totals && (
         <>
-          <div className="pop-title gap">全部对话合计</div>
-          <Row label="今天" value={fmtCost(totals.today.cost)} />
-          <Row label="本月" value={fmtCost(totals.month.cost)} />
+          <div className="pop-title gap">{t('全部对话合计')}</div>
+          <Row label={t('今天')} value={fmtCost(totals.today.cost)} />
+          <Row label={t('本月')} value={fmtCost(totals.month.cost)} />
           {totals.byModel.slice(0, 5).map((entry) => (
-            <Row key={entry.model} label={`　${entry.model}`} value={fmtCost(entry.usage.cost)} />
+            <Row key={entry.model} label={`　${entry.model === '@other' ? t('其它') : entry.model === '@summaries' ? t('压缩与摘要') : entry.model}`} value={fmtCost(entry.usage.cost)} />
           ))}
         </>
       )}
@@ -90,7 +91,7 @@ function Header({ conv }: { conv: Conv }) {
   const percent = usage?.contextTokens != null && usage.contextWindow ? Math.round((usage.contextTokens / usage.contextWindow) * 100) : undefined
   return (
     <header className="header">
-      <span className="header-title ellipsis">{conv.title ?? '新对话'}</span>
+      <span className="header-title ellipsis">{conv.title ?? t('新对话')}</span>
       <span className="muted small" title={conv.cwd}>
         {baseName(conv.cwd)}
       </span>
@@ -130,16 +131,16 @@ function UiDialog({ conv, request }: { conv: Conv; request: UiRequest }) {
         {request.method === 'editor' && <textarea autoFocus className="field" rows={8} value={value} onChange={(event) => setValue(event.target.value)} />}
         <div className="dialog-actions">
           <button className="btn" onClick={cancel}>
-            取消
+            {t('取消')}
           </button>
           {request.method === 'confirm' && (
             <button className="btn primary" onClick={() => answerUi(conv.key, { confirmed: true })}>
-              确定
+              {t('确定')}
             </button>
           )}
           {(request.method === 'input' || request.method === 'editor') && (
             <button className="btn primary" onClick={() => answerUi(conv.key, { value })}>
-              确定
+              {t('确定')}
             </button>
           )}
         </div>
@@ -152,7 +153,7 @@ function Welcome({ conv }: { conv: Conv }) {
   return (
     <div className="welcome">
       <div className="welcome-mark">π</div>
-      <div className="welcome-title">在 {baseName(conv.cwd)} 里做点什么？</div>
+      <div className="welcome-title">{t('在 {project} 里做点什么？', { project: baseName(conv.cwd) })}</div>
       <div className="muted small">{conv.cwd}</div>
     </div>
   )
@@ -173,16 +174,16 @@ export function App() {
         ) : conv ? (
           <>
             <Header conv={conv} />
-            {empty ? <Welcome conv={conv} /> : conv.loading ? <div className="welcome muted">正在读取对话…</div> : <Chat conv={conv} />}
+            {empty ? <Welcome conv={conv} /> : conv.loading ? <div className="welcome muted">{t('正在读取对话…')}</div> : <Chat conv={conv} />}
             <Composer conv={conv} />
             {conv.uiRequest && <UiDialog key={conv.uiRequest.id} conv={conv} request={conv.uiRequest} />}
           </>
         ) : (
           <div className="welcome">
             <div className="welcome-mark">π</div>
-            <div className="welcome-title">先选一个项目文件夹</div>
+            <div className="welcome-title">{t('先选一个项目文件夹')}</div>
             <button className="btn primary" onClick={() => void addProject()}>
-              添加文件夹
+              {t('添加文件夹')}
             </button>
           </div>
         )}

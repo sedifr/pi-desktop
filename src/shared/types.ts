@@ -253,6 +253,8 @@ export interface PiApi {
   onAuthEvent(cb: (event: AuthFlowEvent) => void): () => void
   openPath(target: OpenTarget): void
   setTheme(theme: Theme): void
+  /** 把界面当前用的语言告诉主进程，主进程发回来的文字才会是同一种语言 */
+  setLang(lang: 'zh' | 'en'): void
 
   onEvent(cb: (key: string, event: ConvEvent) => void): () => void
 }

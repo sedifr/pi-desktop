@@ -14,6 +14,16 @@ import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 const [, , command, providerId, authType] = process.argv
 const emit = (message) => process.stdout.write(`${JSON.stringify(message)}\n`)
 
+// 这个脚本单独运行，用不了应用里的翻译表；它自己的几句话在这里按语言给出
+const EN = process.env.PI_DESKTOP_LANG === 'en'
+const MSG = {
+  cancelled: EN ? 'Cancelled' : '已取消',
+  noCredential: EN ? 'No usable credential' : '没有可用的登录凭证',
+  requestFailed: EN ? 'Request failed' : '请求失败',
+  timeout: EN ? 'No response within 30 seconds' : '30 秒内没有响应',
+  unknownCommand: EN ? 'Unknown command: ' : '未知命令：'
+}
+
 async function list(runtime) {
   const stored = new Map((await runtime.listCredentials()).map((c) => [c.providerId, c.type]))
   const providers = runtime.getProviders().map((provider) => {
@@ -59,7 +69,7 @@ async function login(runtime) {
       const waiter = waiting.get(message.id)
       if (!waiter) continue
       waiting.delete(message.id)
-      if (message.cancel) waiter.reject(new Error('已取消'))
+      if (message.cancel) waiter.reject(new Error(MSG.cancelled))
       else waiter.resolve(String(message.value ?? ''))
     }
   })
@@ -78,7 +88,7 @@ async function login(runtime) {
         signal?.addEventListener('abort', () => {
           if (!waiting.delete(id)) return
           emit({ t: 'prompt_cancel', id })
-          reject(new Error('已取消'))
+          reject(new Error(MSG.cancelled))
         })
       })
     },
@@ -97,7 +107,7 @@ const AUTH_ERROR = /\b(401|403)\b|unauthori[sz]ed|forbidden|invalidated|invalid[
  */
 async function check(runtime) {
   const models = [...(await runtime.getAvailable(providerId))]
-  if (!models.length) return emit({ t: 'status', state: 'invalid', message: '没有可用的登录凭证' })
+  if (!models.length) return emit({ t: 'status', state: 'invalid', message: MSG.noCredential })
   models.sort((a, b) => (a.cost?.input ?? 0) - (b.cost?.input ?? 0))
   const model = models[0]
   const abort = new AbortController()
@@ -121,7 +131,7 @@ async function check(runtime) {
     for await (const event of stream) {
       if (ok) break
       if (event.type === 'error') {
-        failure = event.error?.errorMessage ?? '请求失败'
+        failure = event.error?.errorMessage ?? MSG.requestFailed
         break
       }
       if (event.type !== 'start') {
@@ -135,7 +145,7 @@ async function check(runtime) {
   }
   clearTimeout(timer)
   if (ok) return emit({ t: 'status', state: 'ok', model: model.id })
-  failure ??= '30 秒内没有响应'
+  failure ??= MSG.timeout
   emit({ t: 'status', state: AUTH_ERROR.test(failure) ? 'invalid' : 'error', message: failure.slice(0, 300), model: model.id })
 }
 
@@ -146,7 +156,7 @@ try {
   else if (command === 'login') await login(runtime)
   else if (command === 'logout') await runtime.logout(providerId)
   else if (command === 'check') await check(runtime)
-  else throw new Error(`未知命令：${command}`)
+  else throw new Error(MSG.unknownCommand + command)
   emit({ t: 'done' })
   process.exit(0)
 } catch (error) {

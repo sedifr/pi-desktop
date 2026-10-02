@@ -3,8 +3,9 @@ import type { CapKind, ModelInfo } from '@shared/types'
 import { CapPanel, capCount } from './CapPanel'
 import { type Conv, abort, addProject, ensureStarted, loadCaps, newConv, openSettings, projectDirs, send, setDraft, setModel, setThinking, useApp } from './store'
 import { Icon, Popover, StatusDot, baseName } from './ui'
+import { t } from '@shared/i18n'
 
-const THINKING_LABEL: Record<string, string> = { off: '关', minimal: '最低', low: '低', medium: '中', high: '高', xhigh: '很高', max: '最高' }
+const THINKING_LABEL: Record<string, string> = { off: t('关'), minimal: t('最低'), low: t('低'), medium: t('中'), high: t('高'), xhigh: t('很高'), max: t('最高') }
 
 function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
   const models = conv.info.models
@@ -18,13 +19,13 @@ function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
   }, [models])
   return (
     <Popover onClose={onClose} className="menu" group="composer">
-      {!models && <div className="menu-empty">{conv.error ? '模型列表读取失败' : '正在读取模型列表…'}</div>}
+      {!models && <div className="menu-empty">{conv.error ? t('模型列表读取失败') : t('正在读取模型列表…')}</div>}
       {groups.map(([provider, list]) => (
         <div key={provider}>
           <div className="menu-label">
             <StatusDot state={authChecking[provider] ? 'checking' : (authStatus[provider]?.state ?? 'none')} title={authStatus[provider]?.message} />
             {provider}
-            {authStatus[provider]?.state === 'invalid' && <span className="status-invalid">　已失效</span>}
+            {authStatus[provider]?.state === 'invalid' && <span className="status-invalid">{t('已失效')}</span>}
           </div>
           {list.map((model) => {
             const current = conv.info.model?.id === model.id && conv.info.model?.provider === model.provider
@@ -53,7 +54,7 @@ function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
         }}
       >
         <Icon name="plus" size={14} />
-        添加模型…
+        {t('添加模型…')}
       </button>
     </Popover>
   )
@@ -64,7 +65,7 @@ function ThinkingPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) 
   const levels = conv.info.thinkingLevels
   return (
     <Popover onClose={onClose} className="menu narrow" group="composer">
-      {!levels && <div className="menu-empty">正在读取…</div>}
+      {!levels && <div className="menu-empty">{t('正在读取…')}</div>}
       {levels?.map((level) => (
         <button
           key={level}
@@ -90,7 +91,7 @@ function ProjectMenu({ conv, onClose }: { conv: Conv; onClose: () => void }) {
   const dirs = useMemo(() => projectDirs({ sessions, extraProjects, convs }), [sessions, extraProjects, convs])
   return (
     <Popover onClose={onClose} className="menu" group="composer">
-      <div className="menu-label">在哪个项目里开始</div>
+      <div className="menu-label">{t('在哪个项目里开始')}</div>
       {dirs.map((dir) => (
         <button
           key={dir}
@@ -115,7 +116,7 @@ function ProjectMenu({ conv, onClose }: { conv: Conv; onClose: () => void }) {
         }}
       >
         <Icon name="plus" size={14} />
-        添加文件夹…
+        {t('添加文件夹…')}
       </button>
     </Popover>
   )
@@ -124,9 +125,9 @@ function ProjectMenu({ conv, onClose }: { conv: Conv; onClose: () => void }) {
 type Open = CapKind | 'model' | 'thinking' | 'project'
 
 const CAP_BUTTONS: { kind: CapKind; label: string; icon: string }[] = [
-  { kind: 'skill', label: '技能', icon: 'spark' },
+  { kind: 'skill', label: t('技能'), icon: 'spark' },
   { kind: 'mcp', label: 'MCP', icon: 'plug' },
-  { kind: 'tool', label: '工具', icon: 'tool' }
+  { kind: 'tool', label: t('工具'), icon: 'tool' }
 ]
 
 export function Composer({ conv }: { conv: Conv }) {
@@ -150,7 +151,7 @@ export function Composer({ conv }: { conv: Conv }) {
   }, [conv.key])
 
   const model = conv.info.model
-  const modelLabel = model?.name ?? model?.id ?? defaults?.defaultModel ?? '选择模型'
+  const modelLabel = model?.name ?? model?.id ?? defaults?.defaultModel ?? t('选择模型')
   const thinking = conv.info.thinkingLevel ?? defaults?.defaultThinkingLevel
   const widgets = Object.entries(conv.widgets)
   // MCP 的连接数小栏里已经有了，扩展自己报的那条不重复显示
@@ -168,7 +169,7 @@ export function Composer({ conv }: { conv: Conv }) {
         <div className="queue">
           {conv.queue.map((text, index) => (
             <div key={index} className="queue-item ellipsis">
-              排队中：{text}
+              {t('排队中：{text}', { text })}
             </div>
           ))}
         </div>
@@ -184,7 +185,7 @@ export function Composer({ conv }: { conv: Conv }) {
           ref={input}
           rows={1}
           value={conv.draft}
-          placeholder={conv.streaming ? '继续补充，会在当前这一步之后送达' : '问点什么，或者交代一件事'}
+          placeholder={conv.streaming ? t('继续补充，会在当前这一步之后送达') : t('问点什么，或者交代一件事')}
           onChange={(event) => setDraft(conv.key, event.target.value)}
           onKeyDown={(event) => {
             // 输入法正在选字时的回车是确认候选词，不是发送
@@ -205,18 +206,18 @@ export function Composer({ conv }: { conv: Conv }) {
           </div>
           <div className="anchor">
             <button className="chip" data-popover-trigger="composer" onClick={() => toggle('thinking')}>
-              推理 {thinking ? (THINKING_LABEL[thinking] ?? thinking) : '默认'}
+              {t('推理 {level}', { level: thinking ? (THINKING_LABEL[thinking] ?? thinking) : t('默认') })}
               <Icon name="down" size={11} />
             </button>
             {open === 'thinking' && <ThinkingPicker conv={conv} onClose={close} />}
           </div>
           {conv.streaming && (
-            <button className="round-btn stop" title="停止" onClick={() => abort(conv.key)}>
+            <button className="round-btn stop" title={t('停止')} onClick={() => abort(conv.key)}>
               <Icon name="stop" />
             </button>
           )}
           {(!conv.streaming || canSend) && (
-            <button className="round-btn" title="发送" disabled={!canSend} onClick={() => void send(conv.key)}>
+            <button className="round-btn" title={t('发送')} disabled={!canSend} onClick={() => void send(conv.key)}>
               <Icon name="up" />
             </button>
           )}
@@ -242,7 +243,7 @@ export function Composer({ conv }: { conv: Conv }) {
           )
         })}
         <span className="grow" />
-        {conv.caps?.dirty ? <span className="strip-note accent">改动从下一条消息起生效</span> : statuses.length > 0 && <span className="strip-note ellipsis">{statuses.join('　')}</span>}
+        {conv.caps?.dirty ? <span className="strip-note accent">{t('改动从下一条消息起生效')}</span> : statuses.length > 0 && <span className="strip-note ellipsis">{statuses.join('　')}</span>}
       </div>
     </div>
   )

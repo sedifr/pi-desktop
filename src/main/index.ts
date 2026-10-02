@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, OpenTarget, Theme } from '@shared/types'
 import * as accounts from './accounts'
@@ -38,10 +39,10 @@ function createWindow(): void {
     }
   })
   win.once('ready-to-show', () => win?.show())
-  win.webContents.on('render-process-gone', (_event, details) => console.error('[pi-desktop] 界面进程退出:', details.reason))
-  win.webContents.on('did-fail-load', (_event, code, description, url) => console.error('[pi-desktop] 页面加载失败:', code, description, url))
+  win.webContents.on('render-process-gone', (_event, details) => console.error('[pi-desktop] renderer process gone:', details.reason))
+  win.webContents.on('did-fail-load', (_event, code, description, url) => console.error('[pi-desktop] page failed to load:', code, description, url))
   win.webContents.on('console-message', (event) => {
-    if (event.level === 'error') console.error('[界面]', event.message)
+    if (event.level === 'error') console.error('[renderer]', event.message)
   })
   // 对话里的链接一律交给系统浏览器，应用窗口本身不跳转
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -115,13 +116,16 @@ function registerIpc(): void {
     return setConfig({ extraSkillDirs: [...config.extraSkillDirs, result.filePaths[0]] })
   })
   handle('config:skillDirRemove', (dir: string) => setConfig({ extraSkillDirs: getConfig().extraSkillDirs.filter((item) => item !== dir) }))
+  ipcMain.on('setLang', (_event, lang: Lang) => {
+    if (lang === 'zh' || lang === 'en') setLang(lang)
+  })
   ipcMain.on('setTheme', (_event, theme: Theme) => {
     if (theme === 'system' || theme === 'light' || theme === 'dark') nativeTheme.themeSource = theme
   })
   // 界面只能读、删会话目录里的会话文件
   const sessionFile = (file: string): string => {
     const resolved = path.resolve(file)
-    if (!resolved.startsWith(path.join(AGENT_DIR, 'sessions') + path.sep) || !resolved.endsWith('.jsonl')) throw new Error('不是会话文件')
+    if (!resolved.startsWith(path.join(AGENT_DIR, 'sessions') + path.sep) || !resolved.endsWith('.jsonl')) throw new Error(t('不是会话文件'))
     return resolved
   }
   handle('listSessions', () => listSessions())
@@ -157,6 +161,7 @@ function registerIpc(): void {
 }
 
 void app.whenReady().then(() => {
+  setLang(resolveLang(app.getLocale()))
   void shellEnv()
   cleanRunDir()
   registerIpc()

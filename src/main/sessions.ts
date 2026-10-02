@@ -92,18 +92,18 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
       if (m.role === 'system') continue
       meta.messageCount++
       if (m.role === 'user' && !meta.firstUserText) meta.firstUserText = textOf(m.content).slice(0, 200)
-      count(m.usage, m.model ?? '其它', e.timestamp)
+      count(m.usage, m.model ?? '@other', e.timestamp)
     } else if (e.type === 'session_info' && typeof e.name === 'string') {
       meta.name = e.name
     } else if (e.usage) {
-      count(e.usage, e.model ?? '压缩与摘要', e.timestamp)
+      count(e.usage, e.model ?? '@summaries', e.timestamp)
     }
   }
   return { size: stat.size, mtime: stat.mtimeMs, meta, buckets: [...buckets.values()] }
 }
 
 let cache: Record<string, CacheEntry> | undefined
-const cacheFile = () => path.join(app.getPath('userData'), 'session-index.json')
+const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v2.json')
 
 function refresh(): Record<string, CacheEntry> {
   cache ??= readJson<Record<string, CacheEntry>>(cacheFile(), {})

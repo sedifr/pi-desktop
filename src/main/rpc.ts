@@ -1,6 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { StringDecoder } from 'node:string_decoder'
+import { t } from '@shared/i18n'
 import { nodeExecPath, piCliPath, shellEnv } from './env'
 
 interface Pending {
@@ -52,7 +53,7 @@ export class PiProcess extends EventEmitter {
       this.stderrTail = (this.stderrTail + chunk.toString('utf8')).slice(-4000)
     })
     child.on('error', (error) => this.finish(error.message))
-    child.on('exit', (code) => this.finish(code === 0 || code === null ? undefined : `Pi 进程退出（代码 ${code}）`))
+    child.on('exit', (code) => this.finish(code === 0 || code === null ? undefined : t('Pi 进程退出（代码 {code}）', { code })))
   }
 
   private handleLine(line: string): void {
@@ -66,7 +67,7 @@ export class PiProcess extends EventEmitter {
       const waiter = this.pending.get(message.id)!
       this.pending.delete(message.id)
       if (message.success) waiter.resolve(message.data)
-      else waiter.reject(new Error(String(message.error ?? '命令失败')))
+      else waiter.reject(new Error(String(message.error ?? t('命令失败'))))
       return
     }
     this.emit('event', message)
@@ -76,13 +77,13 @@ export class PiProcess extends EventEmitter {
     if (this.exited) return
     this.exited = true
     const detail = error ? `${error}\n${this.stderrTail.trim()}`.trim() : undefined
-    for (const waiter of this.pending.values()) waiter.reject(new Error(detail ?? 'Pi 进程已退出'))
+    for (const waiter of this.pending.values()) waiter.reject(new Error(detail ?? t('Pi 进程已退出')))
     this.pending.clear()
     this.emit('exit', detail)
   }
 
   request<T = unknown>(command: Record<string, unknown>): Promise<T> {
-    if (!this.child || this.exited) return Promise.reject(new Error('Pi 进程没有在运行'))
+    if (!this.child || this.exited) return Promise.reject(new Error(t('Pi 进程没有在运行')))
     const id = `r${++this.seq}`
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (data: unknown) => void, reject })
