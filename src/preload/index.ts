@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import type { AuthFlowEvent, ConvEvent, PiApi } from '@shared/types'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { AuthFlowEvent, ConvEvent, MenuAction, PiApi } from '@shared/types'
 
 const call =
   (channel: string) =>
@@ -21,6 +21,23 @@ const api: PiApi = {
   convSetModel: call('conv:setModel'),
   convSetThinking: call('conv:setThinking'),
   convCompact: call('conv:compact'),
+  convSetName: call('conv:setName'),
+  convExport: call('conv:export'),
+  convFork: call('conv:fork'),
+  convSync: call('conv:sync'),
+
+  templatesList: call('templates:list'),
+  templateSave: call('templates:save'),
+  templateTrash: call('templates:trash'),
+  filesSearch: call('files:search'),
+  trustGet: call('trust:get'),
+  trustSet: call('trust:set'),
+  pathForFile: (file) => webUtils.getPathForFile(file),
+  onMenu: (cb) => {
+    const listener = (_event: unknown, action: MenuAction) => cb(action)
+    ipcRenderer.on('menu', listener)
+    return () => ipcRenderer.removeListener('menu', listener)
+  },
   convUiResponse: (key, payload) => ipcRenderer.send('conv:uiResponse', key, payload),
   convClose: (key) => ipcRenderer.send('conv:close', key),
 

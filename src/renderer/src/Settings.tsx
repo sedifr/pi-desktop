@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CapItem, DesktopConfig, Theme } from '@shared/types'
 import { Accounts } from './Accounts'
+import { Commands, Shortcuts } from './Commands'
 import { Tile, nextState } from './CapPanel'
 import { type SettingsTab, api, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
@@ -9,7 +10,9 @@ import { t } from '@shared/i18n'
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'look', label: t('外观') },
   { id: 'caps', label: t('技能与工具') },
+  { id: 'commands', label: t('快捷指令') },
   { id: 'accounts', label: t('模型') },
+  { id: 'keys', label: t('快捷键') },
   { id: 'about', label: t('关于') }
 ]
 
@@ -219,6 +222,16 @@ function About() {
 
 export function Settings() {
   const tab = useApp((s) => s.settingsTab)
+  // Esc 关设置；正在填表或有弹窗开着时不抢这个键
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return
+      if ((event.target as HTMLElement).closest?.('input, textarea, select') || document.querySelector('.overlay, .custom-form')) return
+      setView('chat')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
     <div className="settings">
       <header className="header">
@@ -241,7 +254,9 @@ export function Settings() {
           <div className={`settings-column ${tab === 'caps' ? 'wide' : ''}`}>
             {tab === 'look' && <Look />}
             {tab === 'caps' && <Caps />}
+            {tab === 'commands' && <Commands />}
             {tab === 'accounts' && <Accounts />}
+            {tab === 'keys' && <Shortcuts />}
             {tab === 'about' && <About />}
           </div>
         </div>

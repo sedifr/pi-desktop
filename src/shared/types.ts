@@ -104,7 +104,53 @@ export interface ModelInfo {
   name?: string
   contextWindow?: number
   reasoning?: boolean
+  /** 模型能接收的输入类型，比如 text、image */
+  input?: string[]
 }
+
+/** 随消息一起发出去的图片。data 是 base64 */
+export interface ImageAttachment {
+  name: string
+  mimeType: string
+  data: string
+}
+
+/** 一条快捷指令（Pi 的提示词模板）：一个 Markdown 文件，文件名就是命令名 */
+export interface TemplateInfo {
+  name: string
+  scope: 'global' | 'project'
+  file: string
+  description: string
+  argumentHint: string
+  body: string
+}
+
+/** 一个项目文件夹的信任状态 */
+export interface TrustStatus {
+  /** 项目里有没有要信任才会加载的东西 */
+  needed: boolean
+  /** 存下来的决定：信任、不信任，或者还没决定 */
+  decision: boolean | null
+  /** 这个决定记在哪个文件夹上（可能是上级文件夹） */
+  from?: string
+  /** 算上 Pi 的默认设置后，现在到底加不加载 */
+  trusted: boolean
+}
+
+export interface TemplateInput {
+  name: string
+  scope: 'global' | 'project'
+  /** 存成项目指令时要知道是哪个项目 */
+  cwd?: string
+  description: string
+  argumentHint: string
+  body: string
+  /** 编辑已有指令时带上原来的文件，改名或换范围后旧文件会被删掉 */
+  originalFile?: string
+}
+
+/** 系统菜单和快捷键触发的动作 */
+export type MenuAction = 'settings' | 'new' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar'
 
 export interface SessionStats {
   userMessages: number
@@ -124,7 +170,7 @@ export interface ConvInfo {
   sessionFile?: string
   sessionId?: string
   sessionName?: string
-  commands?: { name: string; description?: string; source: string }[]
+  commands?: { name: string; description?: string; source: string; argumentHint?: string }[]
 }
 
 /** 主进程发给界面的事件：Pi 原始事件，或以下划线开头的桌面端自有事件 */
@@ -219,11 +265,29 @@ export interface PiApi {
   openExternal(url: string): void
 
   convStart(key: string, cwd: string, sessionFile?: string): Promise<ConvInfo>
-  convPrompt(key: string, text: string): Promise<void>
+  /** 返回 Pi 对这条消息的处理方式：started、queued 或 handled */
+  convPrompt(key: string, text: string, images?: ImageAttachment[], behavior?: 'steer' | 'followUp'): Promise<string>
   convAbort(key: string): Promise<void>
   convSetModel(key: string, provider: string, id: string): Promise<ConvInfo>
   convSetThinking(key: string, level: string): Promise<ConvInfo>
-  convCompact(key: string): Promise<void>
+  convCompact(key: string, instructions?: string): Promise<void>
+  convSetName(key: string, name: string): Promise<ConvInfo>
+  /** 导出为网页并在访达里显示，返回文件路径 */
+  convExport(key: string): Promise<string>
+  /** 从第几条用户消息另开对话。返回新对话的 key 和那条消息的文字；被扩展取消时返回 undefined */
+  convFork(key: string, userIndex: number, text: string): Promise<{ key: string; text: string } | undefined>
+  convSync(key: string): Promise<void>
+
+  templatesList(cwd?: string): Promise<TemplateInfo[]>
+  templateSave(input: TemplateInput): Promise<void>
+  templateTrash(file: string, cwd?: string): Promise<void>
+  filesSearch(cwd: string, query: string): Promise<string[]>
+  trustGet(cwd: string): Promise<TrustStatus>
+  /** 记下对这个项目的决定；null 是清掉记录 */
+  trustSet(cwd: string, decision: boolean | null): Promise<TrustStatus>
+  onMenu(cb: (action: MenuAction) => void): () => void
+  /** 拖进来或选中的文件在磁盘上的路径 */
+  pathForFile(file: File): string
   convUiResponse(key: string, payload: Record<string, unknown>): void
   convClose(key: string): void
 

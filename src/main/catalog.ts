@@ -96,6 +96,16 @@ async function probeSkills(cwd: string): Promise<ProbedSkill[]> {
   return task
 }
 
+/** 项目的信任状态变了，之前问到的技能清单作废 */
+export function forgetProbe(cwd: string): void {
+  probeCache.delete(cwd)
+  const disk = readJson<Record<string, ProbedSkill[]>>(probeFile(), {})
+  if (probeKey(cwd) in disk) {
+    delete disk[probeKey(cwd)]
+    writeJson(probeFile(), disk)
+  }
+}
+
 async function defaultSkills(cwd: string): Promise<ProbedSkill[]> {
   const hit = probeCache.get(cwd)
   if (hit) {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { SessionMeta } from '@shared/types'
-import { type Conv, activate, addProject, newConv, openSession, removeProject, setView, trashSession, useApp } from './store'
+import { type Conv, activate, addProject, newConv, openSession, removeProject, setPrefs, setView, trashSession, useApp } from './store'
 import { Icon, baseName, relTime } from './ui'
 import { t } from '@shared/i18n'
 
@@ -53,7 +53,11 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-drag" />
+      <div className="sidebar-drag">
+        <button className="icon-btn" title={t('隐藏侧栏（⌘B）')} onClick={() => setPrefs({ sidebarCollapsed: true })}>
+          <Icon name="sidebar" size={15} />
+        </button>
+      </div>
       <button className="nav-item" onClick={() => (active ? newConv(active.cwd) : projects[0] ? newConv(projects[0].cwd) : void addProject())}>
         <Icon name="edit" />
         {t('新对话')}

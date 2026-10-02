@@ -124,6 +124,14 @@ export function rekey(from: string, to: string): void {
   save()
 }
 
+/** 从一个对话分叉出新对话时，新对话沿用原来的开关 */
+export function copySession(from: string, to: string): void {
+  const s = load()
+  if (from === to || !s.sessions[from]) return
+  s.sessions[to] = { ...s.sessions[from] }
+  save()
+}
+
 /** 对话被删掉时，它的专属设置也一起删 */
 export function forget(key: string): void {
   const s = load()

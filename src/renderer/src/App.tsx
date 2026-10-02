@@ -4,7 +4,7 @@ import { Chat } from './Chat'
 import { Composer } from './Composer'
 import { Settings } from './Settings'
 import { Sidebar } from './Sidebar'
-import { type Conv, type UiRequest, addProject, answerUi, api, useApp } from './store'
+import { type Conv, type UiRequest, addProject, answerUi, api, rename, runCommand, setPrefs, setRenaming, setTrust, useApp } from './store'
 import { Icon, Popover, baseName, fmtCost, fmtTokens } from './ui'
 import { t } from '@shared/i18n'
 
@@ -84,17 +84,92 @@ function UsagePopover({ usage, onClose }: { usage: UsageView; onClose: () => voi
   )
 }
 
+/** 标题栏里直接改名：回车保存，Esc 或点到别处取消 */
+function TitleEditor({ conv }: { conv: Conv }) {
+  const [value, setValue] = useState(conv.title ?? '')
+  return (
+    <input
+      autoFocus
+      className="title-input no-drag"
+      value={value}
+      placeholder={t('给这个对话起个名字')}
+      onChange={(event) => setValue(event.target.value)}
+      onFocus={(event) => event.target.select()}
+      onBlur={() => setRenaming(undefined)}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return
+        if (event.key === 'Enter') {
+          void rename(conv.key, value)
+          setRenaming(undefined)
+        } else if (event.key === 'Escape') setRenaming(undefined)
+      }}
+    />
+  )
+}
+
 function Header({ conv }: { conv: Conv }) {
   const models = useApp((s) => s.models)
+  const renaming = useApp((s) => s.renamingKey === conv.key)
+  const collapsed = useApp((s) => s.prefs.sidebarCollapsed)
+  const trust = useApp((s) => s.trust[conv.cwd])
   const [open, setOpen] = useState(false)
+  const [menu, setMenu] = useState(false)
   const usage = usageOf(conv, (provider, id) => models[`${provider}/${id}`]?.contextWindow)
   const percent = usage?.contextTokens != null && usage.contextWindow ? Math.round((usage.contextTokens / usage.contextWindow) * 100) : undefined
+  const run = (name: string) => {
+    setMenu(false)
+    void runCommand(conv.key, name, '')
+  }
   return (
-    <header className="header">
-      <span className="header-title ellipsis">{conv.title ?? t('新对话')}</span>
+    <header className={`header ${collapsed ? 'no-sidebar' : ''}`}>
+      {collapsed && (
+        <button className="icon-btn" title={t('显示侧栏（⌘B）')} onClick={() => setPrefs({ sidebarCollapsed: false })}>
+          <Icon name="sidebar" size={15} />
+        </button>
+      )}
+      {renaming ? (
+        <TitleEditor conv={conv} />
+      ) : (
+        <span className="header-title ellipsis no-drag" title={t('双击改名')} onDoubleClick={() => setRenaming(conv.key)}>
+          {conv.title ?? t('新对话')}
+        </span>
+      )}
       <span className="muted small" title={conv.cwd}>
         {baseName(conv.cwd)}
       </span>
+      <div className="anchor no-drag">
+        <button className="icon-btn" data-popover-trigger="header-menu" title={t('更多操作')} onClick={() => setMenu(!menu)}>
+          <Icon name="more" size={15} />
+        </button>
+        {menu && (
+          <Popover onClose={() => setMenu(false)} className="menu below" group="header-menu">
+            <button className="menu-item" onClick={() => run('name')}>
+              {t('改名')}
+            </button>
+            <button className="menu-item" onClick={() => run('copy')}>
+              {t('复制上一条回答')}
+            </button>
+            <button className="menu-item" onClick={() => run('compact')}>
+              {t('压缩上下文')}
+            </button>
+            <button className="menu-item" onClick={() => run('export')}>
+              {t('导出为网页')}
+            </button>
+            {trust?.needed && (
+              <button
+                className="menu-item"
+                title={t('项目自带的技能、指令、扩展和 MCP 只在信任后加载')}
+                onClick={() => {
+                  setMenu(false)
+                  void setTrust(conv.cwd, !trust.trusted)
+                }}
+              >
+                {trust.trusted ? t('不再信任这个项目') : t('信任这个项目')}
+              </button>
+            )}
+          </Popover>
+        )}
+      </div>
       <span className="grow" />
       {usage && (
         <div className="anchor no-drag">
@@ -163,11 +238,12 @@ export function App() {
   const conv = useApp((s) => (s.activeKey ? s.convs[s.activeKey] : undefined))
   const toasts = useApp((s) => s.toasts)
   const view = useApp((s) => s.view)
+  const collapsed = useApp((s) => s.prefs.sidebarCollapsed)
   const empty = conv && !conv.messages.length && !conv.pending.length && !conv.loading
 
   return (
     <div className="app">
-      <Sidebar />
+      {!collapsed && <Sidebar />}
       <main className="main">
         {view === 'settings' ? (
           <Settings />

@@ -2,12 +2,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme, shell } from 'electron'
-import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, OpenTarget, Theme } from '@shared/types'
+import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
 import { cleanRunDir, forget, getGlobal, getItems, resetSession, saveAs, setGlobal, setStates } from './caps'
-import { DESKTOP_EXT_DIR } from './catalog'
+import { DESKTOP_EXT_DIR, forgetProbe } from './catalog'
 import { getConfig, setConfig } from './config'
+import { searchFiles } from './files'
+import { buildMenu } from './menu'
+import { listTemplates, saveTemplate, trashTemplate } from './templates'
+import { setTrust, trustStatus } from './trust'
 import { AGENT_DIR, DESKTOP_DIR, HOME, piVersion, readJson, shellEnv, writeJson } from './env'
 import { listSessions, readSession, usageTotals } from './sessions'
 
@@ -117,7 +121,10 @@ function registerIpc(): void {
   })
   handle('config:skillDirRemove', (dir: string) => setConfig({ extraSkillDirs: getConfig().extraSkillDirs.filter((item) => item !== dir) }))
   ipcMain.on('setLang', (_event, lang: Lang) => {
-    if (lang === 'zh' || lang === 'en') setLang(lang)
+    if (lang !== 'zh' && lang !== 'en') return
+    setLang(lang)
+    // 菜单栏的文字也跟着换
+    buildMenu(() => win)
   })
   ipcMain.on('setTheme', (_event, theme: Theme) => {
     if (theme === 'system' || theme === 'light' || theme === 'dark') nativeTheme.themeSource = theme
@@ -144,11 +151,38 @@ function registerIpc(): void {
   })
 
   handle('conv:start', (key: string, cwd: string, sessionFile?: string) => agents.start(key, cwd, sessionFile))
-  handle('conv:prompt', (key: string, text: string) => agents.prompt(key, text))
+  handle('conv:prompt', (key: string, text: string, images?: ImageAttachment[], behavior?: 'steer' | 'followUp') => agents.prompt(key, text, images, behavior))
   handle('conv:abort', (key: string) => agents.abort(key))
   handle('conv:setModel', (key: string, provider: string, id: string) => agents.setModel(key, provider, id))
   handle('conv:setThinking', (key: string, level: string) => agents.setThinking(key, level))
-  handle('conv:compact', (key: string) => agents.compact(key))
+  handle('conv:compact', (key: string, instructions?: string) => agents.compact(key, instructions))
+  handle('conv:setName', (key: string, name: string) => agents.setName(key, name))
+  handle('conv:export', async (key: string) => {
+    const file = await agents.exportHtml(key)
+    shell.showItemInFolder(file)
+    return file
+  })
+  handle('conv:fork', (key: string, userIndex: number, text: string) => agents.fork(key, userIndex, text))
+  handle('conv:sync', (key: string) => agents.sync(key))
+
+  // 快捷指令变了以后，闲着的 Pi 进程下次用时重启，新的指令才认得
+  handle('templates:list', (cwd?: string) => listTemplates(cwd))
+  handle('templates:save', (input: TemplateInput) => {
+    saveTemplate(input)
+    agents.restartIdle()
+  })
+  handle('templates:trash', async (file: string, cwd?: string) => {
+    await trashTemplate(file, cwd)
+    agents.restartIdle()
+  })
+  handle('trust:get', (cwd: string) => trustStatus(cwd))
+  handle('trust:set', async (cwd: string, decision: boolean | null) => {
+    const status = await setTrust(cwd, decision)
+    forgetProbe(cwd)
+    agents.restartIdle()
+    return status
+  })
+  handle('files:search', (cwd: string, query: string) => searchFiles(cwd, query))
   ipcMain.on('conv:uiResponse', (_event, key: string, payload: Record<string, unknown>) => agents.uiResponse(key, payload))
   ipcMain.on('conv:close', (_event, key: string) => agents.close(key))
 
@@ -162,6 +196,7 @@ function registerIpc(): void {
 
 void app.whenReady().then(() => {
   setLang(resolveLang(app.getLocale()))
+  buildMenu(() => win)
   void shellEnv()
   cleanRunDir()
   registerIpc()

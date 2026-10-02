@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, Usage } from '@shared/types'
+import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, ImageAttachment, MenuAction, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, TrustStatus, Usage } from '@shared/types'
 import { type Lang, getLang, resolveLang, t } from '@shared/i18n'
 
 declare global {
@@ -44,13 +44,26 @@ export interface Conv {
   toolRuns: Record<string, ToolRun>
   queue: string[]
   /** 已经发出、还没被 Pi 回显的用户消息 */
-  pending: string[]
+  pending: PendingMsg[]
+  /** 输入框里还没发出去的图片 */
+  attachments: ImageAttachment[]
   widgets: Record<string, string[]>
   statuses: Record<string, string>
   uiRequest?: UiRequest
   notice?: string
   draft: string
   caps?: CapSnapshot
+}
+
+export interface PendingMsg {
+  text: string
+  images: ImageAttachment[]
+}
+
+/** 菜单栏或快捷键发来的、需要输入栏去响应的动作。n 每次加一，同一个动作连按也能触发 */
+export interface UiSignal {
+  action: 'commands' | 'model' | 'focus'
+  n: number
 }
 
 export interface Toast {
@@ -75,9 +88,14 @@ export interface AppState {
   /** 每个提供商的登录是否有效。来自主动检测，也来自对话里真实请求的成败 */
   authStatus: Record<string, AuthStatus>
   authChecking: Record<string, boolean>
+  /** 各个项目文件夹的信任状态 */
+  trust: Record<string, TrustStatus>
+  /** 正在标题栏里改名的对话 */
+  renamingKey?: string
+  signal?: UiSignal
 }
 
-export type SettingsTab = 'look' | 'caps' | 'accounts' | 'about'
+export type SettingsTab = 'look' | 'caps' | 'commands' | 'accounts' | 'keys' | 'about'
 
 export interface Prefs {
   /** 界面语言。system 表示跟随系统 */
@@ -85,9 +103,10 @@ export interface Prefs {
   theme: Theme
   /** 对话正文的字号（像素） */
   fontSize: number
+  sidebarCollapsed: boolean
 }
 
-const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14 }
+const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false }
 
 let state: AppState = {
   sessions: [],
@@ -99,6 +118,7 @@ let state: AppState = {
   settingsTab: 'look',
   authStatus: JSON.parse(localStorage.getItem('authStatus') ?? '{}'),
   authChecking: {},
+  trust: {},
   prefs: { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('prefs') ?? '{}') }
 }
 const listeners = new Set<() => void>()
@@ -174,6 +194,7 @@ function blankConv(key: string, cwd: string): Conv {
     toolRuns: {},
     queue: [],
     pending: [],
+    attachments: [],
     widgets: {},
     statuses: {},
     draft: ''
@@ -469,8 +490,48 @@ export function accountsChanged(): void {
   set({ convs })
 }
 
+function signal(action: UiSignal['action']): void {
+  set({ view: 'chat', signal: { action, n: (state.signal?.n ?? 0) + 1 } })
+}
+
+function handleMenu(action: MenuAction): void {
+  const key = state.activeKey
+  const conv = key ? state.convs[key] : undefined
+  switch (action) {
+    case 'settings':
+      return openSettings(state.settingsTab)
+    case 'new': {
+      const cwd = conv?.cwd ?? projectDirs(state)[0]
+      return cwd ? newConv(cwd) : void addProject()
+    }
+    case 'addProject':
+      return void addProject()
+    case 'toggleSidebar':
+      return setPrefs({ sidebarCollapsed: !state.prefs.sidebarCollapsed })
+    case 'commands':
+    case 'model':
+      return signal(action)
+    case 'stop':
+      if (key && conv?.streaming) abort(key)
+      return
+    case 'rename':
+      if (key) set({ view: 'chat', renamingKey: key })
+      return
+    case 'copyLast':
+      if (key) void copyLastAnswer(key)
+      return
+    case 'compact':
+      if (key) void runCommand(key, 'compact', '')
+      return
+    case 'export':
+      if (key) void runCommand(key, 'export', '')
+      return
+  }
+}
+
 export async function init(): Promise<void> {
   api.onEvent(handleEvent)
+  api.onMenu(handleMenu)
   applyPrefs(state.prefs)
   const [defaults, sessions] = await Promise.all([api.defaults(), api.listSessions()])
   set({ defaults, sessions })
@@ -482,6 +543,26 @@ export function activate(key: string): void {
   const conv = state.convs[key]
   if (conv) localStorage.setItem('lastCwd', conv.cwd)
   set({ activeKey: key, view: 'chat' })
+  if (conv) loadTrust(conv.cwd)
+}
+
+export function loadTrust(cwd: string): void {
+  api.trustGet(cwd).then(
+    (status) => set({ trust: { ...state.trust, [cwd]: status } }),
+    () => {}
+  )
+}
+
+/** 记下要不要信任这个项目。Pi 只在启动时看这个决定，所以这个项目下的对话都要重新读一遍指令和技能 */
+export async function setTrust(cwd: string, decision: boolean | null): Promise<void> {
+  try {
+    const status = await api.trustSet(cwd, decision)
+    set({ trust: { ...state.trust, [cwd]: status } })
+    commandsChanged()
+    for (const conv of Object.values(state.convs)) if (conv.cwd === cwd && conv.caps) void loadCaps(conv.key)
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
 }
 
 /** 所有项目目录：有过对话的，加上用户手动添加的。最近用过的排前面 */
@@ -570,28 +651,187 @@ export function setDraft(key: string, draft: string): void {
   updateConv(key, (c) => (c.draft = draft), true)
 }
 
-export async function send(key: string): Promise<void> {
-  const conv = state.convs[key]
-  const text = conv?.draft.trim()
-  if (!conv || !text) return
-  updateConv(key, (c) => {
-    c.draft = ''
-    c.error = undefined
-    if (!c.streaming) c.pending = [...c.pending, text]
-    if (!c.title) c.title = text.slice(0, 60)
-  })
+/** 桌面端自己处理的快捷指令。其余以 / 开头的内容原样交给 Pi（模板、技能、扩展命令） */
+export const NATIVE_COMMANDS = ['new', 'compact', 'name', 'export', 'copy', 'settings'] as const
+
+export function setRenaming(key: string | undefined): void {
+  set({ renamingKey: key })
+}
+
+export async function rename(key: string, name: string): Promise<void> {
+  const clean = name.trim()
+  if (!clean) return
+  updateConv(key, (c) => (c.title = clean))
   try {
     await ensureProcess(key)
-    await api.convPrompt(key, text)
+    await api.convSetName(key, clean)
+    void refreshSessions()
+  } catch (error) {
+    toast(t('改名失败：{error}', { error: errorText(error) }), 'error')
+  }
+}
+
+/** 一轮回答里最后那段正文 */
+function lastAnswer(conv: Conv): string {
+  for (let i = conv.messages.length - 1; i >= 0; i--) {
+    const message = conv.messages[i]
+    if (message.role !== 'assistant' || !Array.isArray(message.content)) continue
+    const text = message.content
+      .filter((block) => block.type === 'text' && block.text)
+      .map((block) => block.text)
+      .join('\n\n')
+    if (text) return text
+  }
+  return ''
+}
+
+export async function copyText(text: string): Promise<void> {
+  if (!text) return
+  await navigator.clipboard.writeText(text)
+  toast(t('已复制'))
+}
+
+export async function copyLastAnswer(key: string): Promise<void> {
+  const conv = state.convs[key]
+  const text = conv ? lastAnswer(conv) : ''
+  if (!text) return toast(t('还没有可以复制的回答'), 'warning')
+  await copyText(text)
+}
+
+/** 执行一条桌面端自己的指令。返回 false 表示这不是桌面端的指令 */
+export async function runCommand(key: string, name: string, args: string): Promise<boolean> {
+  const conv = state.convs[key]
+  if (!conv) return false
+  try {
+    switch (name) {
+      case 'new':
+        newConv(conv.cwd)
+        return true
+      case 'compact':
+        updateConv(key, (c) => (c.notice = t('正在压缩上下文…')))
+        await ensureProcess(key)
+        await api.convCompact(key, args || undefined)
+        updateConv(key, (c) => (c.notice = undefined))
+        toast(t('上下文已压缩'))
+        return true
+      case 'name':
+        if (args) await rename(key, args)
+        else set({ renamingKey: key })
+        return true
+      case 'export': {
+        await ensureProcess(key)
+        await api.convExport(key)
+        toast(t('已导出，文件在访达里选中了'))
+        return true
+      }
+      case 'copy':
+        await copyLastAnswer(key)
+        return true
+      case 'settings':
+        openSettings(state.settingsTab)
+        return true
+      default:
+        return false
+    }
+  } catch (error) {
+    updateConv(key, (c) => (c.notice = undefined))
+    toast(errorText(error), 'error')
+    return true
+  }
+}
+
+export function addAttachments(key: string, images: ImageAttachment[]): void {
+  if (images.length) updateConv(key, (c) => (c.attachments = [...c.attachments, ...images]))
+}
+
+export function removeAttachment(key: string, index: number): void {
+  updateConv(key, (c) => (c.attachments = c.attachments.filter((_, i) => i !== index)))
+}
+
+/**
+ * 发送输入框里的内容。正在回答时发出的消息会排队：
+ * steer 是在当前这一步之后插进去，followUp 是等全部做完再处理。
+ */
+export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'): Promise<void> {
+  const conv = state.convs[key]
+  if (!conv) return
+  const text = conv.draft.trim()
+  const images = conv.attachments
+  if (!text && !images.length) return
+
+  const command = /^\/(\S+)\s*([\s\S]*)$/.exec(text)
+  if (command && (NATIVE_COMMANDS as readonly string[]).includes(command[1])) {
+    updateConv(key, (c) => (c.draft = ''), true)
+    await runCommand(key, command[1], command[2].trim())
+    return
+  }
+
+  const pending: PendingMsg = { text, images }
+  updateConv(
+    key,
+    (c) => {
+      c.draft = ''
+      c.attachments = []
+      c.error = undefined
+      if (!c.streaming) c.pending = [...c.pending, pending]
+      if (!c.title && text) c.title = text.slice(0, 60)
+    },
+    true
+  )
+  try {
+    await ensureProcess(key)
+    const disposition = await api.convPrompt(key, text, images, behavior)
+    // 被扩展命令直接处理掉的消息不会回显，把占位的那条拿掉
+    if (disposition === 'handled') updateConv(key, (c) => (c.pending = c.pending.filter((item) => item !== pending)))
     const caps = state.convs[key]?.caps
     if (caps?.dirty) updateConv(key, (c) => (c.caps = { ...caps, dirty: false }))
   } catch (error) {
     updateConv(key, (c) => {
-      c.pending = c.pending.filter((p) => p !== text)
+      c.pending = c.pending.filter((item) => item !== pending)
       c.draft = c.draft || text
+      c.attachments = c.attachments.length ? c.attachments : images
       c.error = errorText(error)
     })
   }
+}
+
+/**
+ * 从第几条用户消息另开一个对话。新对话保留那条消息之前的内容，
+ * 那条消息的文字放回输入框，可以改了再发。原来的对话不受影响。
+ */
+export async function forkFrom(key: string, userIndex: number, text: string): Promise<void> {
+  const conv = state.convs[key]
+  if (!conv) return
+  try {
+    await ensureProcess(key)
+    const result = await api.convFork(key, userIndex, text)
+    if (!result) return
+    // 新对话的内容就是原对话里那条消息之前的部分
+    let seen = -1
+    const cut = conv.messages.findIndex((message) => message.role === 'user' && ++seen === userIndex)
+    const next = blankConv(result.key, conv.cwd)
+    next.sessionFile = result.key.startsWith('new:') ? undefined : result.key
+    next.messages = cut >= 0 ? conv.messages.slice(0, cut) : []
+    next.draft = result.text
+    next.status = 'ready'
+    next.info = { ...conv.info, sessionFile: next.sessionFile, sessionName: undefined }
+    next.caps = conv.caps
+    // 进程已经跟着去了新对话；原来的对话下次用到时会另起一个
+    const previous = { ...conv, status: 'idle' as const, streaming: false, liveIndex: -1, stats: undefined }
+    state = { ...state, convs: { ...state.convs, [key]: previous, [next.key]: next } }
+    activate(next.key)
+    await api.convSync(next.key)
+    void refreshSessions()
+  } catch (error) {
+    toast(t('另开对话失败：{error}', { error: errorText(error) }), 'error')
+  }
+}
+
+/** 快捷指令增删改之后：旧的指令清单作废，下次用到时重新读 */
+export function commandsChanged(): void {
+  const convs: Record<string, Conv> = {}
+  for (const [key, conv] of Object.entries(state.convs)) convs[key] = { ...conv, status: conv.streaming ? conv.status : 'idle', info: { ...conv.info, commands: undefined } }
+  set({ convs })
 }
 
 export function abort(key: string): void {

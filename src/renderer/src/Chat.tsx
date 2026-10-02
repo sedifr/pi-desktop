@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import type { Conv, ToolRun } from './store'
+import { type Conv, type ToolRun, copyText, forkFrom } from './store'
 import { Icon, Markdown } from './ui'
 import { t } from '@shared/i18n'
 
@@ -229,16 +229,34 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
         </div>
       )}
       {block.final && <Markdown text={block.final} />}
+      {block.final && !live && (
+        <div className="msg-actions under">
+          <button className="icon-btn" title={t('复制这条回答')} onClick={() => void copyText(block.final!)}>
+            <Icon name="copy" size={14} />
+          </button>
+        </div>
+      )}
       {block.error && <div className="banner error">{block.error}</div>}
       {block.aborted && <div className="muted small">{t('已停止')}</div>}
     </div>
   )
 })
 
-function UserMessage({ msg }: { msg: Msg }) {
+function UserMessage({ msg, onFork }: { msg: Msg; onFork?: () => void }) {
   const blocks = blocksOf(msg.content)
+  const text = textOf(msg.content)
   return (
     <div className="user-row">
+      <div className="msg-actions">
+        {onFork && (
+          <button className="icon-btn" title={t('从这里另开一个对话：保留这条之前的内容，这条消息可以改了再发')} onClick={onFork}>
+            <Icon name="branch" size={14} />
+          </button>
+        )}
+        <button className="icon-btn" title={t('复制')} onClick={() => void copyText(text)}>
+          <Icon name="copy" size={14} />
+        </button>
+      </div>
       <div className="user-bubble">
         {blocks
           .filter((b) => b.type === 'image' && b.data)
@@ -287,6 +305,8 @@ export function Chat({ conv }: { conv: Conv }) {
   })
 
   const visible = blocks.slice(Math.max(0, blocks.length - shown))
+  // 这是第几条用户消息（从 0 数），另开对话时要告诉 Pi
+  const userIndexOf = (target: Block) => blocks.filter((block) => block.kind === 'user').indexOf(target as Extract<Block, { kind: 'user' }>)
   const lastTurn = [...blocks].reverse().find((b) => b.kind === 'turn')
 
   return (
@@ -306,15 +326,18 @@ export function Chat({ conv }: { conv: Conv }) {
         )}
         {visible.map((block) =>
           block.kind === 'user' ? (
-            <UserMessage key={block.id} msg={block.msg} />
+            <UserMessage key={block.id} msg={block.msg} onFork={conv.streaming ? undefined : () => void forkFrom(conv.key, userIndexOf(block), textOf(block.msg.content))} />
           ) : block.kind === 'turn' ? (
             <Turn key={block.id} block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} />
           ) : (
             <Note key={block.id} label={block.label} text={block.text} />
           )
         )}
-        {conv.pending.map((text, index) => (
-          <UserMessage key={`pending-${index}`} msg={{ role: 'user', content: text }} />
+        {conv.pending.map((item, index) => (
+          <UserMessage
+            key={`pending-${index}`}
+            msg={{ role: 'user', content: [...item.images.map((image) => ({ type: 'image', data: image.data, mimeType: image.mimeType })), { type: 'text', text: item.text }] }}
+          />
         ))}
         {(conv.pending.length > 0 || (conv.streaming && blocks[blocks.length - 1]?.kind === 'user')) && (
           <div className="working">
