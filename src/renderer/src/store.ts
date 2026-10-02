@@ -670,7 +670,7 @@ export function removeProject(cwd: string): void {
   localStorage.setItem('extraProjects', JSON.stringify(extraProjects))
   const convs = { ...state.convs }
   for (const conv of Object.values(convs)) {
-    if (conv.cwd === cwd && !conv.sessionFile && !conv.messages.length && !conv.streaming) {
+    if (conv.cwd === cwd && conv.key.startsWith('new:') && !conv.messages.length && !conv.pending.length && !conv.streaming) {
       api.convClose(conv.key)
       delete convs[conv.key]
     }
@@ -691,8 +691,9 @@ function startInBackground(key: string): void {
 }
 
 export function newConv(cwd: string): void {
-  // 当前项目里已经有一个空白的新对话就直接用它
-  const existing = Object.values(state.convs).find((c) => c.cwd === cwd && !c.sessionFile && !c.messages.length && !c.streaming)
+  // 当前项目里已经有一个空白的新对话就直接用它。
+  // 不能拿「有没有会话文件」来判断：Pi 一启动就会报出文件名，哪怕还一个字没写
+  const existing = Object.values(state.convs).find((c) => c.cwd === cwd && c.key.startsWith('new:') && !c.messages.length && !c.pending.length && !c.streaming && !c.shellRunning)
   if (existing) return activate(existing.key)
   const key = `new:${crypto.randomUUID()}`
   state = { ...state, convs: { ...state.convs, [key]: blankConv(key, cwd) } }
