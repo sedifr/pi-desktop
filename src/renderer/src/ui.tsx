@@ -19,6 +19,10 @@ const ICONS: Record<string, ReactNode> = {
   terminal: <path d="M2.5 3.5h11v9h-11zM5 6.5 7 8.5 5 10.5M8.5 10.5H11" />,
   file: <path d="M4 2.5h5L12 5.5v8H4zM9 2.5v3h3" />,
   search: <path d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM11 11l3 3" />,
+  panel: <path d="M2.5 3.5h11v9h-11zM10 3.5v9" />,
+  diff: <path d="M5 2.5v6M2 5.5h6M2.5 12h5M11 4v8.5M9 10.5l2 2 2-2" />,
+  globe: <path d="M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM2.5 8h11M8 2.5c1.6 1.5 2.4 3.3 2.4 5.5S9.6 12 8 13.5C6.4 12 5.6 10.2 5.6 8S6.4 4 8 2.5z" />,
+  external: <path d="M9 3h4v4M13 3 7.5 8.5M11.5 9.5v3h-8v-8h3" />,
   image: <path d="M2.5 3.5h11v9h-11zM2.5 10.5l3-3 2.5 2.5 2-2 3.5 3.5M10.2 6.2a.6.6 0 1 0 0-.01" />,
   star: <path d="M8 2.2l1.75 3.6 3.95.55-2.86 2.77.68 3.93L8 11.2l-3.52 1.85.68-3.93L2.3 6.35l3.95-.55L8 2.2z" />,
   chart: <path d="M8 2a6 6 0 1 0 6 6H8V2zM10.5 2.6A6 6 0 0 1 13.4 5.5h-2.9V2.6z" />,
@@ -63,7 +67,7 @@ export const imgUrl = (file: string): string => `pi-img://local/${encodeURICompo
  * 哪些图在上面已经显示过了（模型常常在回答里把刚生成的图再写一遍，不用显示两次）；
  * 以及点了图片之后做什么。
  */
-export const ImageContext = createContext<{ cwd?: string; home?: string; shown?: Set<string>; open?: (file: string) => void }>({})
+export const ImageContext = createContext<{ cwd?: string; home?: string; shown?: Set<string>; open?: (file: string) => void; openLink?: (url: string) => void }>({})
 
 /** 把正文里写的图片地址换成本机的完整路径。不是本机文件就返回 undefined */
 function localPath(src: string, cwd?: string, home?: string): string | undefined {
@@ -99,7 +103,10 @@ function MdImage({ src, alt }: { src?: string; alt?: string }) {
   return <img className="md-image" src={imgUrl(file)} alt={alt} onError={() => setFailed(true)} onClick={() => open?.(file)} />
 }
 
+const LOCAL_URL = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i
+
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
+  const onLocalLink = useContext(ImageContext).openLink
   return (
     <div className="md">
       <ReactMarkdown
@@ -108,7 +115,18 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
         urlTransform={(url, key) => (key === 'src' ? url : defaultUrlTransform(url))}
         components={{
           a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noreferrer">
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => {
+                // 本机跑起来的页面在右侧面板里看，别的照旧交给系统浏览器
+                if (href && onLocalLink && LOCAL_URL.test(href)) {
+                  event.preventDefault()
+                  onLocalLink(href)
+                }
+              }}
+            >
               {children}
             </a>
           ),

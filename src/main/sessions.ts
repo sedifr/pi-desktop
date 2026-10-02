@@ -115,7 +115,7 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
       if (m.role === 'system') continue
       // 出图工具会在结果里说明图片存到了哪
       if (m.role === 'toolResult' && !m.isError && typeof m.details?.path === 'string' && /\.(png|jpe?g|webp|gif)$/i.test(m.details.path)) {
-        images.push({ path: m.details.path, prompt: typeof m.details.prompt === 'string' ? m.details.prompt.slice(0, 600) : undefined, tool: m.toolName })
+        images.push({ path: m.details.path, prompt: typeof m.details.prompt === 'string' ? m.details.prompt : undefined, tool: m.toolName })
       }
       meta.messageCount++
       if (m.role === 'user' && !meta.firstUserText) meta.firstUserText = textOf(m.content).slice(0, 200)
@@ -130,7 +130,7 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
 }
 
 let cache: Record<string, CacheEntry> | undefined
-const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v4.json')
+const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v5.json')
 
 function refresh(): Record<string, CacheEntry> {
   cache ??= readJson<Record<string, CacheEntry>>(cacheFile(), {})
@@ -205,6 +205,14 @@ export function usageTotals(): UsageTotals {
   return totals
 }
 
+function slimDetails(details: Entry | undefined): Record<string, unknown> | undefined {
+  if (!details) return undefined
+  const out: Record<string, unknown> = {}
+  if (typeof details.path === 'string') out.path = details.path
+  if (typeof details.patch === 'string' && details.patch.length < 200_000) out.patch = details.patch
+  return Object.keys(out).length ? out : undefined
+}
+
 function slimMessage(message: Entry, entryId: string): Msg {
   const content = Array.isArray(message.content)
     ? message.content.map((block: Entry) => {
@@ -226,8 +234,8 @@ function slimMessage(message: Entry, entryId: string): Msg {
     errorMessage: message.errorMessage,
     timestamp: message.timestamp,
     usage: message.usage,
-    // 大多数工具的 details 很大且界面用不到，只留「文件存到了哪」这一项
-    details: typeof message.details?.path === 'string' ? { path: message.details.path } : undefined,
+    // 大多数工具的 details 很大且界面用不到，只留两样：文件存到了哪、改文件工具改了什么
+    details: slimDetails(message.details),
     ...(message.role === 'bashExecution'
       ? {
           command: message.command,

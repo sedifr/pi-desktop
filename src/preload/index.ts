@@ -53,6 +53,24 @@ const api: PiApi = {
   capsGlobalGet: call('caps:globalGet'),
   capsGlobalSet: call('caps:globalSet'),
 
+  termCreate: call('term:create'),
+  termWrite: (id, data) => ipcRenderer.send('term:write', id, data),
+  termResize: (id, cols, rows) => ipcRenderer.send('term:resize', id, cols, rows),
+  termKill: (id) => ipcRenderer.send('term:kill', id),
+  onTermData: (cb) => {
+    const listener = (_event: unknown, id: string, data: string) => cb(id, data)
+    ipcRenderer.on('term:data', listener)
+    return () => ipcRenderer.removeListener('term:data', listener)
+  },
+  onTermExit: (cb) => {
+    const listener = (_event: unknown, id: string, code: number) => cb(id, code)
+    ipcRenderer.on('term:exit', listener)
+    return () => ipcRenderer.removeListener('term:exit', listener)
+  },
+  changesList: call('changes:list'),
+  changesDiff: call('changes:diff'),
+  fileOpen: (cwd, file) => ipcRenderer.send('file:open', cwd, file),
+  fileReveal: (cwd, file) => ipcRenderer.send('file:reveal', cwd, file),
   imagesList: call('images:list'),
   imagesTrash: call('images:trash'),
   imageReveal: (file) => ipcRenderer.send('images:reveal', file),

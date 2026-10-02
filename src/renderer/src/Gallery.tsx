@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { t } from '@shared/i18n'
 import type { ImageInfo } from '@shared/types'
-import { api, errorText, openSession, previewImage, setConfig, setView, toast, useApp } from './store'
+import { api, copyText, errorText, openSession, previewImage, setConfig, setView, toast, useApp } from './store'
 import { Icon, baseName, imgUrl, relTime } from './ui'
 
 export const fmtSize = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`)
@@ -210,8 +210,19 @@ export function ImagePreview({ path }: { path: string }) {
         <div className="preview-side">
           <div className="preview-title">{info ? info.name : baseName(path)}</div>
           {info && <div className="muted small">{[info.cwd && baseName(info.cwd), relTime(info.modified), fmtSize(info.size)].filter(Boolean).join(' · ')}</div>}
-          {info?.prompt && <div className="preview-prompt">{info.prompt}</div>}
-          <span className="grow" />
+          {info?.prompt ? (
+            <>
+              <div className="preview-label">
+                <span className="grow">{t('提示词')}</span>
+                <button className="link-btn" onClick={() => void copyText(info.prompt!)}>
+                  <Icon name="copy" size={12} /> {t('复制提示词')}
+                </button>
+              </div>
+              <div className="preview-prompt">{info.prompt}</div>
+            </>
+          ) : (
+            <span className="grow" />
+          )}
           {session && (
             <button
               className="btn"

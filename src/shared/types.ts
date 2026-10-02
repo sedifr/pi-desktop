@@ -84,7 +84,7 @@ export interface Msg {
   errorMessage?: string
   timestamp?: number
   usage?: Partial<Usage> & { cost?: { total?: number } }
-  /** 工具附带的结构化信息，比如出图工具的保存路径 */
+  /** 工具附带的结构化信息：出图工具的保存路径（path）、改文件工具的差异（patch） */
   details?: Record<string, unknown>
   /** role 为 compactionSummary / custom 等时的附加信息 */
   summary?: string
@@ -174,7 +174,7 @@ export interface TemplateInput {
 }
 
 /** 系统菜单和快捷键触发的动作 */
-export type MenuAction = 'settings' | 'new' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar'
+export type MenuAction = 'settings' | 'new' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
 
 export interface SessionStats {
   userMessages: number
@@ -286,6 +286,22 @@ export interface CustomProviderDetail {
 
 /** 设置页里能在访达中打开的位置 */
 export type OpenTarget = 'agent' | 'desktop' | 'summaries' | 'extensions' | 'mcp'
+
+/** 项目里一个有改动的文件 */
+export interface ChangedFile {
+  /** 相对于项目文件夹的路径 */
+  path: string
+  status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked'
+  added?: number
+  removed?: number
+}
+
+export interface ChangesInfo {
+  /** 项目是不是 git 仓库。不是的话没法知道「没提交的改动」，只能看这次对话动过哪些文件 */
+  git: boolean
+  branch?: string
+  files: ChangedFile[]
+}
 
 /** 图库里的一张图 */
 export interface ImageInfo {
@@ -401,6 +417,20 @@ export interface PiApi {
   /** 全局默认：所有项目的新对话一开始的状态 */
   capsGlobalGet(): Promise<CapItem[]>
   capsGlobalSet(changes: Record<string, CapState>): Promise<CapItem[]>
+
+  /** 开一个终端。同一个 id 已经开着时什么都不做 */
+  termCreate(id: string, cwd: string, cols: number, rows: number): Promise<void>
+  termWrite(id: string, data: string): void
+  termResize(id: string, cols: number, rows: number): void
+  termKill(id: string): void
+  onTermData(cb: (id: string, data: string) => void): () => void
+  onTermExit(cb: (id: string, code: number) => void): () => void
+
+  changesList(cwd: string): Promise<ChangesInfo>
+  /** 一个文件的改动，统一差异格式 */
+  changesDiff(cwd: string, file: string): Promise<string>
+  fileOpen(cwd: string, file: string): void
+  fileReveal(cwd: string, file: string): void
 
   imagesList(): Promise<ImageInfo[]>
   /** 把这些图片移到废纸篓，返回移走了几张 */

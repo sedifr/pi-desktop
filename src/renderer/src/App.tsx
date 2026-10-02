@@ -3,6 +3,7 @@ import type { UsageTotals } from '@shared/types'
 import { Chat } from './Chat'
 import { Composer } from './Composer'
 import { Gallery, ImagePreview } from './Gallery'
+import { Pane } from './Pane'
 import { Settings } from './Settings'
 import { Sidebar } from './Sidebar'
 import {
@@ -131,6 +132,7 @@ function Header({ conv }: { conv: Conv }) {
   const renaming = useApp((s) => s.renamingKey === conv.key)
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed)
   const trust = useApp((s) => s.trust[conv.cwd])
+  const paneOpen = useApp((s) => s.prefs.paneOpen)
   const sessions = useApp((s) => s.sessions)
   const [open, setOpen] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -233,6 +235,11 @@ function Header({ conv }: { conv: Conv }) {
         </div>
       )}
       <span className="grow" />
+      {!paneOpen && (
+        <button className="icon-btn no-drag" title={t('打开右侧面板：改动的文件、浏览器、终端（⌥⌘B）')} onClick={() => setPrefs({ paneOpen: true })}>
+          <Icon name="panel" size={15} />
+        </button>
+      )}
       {usage && (
         <div className="anchor no-drag">
           <button className={`chip ${percent != null && percent >= 85 ? 'warn' : ''}`} data-popover-trigger="header" onClick={() => setOpen(!open)}>
@@ -322,6 +329,11 @@ export function App() {
   const toasts = useApp((s) => s.toasts)
   const view = useApp((s) => s.view)
   const preview = useApp((s) => s.preview)
+  const paneOpen = useApp((s) => s.prefs.paneOpen && s.view === 'chat')
+  const [paneUsed, setPaneUsed] = useState(false)
+  useEffect(() => {
+    if (paneOpen) setPaneUsed(true)
+  }, [paneOpen])
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed)
   const empty = conv && !conv.messages.length && !conv.pending.length && !conv.loading
 
@@ -351,6 +363,8 @@ export function App() {
         )}
         {preview && <ImagePreview key={preview} path={preview} />}
       </main>
+      {/* 右侧面板打开过一次之后就一直留着，收起时只是藏起来，里面的网页和终端不会断 */}
+      {conv && paneUsed && <Pane conv={conv} visible={paneOpen} />}
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`}>

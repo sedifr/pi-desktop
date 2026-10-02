@@ -90,6 +90,8 @@ export interface AppState {
   /** 用户手动加进来、还没有会话的项目目录 */
   extraProjects: string[]
   view: 'chat' | 'settings' | 'images'
+  /** 要右侧面板的浏览器打开的地址。n 每次加一，同一个地址连点也能触发 */
+  browserRequest?: { url: string; n: number }
   /** 正在放大看的那张图 */
   preview?: string
   /** 图片有增减时加一，让开着的图库重新读 */
@@ -119,9 +121,15 @@ export interface Prefs {
   sidebarCollapsed: boolean
   /** 窗口不在前台时，回答做完了用系统通知提醒 */
   notify: boolean
+  /** 聊天框右边的面板：开着没有、在哪一页、多宽 */
+  paneOpen: boolean
+  paneTab: PaneTab
+  paneWidth: number
 }
 
-const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false, notify: true }
+export type PaneTab = 'changes' | 'browser' | 'terminal'
+
+const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false, notify: true, paneOpen: false, paneTab: 'changes', paneWidth: 460 }
 
 /** 读一项存在本地的界面设置。坏了或者形状不对就用默认值，不能让它把整个界面拖垮 */
 function stored<T>(key: string, fallback: T, ok: (value: unknown) => boolean): T {
@@ -155,10 +163,14 @@ function notify(): void {
   // 流式输出时事件很密，合并到每帧通知一次
   if (scheduled) return
   scheduled = true
-  requestAnimationFrame(() => {
+  const flush = () => {
+    if (!scheduled) return
     scheduled = false
     for (const listener of listeners) listener()
-  })
+  }
+  requestAnimationFrame(flush)
+  // 窗口被挡住或屏幕休眠时不会有「下一帧」，那样界面就一直停在旧状态上。留一个不靠画面刷新的兜底
+  setTimeout(flush, 150)
 }
 
 /**
@@ -666,6 +678,8 @@ function handleMenu(action: MenuAction): void {
       return void addProject()
     case 'toggleSidebar':
       return setPrefs({ sidebarCollapsed: !state.prefs.sidebarCollapsed })
+    case 'togglePane':
+      return setPrefs({ paneOpen: !state.prefs.paneOpen })
     case 'commands':
     case 'model':
       return signal(action)
@@ -709,6 +723,12 @@ export function activate(key: string): void {
 
 export function setConfig(config: DesktopConfig): void {
   set({ config })
+}
+
+/** 在右侧面板的浏览器里打开一个地址 */
+export function openInBrowser(url: string): void {
+  setPrefs({ paneOpen: true, paneTab: 'browser' })
+  set({ view: 'chat', browserRequest: { url, n: (state.browserRequest?.n ?? 0) + 1 } })
 }
 
 /** 放大看一张图；传空是关掉。changed 为真表示图片有增减，开着的图库要刷新 */

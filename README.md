@@ -23,6 +23,7 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **MCP servers**: add, edit, and remove servers in *Settings → MCP*. Secrets in environment variables and headers are never shown back.
 - **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for. For items that have none yet, a button lets a model draft them.
 - **Install skills**: *Settings → Install skills* installs and removes pi packages (npm, git, or a local folder) — the same as `pi install` — and lets you add extra skill folders.
+- **Side panel**: next to the conversation, a panel with three tabs — *Changes* (uncommitted changes in the project, with the files pi touched marked, and a diff per file), *Browser* (a small built-in browser for pages running on your Mac; localhost links in answers open there), and *Terminal* (a real shell in the project folder).
 - **Images in one place**: the *Images* page lists every image generated in any conversation and project — browse, search, open the conversation that made one, copy, save a copy, or move a batch to the Trash. Images an answer mentions by local path are shown inline.
 - **See sub-agents**: when the AI starts sub-agents, a chip next to the title lists them; open one to read what it did, and jump back to the main conversation.
 - **Pick what a conversation can use**: turn each skill, MCP server, and tool on or off per conversation, then save the setup as the default for the project or for everything. Skills have three states: *auto* (the model decides), *on* (always loaded), *off* (hidden from the model).
@@ -71,6 +72,7 @@ pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extens
 | `⌘O` | Add a project folder |
 | `⌘,` | Settings |
 | `⌘B` | Show or hide the sidebar |
+| `⌥⌘B` | Show or hide the side panel |
 | `⌘/` | Open commands |
 | `⌘⇧M` | Switch model |
 | `⌘⇧C` | Copy the last answer |

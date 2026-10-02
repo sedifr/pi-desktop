@@ -55,6 +55,7 @@ export function buildMenu(getWindow: () => BrowserWindow | undefined): void {
       label: t('显示'),
       submenu: [
         { label: t('显示或隐藏侧栏'), accelerator: 'Cmd+B', click: send('toggleSidebar') },
+        { label: t('显示或隐藏右侧面板'), accelerator: 'Alt+Cmd+B', click: send('togglePane') },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

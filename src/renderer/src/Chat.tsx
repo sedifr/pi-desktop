@@ -1,6 +1,6 @@
 import { type ReactNode, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import { type Conv, type ToolRun, activityOf, copyText, forkFrom, previewImage, useApp } from './store'
+import { type Conv, type ToolRun, activityOf, copyText, forkFrom, openInBrowser, previewImage, useApp } from './store'
 import { Icon, ImageContext, Markdown } from './ui'
 import { t } from '@shared/i18n'
 
@@ -283,7 +283,7 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
   const expanded = open ?? live
   const home = useApp((s) => s.defaults?.home)
   // 正文里提到的本机图片：相对路径按项目文件夹算；这一轮已经显示过的生成图不再重复显示
-  const images = useMemo(() => ({ cwd, home, shown: new Set(block.images.map((image) => image.path).filter((file): file is string => Boolean(file))), open: (file: string) => previewImage(file) }), [cwd, home, block.images])
+  const images = useMemo(() => ({ cwd, home, shown: new Set(block.images.map((image) => image.path).filter((file): file is string => Boolean(file))), open: (file: string) => previewImage(file), openLink: openInBrowser }), [cwd, home, block.images])
   return (
     <ImageContext.Provider value={images}>
     <div className="turn">

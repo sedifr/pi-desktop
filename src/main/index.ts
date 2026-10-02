@@ -10,12 +10,14 @@ import { cleanRunDir, forget, getGlobal, getItems, resetSession, saveAs, setGlob
 import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary } from './catalog'
 import { getConfig, setConfig } from './config'
 import { searchFiles } from './files'
+import { fileDiff, listChanges, openFile, revealFile } from './changes'
 import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
 import { listMcp, removeMcp, saveMcp } from './mcp'
 import { installPackage, listPackages, removePackage } from './packages'
 import { generateSummaries, itemsWithoutSummary } from './summarize'
 import { buildMenu } from './menu'
 import { listTemplates, saveTemplate, trashTemplate } from './templates'
+import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './terminal'
 import { setTrust, trustStatus } from './trust'
 import { AGENT_DIR, DESKTOP_DIR, HOME, piVersion, readJson, shellEnv, writeJson } from './env'
 import { listSessions, readSession, usageTotals } from './sessions'
@@ -65,10 +67,30 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       sandbox: true,
+      // 右侧面板的内置浏览器用
+      webviewTag: true,
       backgroundThrottling: !DEBUG_RENDER
     }
   })
   win.once('ready-to-show', () => win?.show())
+  // 内置浏览器里的网页是外人写的：不给它任何本机能力，也只让它打开普通网址
+  win.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    webPreferences.sandbox = true
+    if (!/^(https?:|about:blank)/i.test(params.src)) event.preventDefault()
+  })
+  win.webContents.on('did-attach-webview', (_event, guest) => {
+    // 网页想开新窗口时，就在原地打开；不是普通网址的一律不理
+    guest.setWindowOpenHandler(({ url }) => {
+      if (/^https?:/i.test(url)) setImmediate(() => void guest.loadURL(url).catch(() => {}))
+      return { action: 'deny' }
+    })
+    guest.on('will-navigate', (event, url) => {
+      if (!/^https?:/i.test(url)) event.preventDefault()
+    })
+  })
   win.webContents.on('render-process-gone', (_event, details) => console.error('[pi-desktop] renderer process gone:', details.reason))
   win.webContents.on('did-fail-load', (_event, code, description, url) => console.error('[pi-desktop] page failed to load:', code, description, url))
   win.webContents.on('console-message', (event) => {
@@ -142,6 +164,35 @@ function registerIpc(): void {
       if (!fs.existsSync(MCP_CONFIG)) writeJson(MCP_CONFIG, { mcpServers: {} })
       shell.showItemInFolder(MCP_CONFIG)
     } else void shell.openPath(paths[target])
+  })
+  handle('term:create', (id: string, cwd: string, cols: number, rows: number) =>
+    createTerminal(
+      id,
+      cwd,
+      cols,
+      rows,
+      (data) => send('term:data', id, data),
+      (code) => send('term:exit', id, code)
+    )
+  )
+  ipcMain.on('term:write', (_event, id: string, data: string) => writeTerminal(id, data))
+  ipcMain.on('term:resize', (_event, id: string, cols: number, rows: number) => resizeTerminal(id, cols, rows))
+  ipcMain.on('term:kill', (_event, id: string) => killTerminal(id))
+  handle('changes:list', (cwd: string) => listChanges(cwd))
+  handle('changes:diff', (cwd: string, file: string) => fileDiff(cwd, file))
+  ipcMain.on('file:open', (_event, cwd: string, file: string) => {
+    try {
+      openFile(cwd, file)
+    } catch {
+      // 不在项目里的文件不打开
+    }
+  })
+  ipcMain.on('file:reveal', (_event, cwd: string, file: string) => {
+    try {
+      revealFile(cwd, file)
+    } catch {
+      // 同上
+    }
   })
   handle('images:list', () => listImages())
   handle('images:trash', (files: string[]) => trashImages(files))
@@ -312,5 +363,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   agents.closeAll()
+  killAllTerminals()
   if (PRIMARY && !DEBUG_RENDER) cleanRunDir()
 })

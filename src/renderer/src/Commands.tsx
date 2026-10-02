@@ -154,6 +154,7 @@ const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: '⌘O', label: t('添加项目文件夹') },
   { keys: '⌘,', label: t('打开设置') },
   { keys: '⌘B', label: t('显示或隐藏侧栏') },
+  { keys: '⌥⌘B', label: t('显示或隐藏右侧面板') },
   { keys: '⌘/', label: t('打开快捷指令') },
   { keys: '⌘⇧M', label: t('切换模型') },
   { keys: '⌘⇧C', label: t('复制上一条回答') },
