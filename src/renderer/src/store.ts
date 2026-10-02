@@ -279,8 +279,27 @@ function applyDelta(message: Msg, ev: Record<string, any>): Msg {
   return { ...message, content }
 }
 
+/**
+ * 每个对话这一轮从什么时候开始、最后一次有动静是什么时候。
+ * 只给对话底部「正在做什么」那一行每秒读一次，不参与重绘，所以不放进 state。
+ */
+const activity = new Map<string, { startedAt: number; lastEventAt: number }>()
+export const activityOf = (key: string): { startedAt: number; lastEventAt: number } | undefined => activity.get(key)
+
+/** 新的一轮开始了 */
+function markStart(key: string): void {
+  const now = Date.now()
+  activity.set(key, { startedAt: now, lastEventAt: now })
+}
+
 function handleEvent(key: string, event: ConvEvent): void {
   const e = event as Record<string, any>
+  // Pi 发来的任何事件都算「有动静」；以下划线开头的是桌面端自己的状态通知，不算
+  if (typeof e.type === 'string' && !e.type.startsWith('_')) {
+    const seen = activity.get(key)
+    if (seen) seen.lastEventAt = Date.now()
+    else markStart(key)
+  }
   switch (e.type) {
     case '_status':
       updateConv(key, (c) => {
@@ -319,6 +338,8 @@ function handleEvent(key: string, event: ConvEvent): void {
       updateConv(key, (c) => (c.stats = e.stats))
       break
     case 'agent_start':
+      // 发消息时已经开始计时了；不是自己发起的（比如排队的消息接着跑）才从这里算
+      if (!state.convs[key]?.streaming && !state.convs[key]?.pending.length) markStart(key)
       updateConv(key, (c) => {
         c.streaming = true
         c.error = undefined
@@ -928,6 +949,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   if (bang && !images.length) return runShell(key, bang[2], bang[1] === '!!')
 
   const pending: PendingMsg = { text, images }
+  if (!conv.streaming) markStart(key)
   updateConv(
     key,
     (c) => {
@@ -1055,6 +1077,7 @@ export async function runShell(key: string, command: string, exclude: boolean): 
   if (!conv) return
   if (conv.streaming) return toast(t('正在回答时不能直接运行命令。等它做完，或者先停下来'), 'warning')
   if (conv.shellRunning) return toast(t('上一条命令还在运行'), 'warning')
+  markStart(key)
   updateConv(
     key,
     (c) => {

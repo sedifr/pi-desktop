@@ -100,8 +100,10 @@ export function Tile({ item, onToggle, onEdit }: { item: CapItem; onToggle: () =
   )
 }
 
-/** 输入栏下面那条小栏里，技能 / MCP / 工具各自点开的面板，只显示自己那一类 */
-export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; onClose: () => void }) {
+const KINDS: CapKind[] = ['skill', 'mcp', 'tool']
+
+/** 输入框里「技能和工具」按钮点开的面板。上面三个页签，每个页签里只平铺自己那一类 */
+export function CapPanel({ conv, kind, onKind, onClose }: { conv: Conv; kind: CapKind; onKind: (kind: CapKind) => void; onClose: () => void }) {
   const [query, setQuery] = useState('')
   useEffect(() => {
     void loadCaps(conv.key)
@@ -132,18 +134,23 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
   const wide = kind === 'skill'
 
   return (
-    <Popover onClose={onClose} group="composer" className={`cap-panel ${wide ? '' : 'compact'}`}>
+    <Popover onClose={onClose} group="composer" className="cap-panel">
       <div className="cap-head">
-        <span className="cap-title">{KIND_TITLE[kind]}</span>
-        <span className="muted small">{items.some((item) => item.locked) ? LOCKED_HINT : KIND_HINT[kind]}</span>
+        <div className="segmented">
+          {KINDS.map((item) => (
+            <button key={item} className={item === kind ? 'on' : ''} onClick={() => onKind(item)}>
+              {KIND_TITLE[item]}
+              <span className="strip-count">{capCount(all, item) ?? ''}</span>
+            </button>
+          ))}
+        </div>
         <span className="grow" />
-        {wide && (
-          <label className="cap-search">
-            <Icon name="search" size={13} />
-            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('搜名字或用途')} />
-          </label>
-        )}
+        <label className="cap-search">
+          <Icon name="search" size={13} />
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('搜名字或用途')} />
+        </label>
       </div>
+      <div className="cap-hint muted small">{items.some((item) => item.locked) ? LOCKED_HINT : KIND_HINT[kind]}</div>
       {!all ? (
         <div className="cap-empty">{t('正在读取…')}</div>
       ) : (
@@ -160,7 +167,7 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
               </button>
             </div>
           )}
-          <div className={`cap-grid ${wide ? '' : 'one'}`}>
+          <div className="cap-grid">
             {(wide ? on : items).map((item) => (
               <Tile key={item.id} item={item} onToggle={() => toggle(item)} onEdit={(summary) => edit(item, summary)} />
             ))}

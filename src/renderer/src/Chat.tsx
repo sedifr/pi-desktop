@@ -1,6 +1,6 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import { type Conv, type ToolRun, copyText, forkFrom } from './store'
+import { type Conv, type ToolRun, activityOf, copyText, forkFrom } from './store'
 import { Icon, Markdown } from './ui'
 import { t } from '@shared/i18n'
 
@@ -150,21 +150,45 @@ function ToolResult({ msg }: { msg: Msg }) {
   )
 }
 
+/** 一个高度有限的小窗口，内容变长时始终停在最新的那几行，像在滚动 */
+function Rolling({ className, watch, children }: { className: string; watch: unknown; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    // 内容超出小窗口时，上沿才渐渐淡出；只有一两行时不淡
+    el.classList.toggle('clipped', el.scrollHeight > el.clientHeight + 1)
+  }, [watch])
+  return (
+    <div className={className} ref={box}>
+      {children}
+    </div>
+  )
+}
+
 function ToolStep({ step, run, cwd }: { step: Extract<Step, { kind: 'tool' }>; run?: ToolRun; cwd: string }) {
   const [open, setOpen] = useState(false)
   const title = toolTitle(step.call, cwd)
   const running = !step.result && run?.running
   const result = step.result ?? run?.partial
+  // 还在跑的时候，不用点开也能看到它最新吐出来的几行
+  const live = running && !open && run?.partial ? textOf(run.partial.content).trimEnd() : ''
   return (
     <div className="step">
       <div className="step-row" onClick={() => setOpen(!open)}>
         <span className={`step-icon ${step.result?.isError ? 'error' : ''}`}>
           <Icon name={title.icon} size={14} />
         </span>
-        <span className="step-label">{title.label}</span>
+        <span className={`step-label ${running ? 'shimmer' : ''}`}>{title.label}</span>
         <span className="step-detail ellipsis">{title.detail}</span>
         {running && <span className="dot-running" />}
       </div>
+      {live && (
+        <Rolling className="live-box mono" watch={live}>
+          {live.slice(-4000)}
+        </Rolling>
+      )}
       {open && (
         <div className="step-body">
           <pre className="tool-output">{JSON.stringify(step.call.arguments, null, 2)}</pre>
@@ -175,7 +199,7 @@ function ToolStep({ step, run, cwd }: { step: Extract<Step, { kind: 'tool' }>; r
   )
 }
 
-function ThinkingStep({ text }: { text: string }) {
+function ThinkingStep({ text, live }: { text: string; live: boolean }) {
   const [open, setOpen] = useState(false)
   const first = text.trim().split('\n')[0].replace(/\*\*/g, '')
   return (
@@ -184,13 +208,69 @@ function ThinkingStep({ text }: { text: string }) {
         <span className="step-icon">
           <Icon name="brain" size={14} />
         </span>
-        <span className="step-label">{t('思考')}</span>
-        <span className="step-detail ellipsis">{first}</span>
+        <span className={`step-label ${live ? 'shimmer' : ''}`}>{live ? t('正在思考') : t('思考')}</span>
+        {!live && <span className="step-detail ellipsis">{first}</span>}
       </div>
+      {/* 正在想的时候直接把内容滚出来；想完就收成一行，点开还能看全文 */}
+      {live && !open && (
+        <Rolling className="live-box" watch={text}>
+          <Markdown text={text} />
+        </Rolling>
+      )}
       {open && (
         <div className="step-body thinking">
           <Markdown text={text} />
         </div>
+      )}
+    </div>
+  )
+}
+
+const fmtElapsed = (ms: number): string => {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  return total < 60 ? t('{s} 秒', { s: total }) : t('{m} 分 {s} 秒', { m: Math.floor(total / 60), s: String(total % 60).padStart(2, '0') })
+}
+
+/**
+ * 对话底部常驻的一行：现在在做什么、这一轮已经用了多久。
+ * 模型一时没有新内容出来时，靠它分得清是还在想，还是很久没动静了。
+ */
+function LiveStatus({ conv, turn }: { conv: Conv; turn?: Extract<Block, { kind: 'turn' }> }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  const seen = activityOf(conv.key)
+  const runningId = Object.keys(conv.toolRuns).find((id) => conv.toolRuns[id].running)
+  const runningStep = runningId ? turn?.steps.find((step) => step.kind === 'tool' && step.call.id === runningId) : undefined
+  const lastStep = turn?.steps[turn.steps.length - 1]
+
+  let label: string
+  let detail = ''
+  if (conv.status === 'starting') label = t('正在启动 Pi')
+  else if (conv.shellRunning) label = t('正在运行命令')
+  else if (conv.notice) label = conv.notice.replace(/…$/, '')
+  else if (runningStep?.kind === 'tool') {
+    const title = toolTitle(runningStep.call, conv.cwd)
+    label = t('正在用工具')
+    detail = `${title.label} ${title.detail}`.trim()
+  } else if (turn?.final) label = t('正在写回答')
+  else if (lastStep?.kind === 'thinking') label = t('正在思考')
+  else label = t('正在等模型回应')
+
+  // 工具在跑、命令在跑时，没有新内容是正常的，不用提醒
+  const quiet = seen && !runningId && !conv.shellRunning && conv.status !== 'starting' ? now - seen.lastEventAt : 0
+  return (
+    <div className="live-status">
+      <span className="dot-running" />
+      <span className="shimmer">{label}</span>
+      {detail && <span className="step-detail ellipsis">{detail}</span>}
+      {seen && <span className="muted">{fmtElapsed(now - seen.startedAt)}</span>}
+      {quiet > 20_000 && (
+        <span className="muted">
+          · {quiet > 120_000 ? t('已经 {time} 没有新内容，可能卡住了，可以停止后重试', { time: fmtElapsed(quiet) }) : t('已经 {time} 没有新内容', { time: fmtElapsed(quiet) })}
+        </span>
       )}
     </div>
   )
@@ -217,7 +297,7 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
               step.kind === 'tool' ? (
                 <ToolStep key={index} step={step} run={toolRuns[step.call.id ?? '']} cwd={cwd} />
               ) : step.kind === 'thinking' ? (
-                <ThinkingStep key={index} text={step.text} />
+                <ThinkingStep key={index} text={step.text} live={live && index === block.steps.length - 1 && !block.final} />
               ) : (
                 <div key={index} className="step-text">
                   <Markdown text={step.text} />
@@ -373,13 +453,8 @@ export function Chat({ conv }: { conv: Conv }) {
             msg={{ role: 'user', content: [...item.images.map((image) => ({ type: 'image', data: image.data, mimeType: image.mimeType })), { type: 'text', text: item.text }] }}
           />
         ))}
-        {(conv.pending.length > 0 || (conv.streaming && blocks[blocks.length - 1]?.kind === 'user')) && (
-          <div className="working">
-            <span className="dot-running" />
-            {conv.status === 'starting' ? t('正在启动 Pi…') : t('正在思考…')}
-          </div>
-        )}
-        {conv.notice && <div className="banner">{conv.notice}</div>}
+        {(conv.streaming || conv.pending.length > 0 || conv.shellRunning) && <LiveStatus conv={conv} turn={conv.streaming && lastTurn?.kind === 'turn' && blocks[blocks.length - 1] === lastTurn ? lastTurn : undefined} />}
+        {conv.notice && !conv.streaming && <div className="banner">{conv.notice}</div>}
         {conv.error && <div className="banner error">{conv.error}</div>}
       </div>
     </div>

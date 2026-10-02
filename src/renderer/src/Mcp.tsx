@@ -199,7 +199,7 @@ export function Mcp() {
       <div className="set-note">
         {t('MCP 服务给 Pi 接上外部的工具和数据，比如浏览器、数据库、邮箱。这里管的是所有项目共用的那一份。')}
         <br />
-        {t('每次对话用不用某个服务，在对话输入栏的「MCP」里开关。')}
+        {t('每次对话用不用某个服务，在输入框的「技能和工具 → MCP」里开关。')}
       </div>
       <div className="cap-section">
         {t('已添加的服务')}

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { t } from '@shared/i18n'
 import type { CapKind, CapState, ImageAttachment, ModelInfo } from '@shared/types'
-import { CapPanel, capCount } from './CapPanel'
+import { CapPanel } from './CapPanel'
 import {
   type Conv,
   abort,
@@ -286,19 +286,15 @@ function readImage(file: File): Promise<ImageAttachment> {
   })
 }
 
-type Open = CapKind | 'model' | 'thinking' | 'project' | 'access'
-
-const CAP_BUTTONS: { kind: CapKind; label: string; icon: string }[] = [
-  { kind: 'skill', label: t('技能'), icon: 'spark' },
-  { kind: 'mcp', label: 'MCP', icon: 'plug' },
-  { kind: 'tool', label: t('工具'), icon: 'tool' }
-]
+type Open = 'caps' | 'model' | 'thinking' | 'project' | 'access' | 'plus'
 
 export function Composer({ conv }: { conv: Conv }) {
   const defaults = useApp((s) => s.defaults)
   const models = useApp((s) => s.models)
   const signal = useApp((s) => s.signal)
   const [open, setOpen] = useState<Open | undefined>()
+  // 能力面板上次停在哪个页签
+  const [capKind, setCapKind] = useState<CapKind>('skill')
   const [cursor, setCursor] = useState(0)
   const [selected, setSelected] = useState(0)
   const [dismissed, setDismissed] = useState('')
@@ -391,6 +387,17 @@ export function Composer({ conv }: { conv: Conv }) {
 
   const count = slashQuery !== undefined ? matches.length : files.length
 
+  /** 从「+」菜单开始一条快捷指令：在输入框开头放一个 / */
+  const startCommand = () => {
+    // 输入框里已经有字时不去动它，指令只能放在开头
+    if (!conv.draft.trim()) {
+      setDismissed('')
+      nextCursor.current = 1
+      setDraft(conv.key, '/')
+    } else toast(t('指令要放在消息的开头。先清空输入框，再点这里或直接打 /'), 'warning')
+    input.current?.focus()
+  }
+
   const pickCommand = (command: Command) => {
     if (command.immediate) {
       setDraft(conv.key, '')
@@ -441,7 +448,7 @@ export function Composer({ conv }: { conv: Conv }) {
   const modelLabel = known?.name ?? known?.id ?? (model ? undefined : defaults?.defaultModel) ?? t('选择模型')
   const thinking = conv.info.thinkingLevel ?? defaults?.defaultThinkingLevel
   const widgets = Object.entries(conv.widgets)
-  // MCP 的连接数小栏里已经有了，扩展自己报的那条不重复显示
+  // MCP 开了几个在「技能和工具」里看得到，扩展自己报的那条不重复显示
   const statuses = Object.entries(conv.statuses)
     .filter(([key]) => key !== 'mcp')
     .map(([, text]) => text)
@@ -459,7 +466,7 @@ export function Composer({ conv }: { conv: Conv }) {
 
   return (
     <div className="composer-wrap">
-      {(open === 'skill' || open === 'mcp' || open === 'tool') && <CapPanel conv={conv} kind={open} onClose={close} />}
+      {open === 'caps' && <CapPanel conv={conv} kind={capKind} onKind={setCapKind} onClose={close} />}
       {menuOpen && (
         <div className="popover suggest">
           {needCommands && <div className="menu-note">{t('正在读取技能和扩展的指令…')}</div>}
@@ -537,7 +544,7 @@ export function Composer({ conv }: { conv: Conv }) {
           {lines.join('\n')}
         </pre>
       ))}
-      {/* 输入框里只留附件、模型和发送，其它功能放在下面那条小栏里 */}
+      {/* 输入框里：加号、技能和工具、模型、推理、发送。下面那一行只说「在哪个项目里、能做到哪一步」 */}
       <div
         className={`composer ${shellMode ? 'shell-mode' : ''}`}
         onDragOver={(event) => event.preventDefault()}
@@ -608,8 +615,40 @@ export function Composer({ conv }: { conv: Conv }) {
           }}
         />
         <div className="composer-bar">
-          <button className="icon-btn" title={t('添加图片或文件。也可以直接粘贴、拖进来')} onClick={() => picker.current?.click()}>
-            <Icon name="plus" size={15} />
+          <div className="anchor">
+            <button className={`icon-btn ${open === 'plus' ? 'active' : ''}`} data-popover-trigger="composer" title={t('添加图片、文件，或者用一条快捷指令')} onClick={() => toggle('plus')}>
+              <Icon name="plus" size={15} />
+            </button>
+            {open === 'plus' && (
+              <Popover onClose={close} className="menu start" group="composer">
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    close()
+                    picker.current?.click()
+                  }}
+                >
+                  <Icon name="file" size={14} />
+                  <span className="grow">{t('图片或文件…')}</span>
+                  <span className="menu-key">{t('也可以粘贴、拖进来')}</span>
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    close()
+                    startCommand()
+                  }}
+                >
+                  <Icon name="slash" size={14} />
+                  <span className="grow">{t('快捷指令')}</span>
+                  <span className="menu-key">/</span>
+                </button>
+              </Popover>
+            )}
+          </div>
+          <button className={`chip ${open === 'caps' ? 'active' : ''}`} data-popover-trigger="composer" title={t('这次对话能用哪些技能、MCP 和工具')} onClick={() => toggle('caps')}>
+            <Icon name="spark" size={14} />
+            {t('技能和工具')}
           </button>
           <input
             ref={picker}
@@ -664,32 +703,6 @@ export function Composer({ conv }: { conv: Conv }) {
           </button>
           {open === 'access' && <AccessMenu conv={conv} current={access} onClose={close} />}
         </div>
-        {CAP_BUTTONS.map((button) => {
-          const enabled = capCount(conv.caps?.items, button.kind)
-          return (
-            <button key={button.kind} data-popover-trigger="composer" className={`strip-btn ${open === button.kind ? 'active' : ''}`} onClick={() => toggle(button.kind)}>
-              <Icon name={button.icon} size={14} />
-              {button.label}
-              {enabled !== undefined && <span className="strip-count">{enabled}</span>}
-            </button>
-          )
-        })}
-        <button
-          className="strip-btn"
-          title={t('快捷指令。也可以直接在输入框里打 /')}
-          onClick={() => {
-            // 输入框里已经有字时不去动它，指令只能放在开头
-            if (!conv.draft.trim()) {
-              setDismissed('')
-              nextCursor.current = 1
-              setDraft(conv.key, '/')
-            } else toast(t('指令要放在消息的开头。先清空输入框，再点这里或直接打 /'), 'warning')
-            input.current?.focus()
-          }}
-        >
-          <Icon name="slash" size={14} />
-          {t('指令')}
-        </button>
         <span className="grow" />
         {shellMode ? (
           <span className="strip-note accent">{conv.draft.startsWith('!!') ? t('直接运行命令，结果不带给 Pi') : t('直接运行命令，结果会带给 Pi')}</span>

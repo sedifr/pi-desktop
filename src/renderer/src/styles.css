@@ -17,6 +17,13 @@
   --invert-text: #ffffff;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  /* 圆角分几档。想整体更圆或更方，改这里就行 */
+  --r-xs: 8px; /* 小图标按钮、行内的小块 */
+  --r-sm: 11px; /* 列表行、菜单项 */
+  --r-md: 14px; /* 卡片、提示条、代码块、输入框 */
+  --r-lg: 20px; /* 弹层、对话框 */
+  --r-xl: 26px; /* 对话输入栏 */
+  --r-pill: 999px; /* 按钮和标签：两头全圆 */
   color-scheme: light dark;
 }
 
@@ -113,7 +120,7 @@ button {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   text-align: left;
 }
 .nav-item:hover {
@@ -145,7 +152,7 @@ button {
   gap: 6px;
   height: 28px;
   padding: 0 8px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
 }
 .project-row {
   color: var(--text-2);
@@ -182,7 +189,7 @@ button {
   justify-content: center;
   width: 20px;
   height: 20px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   color: var(--text-2);
   flex: none;
 }
@@ -239,9 +246,9 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: 7px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
   color: var(--text-2);
   max-width: 220px;
   white-space: nowrap;
@@ -259,14 +266,14 @@ button {
   position: absolute;
   z-index: 20;
   background: var(--bg);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow);
 }
 .usage-pop {
-  top: 32px;
+  top: 34px;
   right: 0;
-  width: 260px;
-  padding: 12px 14px;
+  width: 270px;
+  padding: 14px 16px;
 }
 .pop-title {
   font-weight: 600;
@@ -317,7 +324,7 @@ button {
 .user-bubble {
   max-width: 82%;
   background: var(--bg-soft);
-  border-radius: 16px;
+  border-radius: var(--r-lg);
   padding: 9px 14px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -327,7 +334,7 @@ button {
   display: block;
   max-width: 100%;
   max-height: 320px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   margin-bottom: 6px;
 }
 .turn {
@@ -343,7 +350,7 @@ button {
   gap: 6px;
   color: var(--text-2);
   padding: 2px 6px 2px 2px;
-  border-radius: 6px;
+  border-radius: var(--r-pill);
   user-select: none;
   cursor: default;
 }
@@ -361,7 +368,7 @@ button {
   gap: 7px;
   height: 26px;
   color: var(--text-2);
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   user-select: none;
   cursor: default;
 }
@@ -401,7 +408,7 @@ button {
   margin: 4px 0;
   padding: 8px 10px;
   background: var(--bg-soft);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   font: 12px/1.5 var(--mono);
   white-space: pre-wrap;
   word-break: break-word;
@@ -433,7 +440,7 @@ button {
   margin-top: 8px;
   padding: 10px 12px;
   background: var(--bg-soft);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   color: var(--text-2);
 }
 .working {
@@ -447,7 +454,7 @@ button {
 .banner {
   margin: 10px 0;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--bg-soft);
   color: var(--text-2);
   font-size: 13px;
@@ -461,7 +468,7 @@ button {
   margin-bottom: 8px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   background: var(--bg-soft);
   color: var(--text-2);
   font-size: 13px;
@@ -481,7 +488,7 @@ button {
   display: block;
   margin: 0 auto 14px;
   padding: 4px 12px;
-  border-radius: 7px;
+  border-radius: var(--r-pill);
   color: var(--text-3);
   font-size: 12px;
 }
@@ -544,7 +551,7 @@ button {
 .md pre {
   background: var(--bg-soft);
   padding: 10px 12px;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   overflow-x: auto;
 }
 .md pre code {
@@ -589,7 +596,7 @@ button {
 .welcome-mark {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--invert);
   color: var(--invert-text);
   display: flex;
@@ -610,7 +617,7 @@ button {
   align-items: center;
   gap: 4px;
   padding: 2px 8px 2px 10px;
-  border-radius: 9px;
+  border-radius: var(--r-pill);
   background: var(--bg-soft);
   font-weight: 600;
 }
@@ -696,13 +703,13 @@ button {
 .set-preview {
   margin-top: 14px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--bg-soft);
   line-height: 1.65;
 }
 .set-note {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--bg-soft);
   color: var(--text-2);
   line-height: 1.6;
@@ -724,7 +731,7 @@ button {
 .flow-code {
   margin-top: 6px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--bg-soft);
   font: 600 18px var(--mono);
   letter-spacing: 2px;
@@ -742,7 +749,7 @@ button {
   padding: 14px;
   margin-bottom: 12px;
   border: 0.5px solid var(--border-strong);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
 }
 .custom-form label {
   display: flex;
@@ -757,13 +764,16 @@ button {
   display: flex;
   flex: none;
   padding: 2px;
-  border-radius: 9px;
+  border-radius: var(--r-pill);
   background: var(--bg-soft);
 }
 .segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   height: 26px;
-  padding: 0 12px;
-  border-radius: 7px;
+  padding: 0 13px;
+  border-radius: var(--r-pill);
   color: var(--text-2);
 }
 .segmented button.on {
@@ -783,10 +793,10 @@ button {
 }
 .composer {
   border: 0.5px solid var(--border-strong);
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   background: var(--bg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  padding: 10px 10px 8px 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  padding: 12px 10px 9px 18px;
 }
 .composer:focus-within {
   border-color: var(--text-3);
@@ -822,15 +832,12 @@ button {
   right: 0;
 }
 
-/* 输入框下面贴着的小栏：项目、技能、MCP、工具 */
+/* 输入框下面那一行：只说在哪个项目里、能做到哪一步。不带底色，安静一点 */
 .composer-strip {
   display: flex;
   align-items: center;
   gap: 2px;
-  margin: -12px 12px 0;
-  padding: 17px 8px 5px;
-  background: var(--bg-soft);
-  border-radius: 0 0 14px 14px;
+  margin: 6px 10px 0;
   font-size: 12px;
   color: var(--text-2);
 }
@@ -838,9 +845,9 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
   color: var(--text-2);
   max-width: 200px;
   white-space: nowrap;
@@ -891,13 +898,13 @@ button {
 .queue-item {
   padding: 3px 10px;
   background: var(--bg-soft);
-  border-radius: 7px;
+  border-radius: var(--r-pill);
   margin-top: 4px;
 }
 .widget {
   padding: 8px 12px;
   background: var(--bg-soft);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   font-family: var(--mono);
   white-space: pre-wrap;
   max-height: 140px;
@@ -932,7 +939,7 @@ button {
   gap: 8px;
   width: 100%;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   text-align: left;
 }
 .menu-item:hover {
@@ -949,14 +956,10 @@ button {
 .cap-panel {
   left: 24px;
   right: 24px;
-  bottom: calc(100% + 2px);
+  bottom: calc(100% + 8px);
   display: flex;
   flex-direction: column;
   max-height: min(64vh, 620px);
-}
-.cap-panel.compact {
-  right: auto;
-  width: 400px;
 }
 .cap-panel > .cap-col {
   border-top: 0.5px solid var(--border);
@@ -985,7 +988,7 @@ button {
   gap: 6px;
   height: 28px;
   padding: 0 9px;
-  border-radius: 8px;
+  border-radius: var(--r-pill);
   background: var(--bg-soft);
   color: var(--text-3);
 }
@@ -1049,7 +1052,7 @@ button {
   min-width: 0;
   padding: 5px 8px 5px 10px;
   border: 0.5px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   text-align: left;
 }
 .cap-tile:hover {
@@ -1073,7 +1076,7 @@ button {
   flex: none;
   font-size: 11px;
   padding: 1px 8px;
-  border-radius: 9px;
+  border-radius: var(--r-pill);
 }
 .state-auto .cap-state {
   background: var(--accent-soft);
@@ -1096,8 +1099,8 @@ button {
 .link-btn {
   font-size: 12px;
   color: var(--text-2);
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
   font-weight: 400;
 }
 .link-btn:hover {
@@ -1105,9 +1108,9 @@ button {
   color: var(--text);
 }
 .btn {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 8px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
   border: 0.5px solid var(--border-strong);
   white-space: nowrap;
 }
@@ -1134,7 +1137,7 @@ button {
   width: 420px;
   max-width: calc(100% - 48px);
   background: var(--bg);
-  border-radius: 14px;
+  border-radius: 24px;
   box-shadow: var(--shadow);
   padding: 18px;
 }
@@ -1163,7 +1166,7 @@ button {
 .field {
   width: 100%;
   border: 0.5px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -1183,7 +1186,7 @@ button {
 }
 .toast {
   padding: 9px 13px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--invert);
   color: var(--invert-text);
   box-shadow: var(--shadow);
@@ -1220,7 +1223,7 @@ button {
   display: block;
   max-width: min(100%, 420px);
   max-height: 420px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   border: 0.5px solid var(--border);
 }
 .gen-images figcaption {
@@ -1288,7 +1291,7 @@ button {
 .suggest {
   left: 24px;
   right: 24px;
-  bottom: calc(100% + 2px);
+  bottom: calc(100% + 8px);
   max-height: 320px;
   overflow-y: auto;
   padding: 6px;
@@ -1299,7 +1302,7 @@ button {
   gap: 8px;
   width: 100%;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   text-align: left;
 }
 .suggest-item.selected {
@@ -1366,7 +1369,7 @@ button {
   width: 52px;
   height: 52px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 0.5px solid var(--border-strong);
 }
 .attachment-remove {
@@ -1418,7 +1421,7 @@ button {
   height: 26px;
   padding: 0 8px;
   border: 0.5px solid var(--border-strong);
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -1452,7 +1455,7 @@ button {
 kbd {
   flex: none;
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--bg-soft);
   border: 0.5px solid var(--border);
   font: 12px var(--mono);
@@ -1543,7 +1546,7 @@ kbd {
   display: inline-flex;
   flex: none;
   padding: 2px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   color: var(--text-3);
   opacity: 0;
 }
@@ -1569,7 +1572,7 @@ div.cap-tile {
   display: inline-flex;
   flex: none;
   padding: 3px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   color: var(--text-3);
   opacity: 0;
 }
@@ -1606,7 +1609,7 @@ div.cap-tile {
 }
 .install-log {
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--bg-soft);
   font-size: 12px;
   line-height: 1.6;
@@ -1620,7 +1623,7 @@ div.cap-tile {
   width: 320px;
 }
 
-/* 窗口窄的时候：小栏里只让项目名缩短，别的按钮保持原样，不互相压住 */
+/* 输入框下面那一行：项目名太长时缩短，右边的说明先让位 */
 .composer-strip > * {
   flex: none;
 }
@@ -1649,22 +1652,6 @@ div.cap-tile {
 .set-label .ellipsis {
   display: block;
 }
-/* 输入栏很窄时，小栏里先省掉数字，再收紧按钮 */
-.composer-wrap {
-  container-type: inline-size;
-}
-@container (max-width: 560px) {
-  .strip-count {
-    display: none;
-  }
-  .strip-btn {
-    padding: 0 6px;
-  }
-  .composer-strip > .anchor:first-child {
-    min-width: 72px;
-  }
-}
-
 .dialog:focus {
   outline: none;
 }
@@ -1682,4 +1669,110 @@ div.cap-tile {
 }
 .cap-head .muted.small {
   min-width: 0;
+}
+
+/* ---- 正在进行中的一轮：让人看得到它在动 ---- */
+
+/* 文字上有一道光从左扫到右，表示这件事正在进行 */
+.shimmer {
+  background: linear-gradient(90deg, var(--text-3) 0%, var(--text-3) 35%, var(--text) 50%, var(--text-3) 65%, var(--text-3) 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 110% 0;
+  }
+  to {
+    background-position: -110% 0;
+  }
+}
+/* 思考内容、工具输出实时滚动的小窗口：只露出最新的几行，上面渐渐淡出 */
+.live-box {
+  max-height: 132px;
+  overflow: hidden;
+  margin: 0 0 6px 21px;
+  padding: 2px 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.live-box.clipped {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 34px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 34px);
+}
+.live-box.mono {
+  font: 12px/1.5 var(--mono);
+  color: var(--text-3);
+}
+.live-box .md > :first-child {
+  margin-top: 0;
+}
+.live-box .md > :last-child {
+  margin-bottom: 0;
+}
+/* 对话底部常驻的一行：现在在做什么，用了多久 */
+.live-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 10px 0 4px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.live-status > * {
+  flex: none;
+}
+.live-status > .step-detail {
+  flex: 0 1 auto;
+}
+.live-status > .muted {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 输入栏里的新东西 ---- */
+.chip.active,
+.icon-btn.active {
+  background: var(--bg-active);
+  color: var(--text);
+}
+/* 从输入框左下角的加号展开的菜单，向右长 */
+.composer-bar .menu.start {
+  left: 0;
+  right: auto;
+  width: 250px;
+}
+.menu-key {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.cap-hint {
+  padding: 0 16px 10px;
+}
+.cap-head .segmented .strip-count {
+  font-size: 11px;
+}
+.cap-head {
+  padding: 12px 12px 8px;
+}
+.cap-foot {
+  padding: 10px 12px;
+}
+
+/* 弹层圆角大了以后，滚动条两头要让开圆角 */
+.menu::-webkit-scrollbar-track,
+.cap-col::-webkit-scrollbar-track,
+.suggest::-webkit-scrollbar-track {
+  margin: 12px 0;
+}
+/* 思考内容是排好版的文字，不需要保留原始换行（那样段落之间会空出两行） */
+.live-box:not(.mono) {
+  white-space: normal;
 }

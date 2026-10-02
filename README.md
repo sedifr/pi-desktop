@@ -9,7 +9,8 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 ## What it does
 
 - **Conversations by project**: every pi session on your machine, grouped by project folder.
-- **Clean composer**: the input box holds only attachments, the model, and the send button. A small bar under it holds the project, the access level, skills, MCP servers, tools, and commands.
+- **Clean composer**: the input box holds a `+` menu, one *Skills & tools* button, the model, and the send button. The line under it only says which project you are in and how far pi may go.
+- **See it working**: thinking scrolls live, a running tool shows its latest output, and a line at the bottom says what is happening and for how long — so you can tell thinking from stuck.
 - **Commands**: type `/` to pick a command — your own saved prompts, skills, and extension commands, each with a one-line description. Write and edit your own in *Settings → Commands*; they are stored as pi prompt templates, so the CLI can use them too.
 - **Files and images**: type `@` to reference a file in the project. Paste or drop an image to attach it.
 - **Access level**: one switch for *read only*, *can edit files*, or *full access*.
@@ -54,7 +55,7 @@ npm run dev
 1. **Add a project folder.** Click the `+` next to *Projects* in the sidebar and choose the folder you want pi to work in.
 2. **Connect a model.** Open *Settings → Models*. Pick a provider and either sign in or paste an API key. A green dot means it works.
 3. **Start a conversation.** Type in the box at the bottom and press Enter. Shift+Enter adds a new line.
-4. **Choose skills and tools.** Use the bar under the input box. Changes apply to the current conversation from the next message on.
+4. **Choose skills and tools.** Click *Skills & tools* in the input box. Changes apply to the current conversation from the next message on.
 5. **Save what you keep repeating.** Open *Settings → Commands*, write the request once, and run it later with `/name`.
 
 ### Project trust
