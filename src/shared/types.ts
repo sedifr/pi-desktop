@@ -86,6 +86,26 @@ export interface Msg {
   summary?: string
   customType?: string
   display?: boolean
+  /** role 为 bashExecution 时：用户用 ! 直接运行的命令和它的输出 */
+  command?: string
+  output?: string
+  exitCode?: number
+  cancelled?: boolean
+  truncated?: boolean
+  fullOutputPath?: string
+  /** 输出不带给模型 */
+  excludeFromContext?: boolean
+  /** 还在运行（只在界面里有） */
+  running?: boolean
+}
+
+/** 直接运行一条命令的结果 */
+export interface BashResult {
+  output: string
+  exitCode?: number
+  cancelled: boolean
+  truncated: boolean
+  fullOutputPath?: string
 }
 
 export interface SessionData {
@@ -171,6 +191,8 @@ export interface ConvInfo {
   sessionId?: string
   sessionName?: string
   commands?: { name: string; description?: string; source: string; argumentHint?: string }[]
+  /** 上下文快满时自动压缩。这是 Pi 的全局设置，对所有对话生效 */
+  autoCompaction?: boolean
 }
 
 /** 主进程发给界面的事件：Pi 原始事件，或以下划线开头的桌面端自有事件 */
@@ -181,6 +203,7 @@ export interface Defaults {
   defaultModel?: string
   defaultProvider?: string
   defaultThinkingLevel?: string
+  autoCompaction: boolean
   piVersion: string
   appVersion: string
   agentDir: string
@@ -253,6 +276,8 @@ export type OpenTarget = 'agent' | 'desktop' | 'summaries' | 'extensions'
 export interface DesktopConfig {
   /** 额外的技能文件夹：里面的技能默认不启用，可以在对话里按需打开 */
   extraSkillDirs: string[]
+  /** 常用模型，形如「提供商/模型」。在模型菜单里排在最前面 */
+  favoriteModels: string[]
 }
 
 export interface PiApi {
@@ -267,7 +292,16 @@ export interface PiApi {
   convStart(key: string, cwd: string, sessionFile?: string): Promise<ConvInfo>
   /** 返回 Pi 对这条消息的处理方式：started、queued 或 handled */
   convPrompt(key: string, text: string, images?: ImageAttachment[], behavior?: 'steer' | 'followUp'): Promise<string>
-  convAbort(key: string): Promise<void>
+  /** 停止回答。排着队还没处理的消息会被撤回，原文在返回值里 */
+  convAbort(key: string): Promise<string[]>
+  /** 撤回排队中的消息，返回它们的原文 */
+  convClearQueue(key: string): Promise<string[]>
+  /** 直接运行一条命令。exclude 为真时输出不带给模型 */
+  convBash(key: string, command: string, exclude: boolean): Promise<BashResult>
+  convAbortBash(key: string): Promise<void>
+  convSetAutoCompaction(key: string, enabled: boolean): Promise<ConvInfo>
+  /** 把窗口带到最前面 */
+  focusWindow(): void
   convSetModel(key: string, provider: string, id: string): Promise<ConvInfo>
   convSetThinking(key: string, level: string): Promise<ConvInfo>
   convCompact(key: string, instructions?: string): Promise<void>
@@ -303,6 +337,7 @@ export interface PiApi {
   /** 弹出选文件夹窗口，把选中的文件夹加进额外技能文件夹 */
   skillDirAdd(): Promise<DesktopConfig>
   skillDirRemove(dir: string): Promise<DesktopConfig>
+  favoriteModelsSet(models: string[]): Promise<DesktopConfig>
 
   providers(): Promise<ProviderInfo[]>
   /** 开始登录；过程中的提示通过 onAuthEvent 送来，结束时这个调用才返回 */

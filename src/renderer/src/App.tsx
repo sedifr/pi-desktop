@@ -4,32 +4,10 @@ import { Chat } from './Chat'
 import { Composer } from './Composer'
 import { Settings } from './Settings'
 import { Sidebar } from './Sidebar'
-import { type Conv, type UiRequest, addProject, answerUi, api, rename, runCommand, setPrefs, setRenaming, setTrust, useApp } from './store'
+import { type Conv, type UiRequest, addProject, answerUi, api, rename, runCommand, setAutoCompaction, setPrefs, setRenaming, setTrust, useApp } from './store'
 import { Icon, Popover, baseName, fmtCost, fmtTokens } from './ui'
 import { t } from '@shared/i18n'
-
-interface UsageView {
-  cost: number
-  input: number
-  output: number
-  cacheRead: number
-  cacheWrite: number
-  toolCalls?: number
-  contextTokens?: number | null
-  contextWindow?: number
-}
-
-function usageOf(conv: Conv, windowOf: (provider?: string, id?: string) => number | undefined): UsageView | undefined {
-  if (conv.stats) {
-    const s = conv.stats
-    return { cost: s.cost, ...s.tokens, toolCalls: s.toolCalls, contextTokens: s.contextUsage?.tokens, contextWindow: s.contextUsage?.contextWindow }
-  }
-  if (conv.fileUsage) {
-    const model = conv.info.model
-    return { ...conv.fileUsage, contextTokens: conv.contextTokens, contextWindow: model?.contextWindow ?? windowOf(model?.provider, model?.id) }
-  }
-  return undefined
-}
+import { type UsageView, contextPercent, usageOf } from './usage'
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -40,14 +18,15 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-function UsagePopover({ usage, onClose }: { usage: UsageView; onClose: () => void }) {
+function UsagePopover({ conv, usage, onClose }: { conv: Conv; usage: UsageView; onClose: () => void }) {
+  const auto = useApp((s) => s.defaults?.autoCompaction ?? true)
   const [totals, setTotals] = useState<UsageTotals>()
   useEffect(() => {
     void api.usageTotals().then(setTotals)
   }, [])
   const read = usage.input + usage.cacheRead + usage.cacheWrite
   const hit = read > 0 ? (usage.cacheRead / read) * 100 : 0
-  const percent = usage.contextTokens != null && usage.contextWindow ? (usage.contextTokens / usage.contextWindow) * 100 : undefined
+  const percent = contextPercent(usage)
   return (
     <Popover onClose={onClose} className="usage-pop" group="header">
       <div className="pop-title">{t('本次对话用量')}</div>
@@ -66,10 +45,33 @@ function UsagePopover({ usage, onClose }: { usage: UsageView; onClose: () => voi
         </span>
       </div>
       {percent != null && (
-        <div className="meter">
+        <div className={`meter ${percent >= 85 ? 'warn' : ''}`}>
           <div style={{ width: `${Math.min(100, percent)}%` }} />
         </div>
       )}
+      <div className="kv gap">
+        <span className="muted" title={t('上下文快满时，Pi 自动把更早的内容压缩成摘要。这个开关对所有对话都生效')}>
+          {t('快满时自动压缩')}
+        </span>
+        <div className="segmented small">
+          <button className={auto ? 'on' : ''} onClick={() => void setAutoCompaction(conv.key, true)}>
+            {t('开')}
+          </button>
+          <button className={auto ? '' : 'on'} onClick={() => void setAutoCompaction(conv.key, false)}>
+            {t('关')}
+          </button>
+        </div>
+      </div>
+      <button
+        className="btn wide"
+        disabled={conv.streaming}
+        onClick={() => {
+          onClose()
+          void runCommand(conv.key, 'compact', '')
+        }}
+      >
+        {t('现在压缩')}
+      </button>
       {totals && (
         <>
           <div className="pop-title gap">{t('全部对话合计')}</div>
@@ -115,7 +117,8 @@ function Header({ conv }: { conv: Conv }) {
   const [open, setOpen] = useState(false)
   const [menu, setMenu] = useState(false)
   const usage = usageOf(conv, (provider, id) => models[`${provider}/${id}`]?.contextWindow)
-  const percent = usage?.contextTokens != null && usage.contextWindow ? Math.round((usage.contextTokens / usage.contextWindow) * 100) : undefined
+  const exact = contextPercent(usage)
+  const percent = exact === undefined ? undefined : Math.round(exact)
   const run = (name: string) => {
     setMenu(false)
     void runCommand(conv.key, name, '')
@@ -173,12 +176,12 @@ function Header({ conv }: { conv: Conv }) {
       <span className="grow" />
       {usage && (
         <div className="anchor no-drag">
-          <button className="chip" data-popover-trigger="header" onClick={() => setOpen(!open)}>
+          <button className={`chip ${percent != null && percent >= 85 ? 'warn' : ''}`} data-popover-trigger="header" onClick={() => setOpen(!open)}>
             <Icon name="chart" size={14} />
             {fmtCost(usage.cost)}
             {percent != null ? ` · ${percent}%` : ''}
           </button>
-          {open && <UsagePopover usage={usage} onClose={() => setOpen(false)} />}
+          {open && <UsagePopover conv={conv} usage={usage} onClose={() => setOpen(false)} />}
         </div>
       )}
     </header>

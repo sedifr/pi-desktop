@@ -65,6 +65,20 @@ function Look() {
       <div className="set-preview" style={{ fontSize: prefs.fontSize }}>
         {t('这是对话正文的预览。The quick brown fox jumps over the lazy dog.')}
       </div>
+      <div className="set-row">
+        <div className="set-label">
+          {t('做完时通知')}
+          <div className="muted small">{t('窗口不在前台时，回答做完或 Pi 在等你回答，用系统通知提醒。点通知回到那个对话')}</div>
+        </div>
+        <div className="segmented">
+          <button className={prefs.notify ? 'on' : ''} onClick={() => setPrefs({ notify: true })}>
+            {t('开')}
+          </button>
+          <button className={prefs.notify ? '' : 'on'} onClick={() => setPrefs({ notify: false })}>
+            {t('关')}
+          </button>
+        </div>
+      </div>
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, ImageAttachment, MenuAction, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, TrustStatus, Usage } from '@shared/types'
+import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, DesktopConfig, ImageAttachment, MenuAction, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, TrustStatus, Usage } from '@shared/types'
 import { type Lang, getLang, resolveLang, t } from '@shared/i18n'
 
 declare global {
@@ -53,6 +53,10 @@ export interface Conv {
   notice?: string
   draft: string
   caps?: CapSnapshot
+  /** 用户用 ! 直接运行的命令还没跑完 */
+  shellRunning?: boolean
+  /** 不在眼前的时候有了新结果，还没看过 */
+  unread?: boolean
 }
 
 export interface PendingMsg {
@@ -93,6 +97,8 @@ export interface AppState {
   /** 正在标题栏里改名的对话 */
   renamingKey?: string
   signal?: UiSignal
+  /** 桌面端自己的设置（额外技能文件夹、常用模型） */
+  config?: DesktopConfig
 }
 
 export type SettingsTab = 'look' | 'caps' | 'commands' | 'accounts' | 'keys' | 'about'
@@ -104,9 +110,11 @@ export interface Prefs {
   /** 对话正文的字号（像素） */
   fontSize: number
   sidebarCollapsed: boolean
+  /** 窗口不在前台时，回答做完了用系统通知提醒 */
+  notify: boolean
 }
 
-const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false }
+const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false, notify: true }
 
 let state: AppState = {
   sessions: [],
@@ -288,6 +296,7 @@ function handleEvent(key: string, event: ConvEvent): void {
     case 'agent_settled':
       // agent_end 之后 Pi 可能还会自动重试或处理排队的消息，那时会再来一个 agent_start
       if (e.type === 'agent_end' && e.willRetry) break
+      if (state.convs[key]?.streaming) announceLater(key)
       updateConv(key, (c) => {
         c.streaming = false
         c.liveIndex = -1
@@ -340,6 +349,15 @@ function handleEvent(key: string, event: ConvEvent): void {
     case 'tool_execution_end':
       updateConv(key, (c) => (c.toolRuns = { ...c.toolRuns, [e.toolCallId]: { running: false } }))
       break
+    case 'bash_execution_update':
+      updateConv(key, (c) => {
+        const index = c.messages.findLastIndex((message) => message.role === 'bashExecution' && message.running)
+        if (index < 0) return
+        const next = c.messages.slice()
+        next[index] = { ...next[index], output: (next[index].output ?? '') + stripAnsi(e.delta) }
+        c.messages = next
+      })
+      break
     case 'queue_update':
       updateConv(key, (c) => (c.queue = [...(e.steering ?? []), ...(e.followUp ?? [])]))
       break
@@ -376,6 +394,7 @@ function handleUiRequest(key: string, e: Record<string, any>): void {
     case 'input':
     case 'editor':
       updateConv(key, (c) => (c.uiRequest = { id: e.id, method: e.method, title: e.title, message: e.message, options: e.options, placeholder: e.placeholder, prefill: e.prefill }))
+      announce(key, stripAnsi(e.title ?? e.message ?? t('Pi 在等你回答')))
       break
     case 'notify':
       toast(stripAnsi(e.message), e.notifyType ?? 'info')
@@ -401,6 +420,43 @@ function handleUiRequest(key: string, e: Record<string, any>): void {
       updateConv(key, (c) => (c.draft = String(e.text ?? '').trim() ? String(e.text) : ''))
       break
   }
+}
+
+// ---- 提醒 ----
+
+/**
+ * 有了需要人看的新结果。对话不在眼前就在侧栏标个点；窗口不在前台再发一条系统通知，
+ * 点通知回到这个对话。
+ */
+function announce(key: string, body: string): void {
+  const conv = state.convs[key]
+  if (!conv) return
+  const away = !document.hasFocus()
+  if (key !== state.activeKey || state.view !== 'chat') updateConv(key, (c) => (c.unread = true))
+  if (!away || !state.prefs.notify) return
+  const note = new Notification(conv.title ?? t('新对话'), { body: body.slice(0, 160) })
+  note.onclick = () => {
+    api.focusWindow()
+    activate(key)
+  }
+}
+
+const announcing = new Map<string, ReturnType<typeof setTimeout>>()
+/** 一轮回答结束后稍等一下再提醒：Pi 可能马上接着处理排队的消息，那就不算做完 */
+function announceLater(key: string): void {
+  clearTimeout(announcing.get(key))
+  announcing.set(
+    key,
+    setTimeout(() => {
+      announcing.delete(key)
+      const conv = state.convs[key]
+      if (!conv || conv.streaming) return
+      const last = [...conv.messages].reverse().find((message) => message.role === 'assistant')
+      // 自己按停的不用提醒
+      if (last?.stopReason === 'aborted' || /operation was aborted|request was aborted/i.test(last?.errorMessage ?? '')) return
+      announce(key, last?.stopReason === 'error' ? t('出错了：{error}', { error: last.errorMessage ?? '' }) : lastAnswer(conv) || t('做完了'))
+    }, 800)
+  )
 }
 
 // ---- 动作 ----
@@ -533,8 +589,8 @@ export async function init(): Promise<void> {
   api.onEvent(handleEvent)
   api.onMenu(handleMenu)
   applyPrefs(state.prefs)
-  const [defaults, sessions] = await Promise.all([api.defaults(), api.listSessions()])
-  set({ defaults, sessions })
+  const [defaults, sessions, config] = await Promise.all([api.defaults(), api.listSessions(), api.configGet()])
+  set({ defaults, sessions, config })
   const cwd = localStorage.getItem('lastCwd') ?? sessions[0]?.cwd
   if (cwd) newConv(cwd)
 }
@@ -543,7 +599,24 @@ export function activate(key: string): void {
   const conv = state.convs[key]
   if (conv) localStorage.setItem('lastCwd', conv.cwd)
   set({ activeKey: key, view: 'chat' })
+  if (conv?.unread) updateConv(key, (c) => (c.unread = false))
   if (conv) loadTrust(conv.cwd)
+}
+
+export function setConfig(config: DesktopConfig): void {
+  set({ config })
+}
+
+/** 把一个模型加进常用，或者拿出来 */
+export async function toggleFavoriteModel(model: ModelInfo): Promise<void> {
+  const id = `${model.provider}/${model.id}`
+  const current = state.config?.favoriteModels ?? []
+  const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+  try {
+    set({ config: await api.favoriteModelsSet(next) })
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
 }
 
 export function loadTrust(cwd: string): void {
@@ -766,6 +839,10 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
     return
   }
 
+  // ! 开头是直接运行一条命令，!! 是运行但不把结果带给模型
+  const bang = /^(!!?)\s*(\S[\s\S]*)$/.exec(text)
+  if (bang && !images.length) return runShell(key, bang[2], bang[1] === '!!')
+
   const pending: PendingMsg = { text, images }
   updateConv(
     key,
@@ -834,8 +911,90 @@ export function commandsChanged(): void {
   set({ convs })
 }
 
+/** 把撤回来的排队消息放回输入框，接在已有内容后面 */
+function restoreQueued(key: string, texts: string[]): void {
+  if (!texts.length) return
+  updateConv(
+    key,
+    (c) => {
+      c.draft = [c.draft, ...texts].filter((text) => text.trim()).join('\n\n')
+      c.queue = []
+    },
+    true
+  )
+}
+
+/** 停下来。排着队的消息会一起撤回、放回输入框，不会在停下后被接着处理 */
 export function abort(key: string): void {
-  api.convAbort(key).catch((error) => toast(errorText(error), 'error'))
+  if (state.convs[key]?.shellRunning) {
+    api.convAbortBash(key).catch((error) => toast(errorText(error), 'error'))
+    return
+  }
+  api.convAbort(key).then(
+    (texts) => restoreQueued(key, texts),
+    (error) => toast(errorText(error), 'error')
+  )
+}
+
+/** 撤回排队中的消息，放回输入框 */
+export async function recallQueue(key: string): Promise<void> {
+  try {
+    restoreQueued(key, await api.convClearQueue(key))
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
+}
+
+/**
+ * 直接运行用户敲的一条命令（输入框里 ! 开头）。输出显示在对话里，
+ * 下一条消息会把它带给模型；exclude 为真时只给自己看。
+ */
+export async function runShell(key: string, command: string, exclude: boolean): Promise<void> {
+  const conv = state.convs[key]
+  if (!conv) return
+  if (conv.streaming) return toast(t('正在回答时不能直接运行命令。等它做完，或者先停下来'), 'warning')
+  if (conv.shellRunning) return toast(t('上一条命令还在运行'), 'warning')
+  updateConv(
+    key,
+    (c) => {
+      c.draft = ''
+      c.error = undefined
+      c.shellRunning = true
+      c.messages = [...c.messages, { role: 'bashExecution', command, output: '', excludeFromContext: exclude, running: true, timestamp: Date.now() }]
+    },
+    true
+  )
+  const finish = (patch: (streamed: string) => Partial<Msg>) =>
+    updateConv(key, (c) => {
+      c.shellRunning = false
+      const index = c.messages.findLastIndex((message) => message.role === 'bashExecution' && message.running)
+      if (index < 0) return
+      const next = c.messages.slice()
+      next[index] = { ...next[index], ...patch(next[index].output ?? ''), running: false }
+      c.messages = next
+    })
+  try {
+    await ensureProcess(key)
+    const result = await api.convBash(key, command, exclude)
+    // 输出很长时返回值里只有结尾一段，边跑边收到的才是全的
+    finish((streamed) => ({ ...result, output: result.truncated && streamed ? streamed : stripAnsi(result.output) }))
+    void refreshSessions()
+  } catch (error) {
+    finish(() => ({ output: errorText(error), isError: true }))
+  }
+}
+
+/** 开关「上下文快满时自动压缩」。这是 Pi 的全局设置，对所有对话都生效 */
+export async function setAutoCompaction(key: string, enabled: boolean): Promise<void> {
+  const before = state.defaults
+  if (before) set({ defaults: { ...before, autoCompaction: enabled } })
+  try {
+    await ensureProcess(key)
+    await api.convSetAutoCompaction(key, enabled)
+  } catch (error) {
+    if (before) set({ defaults: before })
+    toast(errorText(error), 'error')
+  }
 }
 
 /** 模型列表要等 Pi 进程起来才有；打开选择器时按需启动 */

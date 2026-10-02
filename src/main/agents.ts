@@ -1,5 +1,5 @@
 import { t } from '@shared/i18n'
-import type { ConvEvent, ConvInfo, ImageAttachment, ModelInfo } from '@shared/types'
+import type { BashResult, ConvEvent, ConvInfo, ImageAttachment, ModelInfo } from '@shared/types'
 import { copySession, launchArgs, rekey } from './caps'
 import { PiProcess } from './rpc'
 
@@ -116,7 +116,8 @@ export class AgentManager {
       thinkingLevel: state.thinkingLevel,
       sessionFile: state.sessionFile,
       sessionId: state.sessionId,
-      sessionName: state.sessionName
+      sessionName: state.sessionName,
+      autoCompaction: state.autoCompactionEnabled
     }
     if (state.sessionFile && state.sessionFile !== conv.sessionFile) {
       rekey(this.capsKey(conv.key), state.sessionFile)
@@ -215,8 +216,50 @@ export class AgentManager {
     if (conv) await this.refresh(conv, true)
   }
 
-  async abort(key: string): Promise<void> {
-    await this.convs.get(key)?.proc?.request({ type: 'abort' })
+  /** 撤回排着队还没处理的消息，返回它们的原文 */
+  async clearQueue(key: string): Promise<string[]> {
+    const proc = this.convs.get(key)?.proc
+    if (!proc || proc.exited) return []
+    const queued = await proc.request<{ steering?: string[]; followUp?: string[] }>({ type: 'clear_queue' })
+    return [...(queued.steering ?? []), ...(queued.followUp ?? [])]
+  }
+
+  /**
+   * 停止回答。先把排队的消息撤回来：不然 Pi 停下后会接着处理它们，等于没停。
+   * 撤回的原文交还给界面，放回输入框。
+   */
+  async abort(key: string): Promise<string[]> {
+    const proc = this.convs.get(key)?.proc
+    if (!proc || proc.exited) return []
+    const queued = await this.clearQueue(key).catch(() => [])
+    await proc.request({ type: 'abort' })
+    return queued
+  }
+
+  /** 直接运行用户敲的命令。输出边跑边以 bash_execution_update 事件送到界面 */
+  async bash(key: string, command: string, exclude: boolean): Promise<BashResult> {
+    const conv = this.conv(key)
+    await this.start(key, conv.cwd, conv.sessionFile)
+    const result = await conv.proc!.request<BashResult>({ type: 'bash', command, excludeFromContext: exclude })
+    // 新对话的会话文件是第一次写入时才有的
+    await this.refresh(conv).catch(() => {})
+    return result
+  }
+
+  async abortBash(key: string): Promise<void> {
+    await this.convs.get(key)?.proc?.request({ type: 'abort_bash' })
+  }
+
+  async setAutoCompaction(key: string, enabled: boolean): Promise<ConvInfo> {
+    const conv = this.conv(key)
+    await this.start(key, conv.cwd, conv.sessionFile)
+    await conv.proc!.request({ type: 'set_auto_compaction', enabled })
+    // 这是全局设置，但别的 Pi 进程启动时已经读过旧值了，一起改过来
+    for (const other of this.convs.values()) {
+      if (other !== conv && other.proc && !other.proc.exited) void other.proc.request({ type: 'set_auto_compaction', enabled }).catch(() => {})
+    }
+    await this.refresh(conv)
+    return conv.info
   }
 
   async setModel(key: string, provider: string, id: string): Promise<ConvInfo> {

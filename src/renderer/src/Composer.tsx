@@ -14,6 +14,7 @@ import {
   newConv,
   openSettings,
   projectDirs,
+  recallQueue,
   removeAttachment,
   runCommand,
   send,
@@ -21,26 +22,89 @@ import {
   setModel,
   setThinking,
   toast,
+  toggleFavoriteModel,
   useApp
 } from './store'
 import { TrustBanner } from './Trust'
 import { Icon, Popover, StatusDot, baseName } from './ui'
+import { contextPercent, usageOf } from './usage'
 
 const THINKING_LABEL: Record<string, string> = { off: t('关'), minimal: t('最低'), low: t('低'), medium: t('中'), high: t('高'), xhigh: t('很高'), max: t('最高') }
+
+const modelKey = (model: ModelInfo) => `${model.provider}/${model.id}`
 
 function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
   const models = conv.info.models
   const authStatus = useApp((s) => s.authStatus)
   const authChecking = useApp((s) => s.authChecking)
+  const favorites = useApp((s) => s.config?.favoriteModels)
+  const [query, setQuery] = useState('')
   useEffect(() => ensureStarted(conv.key), [conv.key])
+
+  const q = query.trim().toLowerCase()
+  const shown = useMemo(() => (models ?? []).filter((model) => !q || `${model.provider} ${model.id} ${model.name ?? ''}`.toLowerCase().includes(q)), [models, q])
+  const starred = useMemo(() => shown.filter((model) => favorites?.includes(modelKey(model))), [shown, favorites])
   const groups = useMemo(() => {
     const map = new Map<string, ModelInfo[]>()
-    for (const model of models ?? []) map.set(model.provider, [...(map.get(model.provider) ?? []), model])
+    for (const model of shown) map.set(model.provider, [...(map.get(model.provider) ?? []), model])
     return [...map.entries()]
-  }, [models])
+  }, [shown])
+
+  const choose = (model: ModelInfo) => {
+    void setModel(conv.key, model)
+    onClose()
+  }
+  const row = (model: ModelInfo, withProvider: boolean) => {
+    const current = conv.info.model?.id === model.id && conv.info.model?.provider === model.provider
+    const isFavorite = favorites?.includes(modelKey(model))
+    return (
+      // 按下时不抢焦点，搜索框里可以接着打字、按回车
+      <div key={modelKey(model)} className="menu-item model-row" onMouseDown={(event) => event.preventDefault()} onClick={() => choose(model)}>
+        <span className="grow ellipsis">
+          {model.name ?? model.id}
+          {withProvider && <span className="muted">　{model.provider}</span>}
+        </span>
+        {current && <Icon name="check" size={14} />}
+        <button
+          className={`star ${isFavorite ? 'on' : ''}`}
+          tabIndex={-1}
+          title={isFavorite ? t('从常用里拿掉') : t('设为常用，排到最前面')}
+          onClick={(event) => {
+            event.stopPropagation()
+            void toggleFavoriteModel(model)
+          }}
+        >
+          <Icon name="star" size={13} />
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <Popover onClose={onClose} className="menu" group="composer">
+    <Popover onClose={onClose} className="menu model-menu" group="composer">
+      {models && models.length > 8 && (
+        <input
+          autoFocus
+          className="menu-search"
+          value={query}
+          placeholder={t('搜索模型')}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return
+            // 回车选第一个：常用的排在前面
+            if (event.key === 'Enter' && shown.length) choose(starred[0] ?? shown[0])
+            if (event.key === 'Escape') onClose()
+          }}
+        />
+      )}
       {!models && <div className="menu-empty">{conv.error ? t('模型列表读取失败') : t('正在读取模型列表…')}</div>}
+      {models && !shown.length && <div className="menu-empty">{t('没有匹配的模型')}</div>}
+      {starred.length > 0 && (
+        <div>
+          <div className="menu-label">{t('常用')}</div>
+          {starred.map((model) => row(model, true))}
+        </div>
+      )}
       {groups.map(([provider, list]) => (
         <div key={provider}>
           <div className="menu-label">
@@ -48,22 +112,7 @@ function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
             {provider}
             {authStatus[provider]?.state === 'invalid' && <span className="status-invalid">　{t('已失效')}</span>}
           </div>
-          {list.map((model) => {
-            const current = conv.info.model?.id === model.id && conv.info.model?.provider === model.provider
-            return (
-              <button
-                key={model.id}
-                className="menu-item"
-                onClick={() => {
-                  void setModel(conv.key, model)
-                  onClose()
-                }}
-              >
-                <span className="grow ellipsis">{model.name ?? model.id}</span>
-                {current && <Icon name="check" size={14} />}
-              </button>
-            )
-          })}
+          {list.map((model) => row(model, false))}
         </div>
       ))}
       <div className="menu-sep" />
@@ -246,6 +295,7 @@ const CAP_BUTTONS: { kind: CapKind; label: string; icon: string }[] = [
 
 export function Composer({ conv }: { conv: Conv }) {
   const defaults = useApp((s) => s.defaults)
+  const models = useApp((s) => s.models)
   const signal = useApp((s) => s.signal)
   const [open, setOpen] = useState<Open | undefined>()
   const [cursor, setCursor] = useState(0)
@@ -390,6 +440,12 @@ export function Composer({ conv }: { conv: Conv }) {
   const canSend = conv.draft.trim().length > 0 || conv.attachments.length > 0
   // 发过消息的对话已经绑定在它的项目上，不能再换
   const canSwitchProject = !conv.messages.length && !conv.pending.length && !conv.streaming && !conv.loading
+  const busy = conv.streaming || Boolean(conv.shellRunning)
+  // ! 开头是直接运行命令，输入框换个样子提醒一下
+  const shellMode = /^!/.test(conv.draft)
+  const percent = contextPercent(usageOf(conv, (provider, id) => models[`${provider}/${id}`]?.contextWindow))
+  // 开着自动压缩时 Pi 自己会处理，不用提醒；关着的话快满了要让人知道
+  const nearlyFull = percent !== undefined && percent >= 85 && defaults?.autoCompaction === false && !conv.streaming
   const access = accessOf(conv)
   const accessLabel = access === 'custom' ? t('自定义') : ACCESS_PRESETS.find((preset) => preset.id === access)?.label
 
@@ -432,13 +488,28 @@ export function Composer({ conv }: { conv: Conv }) {
         </div>
       )}
       <TrustBanner cwd={conv.cwd} />
+      {nearlyFull && (
+        <div className="trust-banner">
+          <Icon name="chart" size={15} />
+          <div className="grow">
+            {t('上下文已经用了 {percent}%。再往下聊可能会出错或变慢。', { percent: Math.round(percent) })}
+            <div className="muted small">{t('压缩会把更早的内容换成一段摘要，腾出空间。')}</div>
+          </div>
+          <button className="btn primary" onClick={() => void runCommand(conv.key, 'compact', '')}>
+            {t('现在压缩')}
+          </button>
+        </div>
+      )}
       {conv.queue.length > 0 && (
         <div className="queue">
           {conv.queue.map((text, index) => (
-            <div key={index} className="queue-item ellipsis">
-              {t('排队中：{text}', { text })}
+            <div key={index} className="queue-item">
+              <span className="grow ellipsis">{t('排队中：{text}', { text })}</span>
             </div>
           ))}
+          <button className="link-btn" title={t('把排队的消息拿回输入框，可以改了再发')} onClick={() => void recallQueue(conv.key)}>
+            {t('撤回到输入框')}
+          </button>
         </div>
       )}
       {widgets.map(([key, lines]) => (
@@ -448,7 +519,7 @@ export function Composer({ conv }: { conv: Conv }) {
       ))}
       {/* 输入框里只留附件、模型和发送，其它功能放在下面那条小栏里 */}
       <div
-        className="composer"
+        className={`composer ${shellMode ? 'shell-mode' : ''}`}
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
           event.preventDefault()
@@ -471,7 +542,7 @@ export function Composer({ conv }: { conv: Conv }) {
           ref={input}
           rows={1}
           value={conv.draft}
-          placeholder={conv.streaming ? t('继续补充，会在当前这一步之后送达') : t('问点什么。/ 用指令，@ 引用文件')}
+          placeholder={conv.streaming ? t('继续补充，会在当前这一步之后送达') : t('问点什么。/ 用指令，@ 引用文件，! 运行命令')}
           onChange={(event) => {
             setCursor(event.target.selectionStart)
             setDraft(conv.key, event.target.value)
@@ -503,7 +574,7 @@ export function Composer({ conv }: { conv: Conv }) {
               setDismissed(menuKey)
               return
             }
-            if (event.key === 'Escape' && conv.streaming && !open) {
+            if (event.key === 'Escape' && busy && !open) {
               event.preventDefault()
               abort(conv.key)
               return
@@ -544,12 +615,12 @@ export function Composer({ conv }: { conv: Conv }) {
             </button>
             {open === 'thinking' && <ThinkingPicker conv={conv} onClose={close} />}
           </div>
-          {conv.streaming && (
+          {busy && (
             <button className="round-btn stop" title={t('停止（Esc）')} onClick={() => abort(conv.key)}>
               <Icon name="stop" />
             </button>
           )}
-          {(!conv.streaming || canSend) && (
+          {(!busy || canSend) && (
             <button className="round-btn" title={t('发送')} disabled={!canSend} onClick={() => void send(conv.key)}>
               <Icon name="up" />
             </button>
@@ -599,7 +670,13 @@ export function Composer({ conv }: { conv: Conv }) {
           {t('指令')}
         </button>
         <span className="grow" />
-        {conv.caps?.dirty ? <span className="strip-note accent">{t('改动从下一条消息起生效')}</span> : statuses.length > 0 && <span className="strip-note ellipsis">{statuses.join('　')}</span>}
+        {shellMode ? (
+          <span className="strip-note accent">{conv.draft.startsWith('!!') ? t('直接运行命令，结果不带给 Pi') : t('直接运行命令，结果会带给 Pi')}</span>
+        ) : conv.caps?.dirty ? (
+          <span className="strip-note accent">{t('改动从下一条消息起生效')}</span>
+        ) : (
+          statuses.length > 0 && <span className="strip-note ellipsis">{statuses.join('　')}</span>
+        )}
       </div>
     </div>
   )

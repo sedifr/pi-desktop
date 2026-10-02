@@ -71,12 +71,13 @@ function registerIpc(): void {
   const handle = (channel: string, fn: (...args: any[]) => unknown) => ipcMain.handle(channel, (_event, ...args) => fn(...args))
 
   handle('defaults', (): Defaults => {
-    const settings = readJson<Record<string, string>>(path.join(AGENT_DIR, 'settings.json'), {})
+    const settings = readJson<Record<string, any>>(path.join(AGENT_DIR, 'settings.json'), {})
     return {
       home: HOME,
       defaultModel: settings.defaultModel,
       defaultProvider: settings.defaultProvider,
       defaultThinkingLevel: settings.defaultThinkingLevel,
+      autoCompaction: settings.compaction?.enabled !== false,
       piVersion: piVersion(),
       appVersion: app.getVersion(),
       agentDir: AGENT_DIR,
@@ -119,6 +120,7 @@ function registerIpc(): void {
     if (result.canceled || config.extraSkillDirs.includes(result.filePaths[0])) return config
     return setConfig({ extraSkillDirs: [...config.extraSkillDirs, result.filePaths[0]] })
   })
+  handle('config:favoriteModels', (models: string[]) => setConfig({ favoriteModels: models }))
   handle('config:skillDirRemove', (dir: string) => setConfig({ extraSkillDirs: getConfig().extraSkillDirs.filter((item) => item !== dir) }))
   ipcMain.on('setLang', (_event, lang: Lang) => {
     if (lang !== 'zh' && lang !== 'en') return
@@ -153,6 +155,16 @@ function registerIpc(): void {
   handle('conv:start', (key: string, cwd: string, sessionFile?: string) => agents.start(key, cwd, sessionFile))
   handle('conv:prompt', (key: string, text: string, images?: ImageAttachment[], behavior?: 'steer' | 'followUp') => agents.prompt(key, text, images, behavior))
   handle('conv:abort', (key: string) => agents.abort(key))
+  handle('conv:clearQueue', (key: string) => agents.clearQueue(key))
+  handle('conv:bash', (key: string, command: string, exclude: boolean) => agents.bash(key, command, exclude))
+  handle('conv:abortBash', (key: string) => agents.abortBash(key))
+  handle('conv:setAutoCompaction', (key: string, enabled: boolean) => agents.setAutoCompaction(key, enabled))
+  ipcMain.on('window:focus', () => {
+    if (!win || win.isDestroyed()) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    app.focus({ steal: true })
+  })
   handle('conv:setModel', (key: string, provider: string, id: string) => agents.setModel(key, provider, id))
   handle('conv:setThinking', (key: string, level: string) => agents.setThinking(key, level))
   handle('conv:compact', (key: string, instructions?: string) => agents.compact(key, instructions))

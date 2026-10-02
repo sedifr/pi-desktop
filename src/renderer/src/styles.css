@@ -1461,3 +1461,102 @@ kbd {
 .segmented button:disabled {
   opacity: 0.4;
 }
+
+/* 用户直接运行的命令 */
+.shell-block {
+  margin: 14px 0;
+}
+.shell-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+.shell-cmd {
+  font: 12.5px/1.5 var(--mono);
+  color: var(--text);
+  word-break: break-all;
+}
+.shell-exit {
+  font-size: 12px;
+  color: var(--danger);
+}
+.composer.shell-mode {
+  border-color: var(--accent);
+}
+.composer.shell-mode textarea {
+  font-family: var(--mono);
+}
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.queue-item {
+  display: flex;
+  align-self: stretch;
+  min-width: 0;
+}
+
+.chip.warn {
+  color: var(--danger);
+}
+.meter.warn > div {
+  background: var(--danger);
+}
+.segmented.small button {
+  height: 22px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.btn.wide {
+  width: 100%;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.dot-unread {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+/* 模型菜单：搜索和常用 */
+.menu-search {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  border: 0;
+  border-bottom: 0.5px solid var(--border);
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+.model-row {
+  cursor: default;
+}
+.star {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 5px;
+  color: var(--text-3);
+  opacity: 0;
+}
+.model-row:hover .star,
+.star.on {
+  opacity: 1;
+}
+.star.on {
+  color: var(--accent);
+}
+.star.on svg path {
+  fill: currentColor;
+}
+.star:hover {
+  color: var(--text);
+}

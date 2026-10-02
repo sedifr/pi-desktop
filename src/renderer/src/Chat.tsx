@@ -10,6 +10,7 @@ type Block =
   | { kind: 'user'; id: string; msg: Msg }
   | { kind: 'turn'; id: string; steps: Step[]; images: GenImage[]; final?: string; error?: string; aborted?: boolean; model?: string }
   | { kind: 'note'; id: string; label: string; text: string }
+  | { kind: 'shell'; id: string; msg: Msg }
 
 /** 模型这一轮生成出来的图片 */
 interface GenImage {
@@ -24,6 +25,8 @@ interface GenImage {
 const IMAGE_TOOLS = new Set(['generate_image', 'codemode'])
 
 const PAGE = 30
+
+export const ABORTED = /operation was aborted|request was aborted|aborted by (the )?user/i
 
 function blocksOf(content: Msg['content']): ContentBlock[] {
   if (typeof content === 'string') return content ? [{ type: 'text', text: content }] : []
@@ -71,8 +74,10 @@ function buildBlocks(messages: Msg[]): Block[] {
       lastAssistant = msg
       finalFrom = turn.steps.length
       turn.model = msg.model
-      turn.error = msg.stopReason === 'error' ? (msg.errorMessage ?? t('请求出错')) : undefined
-      turn.aborted = msg.stopReason === 'aborted'
+      // 用户自己按了停止，有的提供商会把它报成一条「被中止」的错误，这不算出错
+      const stopped = msg.stopReason === 'aborted' || (msg.stopReason === 'error' && ABORTED.test(msg.errorMessage ?? ''))
+      turn.error = msg.stopReason === 'error' && !stopped ? (msg.errorMessage ?? t('请求出错')) : undefined
+      turn.aborted = stopped
       for (const block of blocksOf(msg.content)) {
         if (block.type === 'thinking' && block.thinking?.trim()) turn.steps.push({ kind: 'thinking', text: block.thinking })
         else if (block.type === 'text' && block.text?.trim()) turn.steps.push({ kind: 'text', text: block.text })
@@ -86,6 +91,9 @@ function buildBlocks(messages: Msg[]): Block[] {
           if (block.type === 'image' && block.data) turn.images.push({ src: `data:${block.mimeType};base64,${block.data}`, path: msg.details?.path as string | undefined })
         }
       }
+    } else if (msg.role === 'bashExecution') {
+      closeTurn()
+      blocks.push({ kind: 'shell', id, msg })
     } else if (msg.role === 'compactionSummary') {
       closeTurn()
       blocks.push({ kind: 'note', id, label: t('更早的内容已压缩成摘要'), text: msg.summary ?? '' })
@@ -269,6 +277,30 @@ function UserMessage({ msg, onFork }: { msg: Msg; onFork?: () => void }) {
   )
 }
 
+/** 用户用 ! 直接运行的命令和它的输出 */
+function ShellBlock({ msg }: { msg: Msg }) {
+  const output = msg.output ?? ''
+  const failed = msg.isError || (msg.exitCode != null && msg.exitCode !== 0)
+  return (
+    <div className="shell-block">
+      <div className="shell-head">
+        <Icon name="terminal" size={14} />
+        <span className="shell-cmd grow">{msg.command}</span>
+        {msg.running && <span className="dot-running" />}
+        {msg.cancelled && <span className="muted small">{t('已停止')}</span>}
+        {!msg.running && !msg.cancelled && failed && msg.exitCode != null && <span className="shell-exit">{t('退出码 {code}', { code: msg.exitCode })}</span>}
+        {msg.excludeFromContext && (
+          <span className="muted small" title={t('这条命令的输出只给你自己看，不会带给 Pi')}>
+            {t('不带给 Pi')}
+          </span>
+        )}
+      </div>
+      {output && <pre className={msg.isError ? 'tool-output error' : 'tool-output'}>{output.length > 20000 ? `${t('（输出太长，只显示结尾）…')}\n${output.slice(-20000)}` : output}</pre>}
+      {msg.truncated && msg.fullOutputPath && <div className="muted small">{t('完整输出在 {path}', { path: msg.fullOutputPath })}</div>}
+    </div>
+  )
+}
+
 function Note({ label, text }: { label: string; text: string }) {
   const [open, setOpen] = useState(false)
   return (
@@ -329,6 +361,8 @@ export function Chat({ conv }: { conv: Conv }) {
             <UserMessage key={block.id} msg={block.msg} onFork={conv.streaming ? undefined : () => void forkFrom(conv.key, userIndexOf(block), textOf(block.msg.content))} />
           ) : block.kind === 'turn' ? (
             <Turn key={block.id} block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} />
+          ) : block.kind === 'shell' ? (
+            <ShellBlock key={block.id} msg={block.msg} />
           ) : (
             <Note key={block.id} label={block.label} text={block.text} />
           )

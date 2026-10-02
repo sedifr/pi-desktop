@@ -193,7 +193,18 @@ function slimMessage(message: Entry, entryId: string): Msg {
     timestamp: message.timestamp,
     usage: message.usage,
     // 大多数工具的 details 很大且界面用不到，只留「文件存到了哪」这一项
-    details: typeof message.details?.path === 'string' ? { path: message.details.path } : undefined
+    details: typeof message.details?.path === 'string' ? { path: message.details.path } : undefined,
+    ...(message.role === 'bashExecution'
+      ? {
+          command: message.command,
+          output: message.output,
+          exitCode: message.exitCode,
+          cancelled: message.cancelled,
+          truncated: message.truncated,
+          fullOutputPath: message.fullOutputPath,
+          excludeFromContext: message.excludeFromContext
+        }
+      : {})
   }
 }
 

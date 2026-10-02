@@ -163,7 +163,9 @@ const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: '⌥Enter', label: t('正在回答时：等全部做完再处理这条') },
   { keys: '⇧Enter', label: t('换行') },
   { keys: '/', label: t('在输入框开头打，选快捷指令') },
-  { keys: '@', label: t('在输入框里打，引用项目里的文件') }
+  { keys: '@', label: t('在输入框里打，引用项目里的文件') },
+  { keys: '!', label: t('在输入框开头打，直接运行一条命令，结果会带给 Pi') },
+  { keys: '!!', label: t('在输入框开头打，运行命令但结果不带给 Pi') }
 ]
 
 export function Shortcuts() {

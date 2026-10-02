@@ -50,6 +50,7 @@ export function Sidebar() {
   }, [sessions, convs, extraProjects])
 
   const runningFiles = new Set(Object.values(convs).filter((c) => c.streaming).map((c) => c.sessionFile ?? c.key))
+  const unreadFiles = new Set(Object.values(convs).filter((c) => c.unread).map((c) => c.sessionFile ?? c.key))
 
   return (
     <aside className="sidebar">
@@ -94,7 +95,7 @@ export function Sidebar() {
                   {project.drafts.map((conv) => (
                     <div key={conv.key} className={`session-row ${conv.key === activeKey ? 'active' : ''}`} onClick={() => activate(conv.key)}>
                       <span className="grow ellipsis">{conv.title ?? t('新对话')}</span>
-                      {conv.streaming && <span className="dot-running" />}
+                      {conv.streaming ? <span className="dot-running" /> : conv.unread && <span className="dot-unread" title={t('有新结果')} />}
                     </div>
                   ))}
                   {list.map((meta) => {
@@ -102,7 +103,13 @@ export function Sidebar() {
                     return (
                       <div key={meta.file} className={`session-row ${isActive ? 'active' : ''}`} onClick={() => void openSession(meta)}>
                         <span className="grow ellipsis">{meta.name ?? meta.firstUserText ?? t('（空对话）')}</span>
-                        {runningFiles.has(meta.file) ? <span className="dot-running" /> : <span className="session-time">{relTime(meta.modified)}</span>}
+                        {runningFiles.has(meta.file) ? (
+                          <span className="dot-running" />
+                        ) : unreadFiles.has(meta.file) ? (
+                          <span className="dot-unread" title={t('有新结果')} />
+                        ) : (
+                          <span className="session-time">{relTime(meta.modified)}</span>
+                        )}
                         <button
                           className="icon-btn hover-only"
                           title={t('移到废纸篓')}
