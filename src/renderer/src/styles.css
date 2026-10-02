@@ -1619,3 +1619,48 @@ div.cap-tile {
 .menu.below.wide {
   width: 320px;
 }
+
+/* 窗口窄的时候：小栏里只让项目名缩短，别的按钮保持原样，不互相压住 */
+.composer-strip > * {
+  flex: none;
+}
+.composer-strip > .grow {
+  flex: 1;
+}
+.composer-strip > .anchor:first-child {
+  flex: 0 1 auto;
+  min-width: 44px;
+}
+.composer-strip > .anchor:first-child .strip-btn {
+  min-width: 0;
+}
+.strip-note {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.welcome > .small {
+  padding: 0 24px;
+  text-align: center;
+  word-break: break-all;
+}
+.set-label .ellipsis {
+  display: block;
+}
+/* 输入栏很窄时，小栏里先省掉数字，再收紧按钮 */
+.composer-wrap {
+  container-type: inline-size;
+}
+@container (max-width: 560px) {
+  .strip-count {
+    display: none;
+  }
+  .strip-btn {
+    padding: 0 6px;
+  }
+  .composer-strip > .anchor:first-child {
+    min-width: 72px;
+  }
+}
