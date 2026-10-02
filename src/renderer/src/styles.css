@@ -1664,3 +1664,22 @@ div.cap-tile {
     min-width: 72px;
   }
 }
+
+.dialog:focus {
+  outline: none;
+}
+.welcome > .banner {
+  max-width: 560px;
+  margin: 8px 24px 0;
+}
+
+.cap-tile.locked {
+  opacity: 0.75;
+}
+.cap-tile.locked:hover {
+  border-color: var(--border);
+  background: transparent;
+}
+.cap-head .muted.small {
+  min-width: 0;
+}

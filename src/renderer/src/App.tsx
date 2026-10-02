@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UsageTotals } from '@shared/types'
 import { Chat } from './Chat'
 import { Composer } from './Composer'
@@ -248,10 +248,29 @@ function Header({ conv }: { conv: Conv }) {
 
 function UiDialog({ conv, request }: { conv: Conv; request: UiRequest }) {
   const [value, setValue] = useState(request.prefill ?? '')
+  const box = useRef<HTMLDivElement>(null)
   const cancel = () => answerUi(conv.key, { cancelled: true })
+  // 弹窗出来时把键盘接过来：不然焦点还在输入框里，按 Esc 会把整轮回答停掉，按回车会把草稿发出去
+  useEffect(() => {
+    if (!box.current?.contains(document.activeElement)) box.current?.focus()
+  }, [])
   return (
     <div className="overlay">
-      <div className="dialog">
+      <div
+        className="dialog"
+        ref={box}
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) return
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            cancel()
+          } else if (event.key === 'Enter' && request.method === 'input') {
+            event.preventDefault()
+            answerUi(conv.key, { value })
+          }
+        }}
+      >
         {request.title && <div className="dialog-title">{request.title}</div>}
         {request.message && <div className="dialog-message">{request.message}</div>}
         {request.method === 'select' && (
@@ -291,6 +310,8 @@ function Welcome({ conv }: { conv: Conv }) {
       <div className="welcome-mark">π</div>
       <div className="welcome-title">{t('在 {project} 里做点什么？', { project: baseName(conv.cwd) })}</div>
       <div className="muted small">{conv.cwd}</div>
+      {/* 对话还是空的时候，出错的原因只能显示在这里 */}
+      {conv.error && <div className="banner error">{conv.error}</div>}
     </div>
   )
 }
@@ -313,7 +334,7 @@ export function App() {
             <Header conv={conv} />
             {empty ? <Welcome conv={conv} /> : conv.loading ? <div className="welcome muted">{t('正在读取对话…')}</div> : <Chat conv={conv} />}
             <Composer conv={conv} />
-            {conv.uiRequest && <UiDialog key={conv.uiRequest.id} conv={conv} request={conv.uiRequest} />}
+            {conv.uiRequests[0] && <UiDialog key={conv.uiRequests[0].id} conv={conv} request={conv.uiRequests[0]} />}
           </>
         ) : (
           <div className="welcome">

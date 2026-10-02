@@ -8,9 +8,10 @@ const cache = new Map<string, { at: number; files: string[] }>()
 
 function gitFiles(cwd: string): Promise<string[] | undefined> {
   return new Promise((resolve) => {
-    execFile('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd, maxBuffer: 32 * 1024 * 1024, timeout: 8000 }, (error, stdout) => {
+    // -z：文件名之间用 \0 分隔并原样输出。不加的话，中文这类文件名会被 git 转义成一串八进制数字
+    execFile('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd, maxBuffer: 32 * 1024 * 1024, timeout: 8000 }, (error, stdout) => {
       if (error) return resolve(undefined)
-      resolve(stdout.split('\n').filter(Boolean).slice(0, MAX_FILES))
+      resolve(stdout.split('\0').filter(Boolean).slice(0, MAX_FILES))
     })
   })
 }

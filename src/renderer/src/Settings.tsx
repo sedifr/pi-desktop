@@ -4,7 +4,7 @@ import { Accounts } from './Accounts'
 import { Commands, Shortcuts } from './Commands'
 import { Mcp } from './Mcp'
 import { Tile, nextState } from './CapPanel'
-import { type SettingsTab, api, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
+import { type SettingsTab, api, commandsChanged, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
 import { t } from '@shared/i18n'
 
@@ -86,23 +86,46 @@ function Look() {
   )
 }
 
+/** 正在进行的安装或移除。放在组件外面，这样离开这一页它也不会丢 */
+const installing = {
+  label: undefined as string | undefined,
+  lines: [] as string[],
+  listeners: new Set<() => void>(),
+  set(label: string | undefined, lines: string[]) {
+    this.label = label
+    this.lines = lines
+    for (const listener of this.listeners) listener()
+  }
+}
+api.onPackageLine((line) => {
+  if (installing.label) installing.set(installing.label, [...installing.lines.slice(-5), line])
+})
+
 const PACKAGE_KIND: Record<PackageInfo['kind'], string> = { npm: 'npm', git: 'git', local: t('本机文件夹') }
 
 /** 装上的 Pi 包：别人打包好的技能、扩展和指令。相当于界面版的 pi install / pi remove */
 function Packages({ onChanged }: { onChanged: () => void }) {
   const [list, setList] = useState<PackageInfo[]>()
   const [source, setSource] = useState('')
-  const [busy, setBusy] = useState<string>()
-  const [lines, setLines] = useState<string[]>([])
+  const [busy, setBusy] = useState(installing.label)
+  const [lines, setLines] = useState(installing.lines)
   const reload = useCallback(() => {
     api.packagesList().then(setList, () => setList([]))
   }, [])
   useEffect(reload, [reload])
-  useEffect(() => api.onPackageLine((line) => setLines((current) => [...current.slice(-5), line])), [])
+  // 安装要一阵子，中途切到别的设置页再回来，进度和结果都要接得上
+  useEffect(() => {
+    const sync = () => {
+      setBusy(installing.label)
+      setLines(installing.lines)
+      if (!installing.label) reload()
+    }
+    installing.listeners.add(sync)
+    return () => void installing.listeners.delete(sync)
+  }, [reload])
 
   const run = async (label: string, work: () => Promise<void>, done: string) => {
-    setBusy(label)
-    setLines([])
+    installing.set(label, [])
     try {
       await work()
       toast(done)
@@ -110,8 +133,9 @@ function Packages({ onChanged }: { onChanged: () => void }) {
     } catch (error) {
       toast(errorText(error).slice(-400), 'error')
     }
-    setBusy(undefined)
-    reload()
+    installing.set(undefined, [])
+    // 包带来的技能和指令变了，开着的对话下次用到时要重新读清单
+    commandsChanged()
     onChanged()
   }
   const install = () => {
@@ -227,6 +251,7 @@ function Sources({ onChanged }: { onChanged: () => void }) {
   }, [])
   const apply = (config: DesktopConfig) => {
     setDirs(config.extraSkillDirs)
+    commandsChanged()
     onChanged()
   }
   return (

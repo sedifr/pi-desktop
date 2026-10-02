@@ -4,7 +4,7 @@ import path from 'node:path'
 import { app, shell } from 'electron'
 import { getLang, t } from '@shared/i18n'
 import type { AuthFlowEvent, AuthStatus, CustomProviderDetail, CustomProviderInput, ProviderInfo } from '@shared/types'
-import { AGENT_DIR, nodeExecPath, readJson, shellEnv } from './env'
+import { AGENT_DIR, nodeExecPath, readJsonForEdit, shellEnv, writeJson } from './env'
 
 const MODELS_FILE = path.join(AGENT_DIR, 'models.json')
 const helperPath = () => path.join(app.getAppPath(), 'resources', 'auth-helper.mjs')
@@ -17,6 +17,7 @@ async function runHelper(args: string[], onMessage?: (message: AuthFlowEvent) =>
   let stderr = ''
   let failure: string | undefined
   let finished = false
+  child.stdin.on('error', () => {})
   child.stdout.setEncoding('utf8')
   child.stdout.on('data', (chunk: string) => {
     buffer += chunk
@@ -104,10 +105,8 @@ type ModelsFile = { providers?: Record<string, Record<string, unknown>> }
 function writeModels(data: ModelsFile): void {
   // 改之前留一份上一版，改错了可以手动换回来
   if (fs.existsSync(MODELS_FILE)) fs.copyFileSync(MODELS_FILE, `${MODELS_FILE}.bak-desktop`)
-  const tmp = `${MODELS_FILE}.tmp`
-  // 这个文件里可能有密钥，保持只有当前用户可读
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600 })
-  fs.renameSync(tmp, MODELS_FILE)
+  // 这个文件里可能有密钥，新建时只给当前用户读；已有的保持它原来的权限
+  writeJson(MODELS_FILE, data, 0o600)
 }
 
 /** 添加一个 OpenAI 或 Anthropic 兼容的接口，写进 Pi 的 models.json */
@@ -117,7 +116,7 @@ export async function saveCustomProvider(input: CustomProviderInput): Promise<vo
   if (!/^https?:\/\//.test(input.baseUrl.trim())) throw new Error(t('接口地址要以 http:// 或 https:// 开头'))
   const models = input.models.map((model) => model.trim()).filter(Boolean)
   if (!models.length) throw new Error(t('至少填一个模型 ID'))
-  const data = readJson<ModelsFile>(MODELS_FILE, {})
+  const data = readJsonForEdit<ModelsFile>(MODELS_FILE)
   data.providers ??= {}
   const existing = data.providers[id]
   if (existing && !input.editing) throw new Error(t('已经有一个叫「{id}」的接口了。要改它就点它旁边的「修改」', { id }))
@@ -137,7 +136,7 @@ export async function saveCustomProvider(input: CustomProviderInput): Promise<vo
 
 /** 读一个自定义接口现在的配置，给「修改」表单用。Key 不送到界面上 */
 export function getCustomProvider(id: string): CustomProviderDetail | undefined {
-  const entry = readJson<ModelsFile>(MODELS_FILE, {}).providers?.[id]
+  const entry = readJsonForEdit<ModelsFile>(MODELS_FILE).providers?.[id]
   if (!entry) return undefined
   return {
     id,
@@ -149,7 +148,7 @@ export function getCustomProvider(id: string): CustomProviderDetail | undefined 
 }
 
 export function removeCustomProvider(id: string): void {
-  const data = readJson<ModelsFile>(MODELS_FILE, {})
+  const data = readJsonForEdit<ModelsFile>(MODELS_FILE)
   if (!data.providers?.[id]) return
   delete data.providers[id]
   writeModels(data)

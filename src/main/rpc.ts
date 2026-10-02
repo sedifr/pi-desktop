@@ -2,7 +2,7 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { StringDecoder } from 'node:string_decoder'
 import { t } from '@shared/i18n'
-import { nodeExecPath, piCliPath, shellEnv } from './env'
+import { cleanEnvPath, nodeExecPath, piCliPath, shellEnv } from './env'
 
 interface Pending {
   resolve: (data: unknown) => void
@@ -18,6 +18,8 @@ export class PiProcess extends EventEmitter {
   private pending = new Map<string, Pending>()
   private seq = 0
   private stderrTail = ''
+  /** 是我们自己让它结束的。这种退出不算出错 */
+  private killed = false
   exited = false
 
   constructor(
@@ -29,7 +31,9 @@ export class PiProcess extends EventEmitter {
 
   async start(): Promise<void> {
     const env = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1' }
-    const child = spawn(nodeExecPath(), [piCliPath(), '--mode', 'rpc', ...this.args], {
+    // 取环境变量要一会儿；这期间如果已经被要求结束，就不用起了
+    if (this.killed) return this.finish()
+    const child = spawn(nodeExecPath(), ['-r', cleanEnvPath(), piCliPath(), '--mode', 'rpc', ...this.args], {
       cwd: this.cwd,
       env,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -49,11 +53,14 @@ export class PiProcess extends EventEmitter {
         if (line) this.handleLine(line)
       }
     })
+    // 进程先一步退出时，还没写完的输入会报错；这里接住，退出本身由 exit 事件处理
+    child.stdin.on('error', () => {})
     child.stderr.on('data', (chunk: Buffer) => {
       this.stderrTail = (this.stderrTail + chunk.toString('utf8')).slice(-4000)
     })
     child.on('error', (error) => this.finish(error.message))
-    child.on('exit', (code) => this.finish(code === 0 || code === null ? undefined : t('Pi 进程退出（代码 {code}）', { code })))
+    // Pi 收到结束信号后会带着非零的代码退出，那是正常收尾
+    child.on('exit', (code) => this.finish(code === 0 || code === null || this.killed ? undefined : t('Pi 进程退出（代码 {code}）', { code })))
   }
 
   private handleLine(line: string): void {
@@ -97,6 +104,15 @@ export class PiProcess extends EventEmitter {
   }
 
   kill(): void {
-    if (this.child && !this.exited) this.child.kill()
+    if (this.exited) return
+    this.killed = true
+    const child = this.child
+    // 还没真正起起来：记下来就算结束了，start() 那边看到后不会再起
+    if (!child) return this.finish()
+    child.kill()
+    // 好好说不听就强制结束，免得等它退出的地方一直挂着
+    setTimeout(() => {
+      if (!this.exited) child.kill('SIGKILL')
+    }, 4000).unref()
   }
 }

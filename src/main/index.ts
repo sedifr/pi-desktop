@@ -170,10 +170,15 @@ function registerIpc(): void {
     const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
     const config = getConfig()
     if (result.canceled || config.extraSkillDirs.includes(result.filePaths[0])) return config
+    // 技能清单变了，闲着的进程下次用时重启，指令菜单里才看得到新技能
+    agents.restartIdle()
     return setConfig({ extraSkillDirs: [...config.extraSkillDirs, result.filePaths[0]] })
   })
   handle('config:favoriteModels', (models: string[]) => setConfig({ favoriteModels: models }))
-  handle('config:skillDirRemove', (dir: string) => setConfig({ extraSkillDirs: getConfig().extraSkillDirs.filter((item) => item !== dir) }))
+  handle('config:skillDirRemove', (dir: string) => {
+    agents.restartIdle()
+    return setConfig({ extraSkillDirs: getConfig().extraSkillDirs.filter((item) => item !== dir) })
+  })
   ipcMain.on('setLang', (_event, lang: Lang) => {
     if (lang !== 'zh' && lang !== 'en') return
     setLang(lang)

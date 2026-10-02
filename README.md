@@ -106,7 +106,8 @@ The interface is available in English and Simplified Chinese (*Settings → Appe
 
 - macOS only. Windows and Linux are untested.
 - No installer yet.
-- MCP on/off relies on the `pi-mcp-adapter` extension.
+- Switching MCP servers per conversation relies on the `pi-mcp-adapter` extension. Without it the servers are listed but apply to every conversation.
+- Turning an extension off for a conversation restarts pi with the extensions the app knows about. Packages declared only in a project's `.pi/settings.json` are not carried over in that case.
 - OAuth sign-in for remote MCP servers is not in the app yet; do it once from the pi CLI.
 
 ## License

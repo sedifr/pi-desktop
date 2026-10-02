@@ -2,8 +2,8 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { CapItem, CapState } from '@shared/types'
-import { DESKTOP_EXT_PREFIX, type CatalogItem, MCP_CONFIG, loadCatalog } from './catalog'
-import { DESKTOP_DIR, HOME, readJson, writeJson } from './env'
+import { DESKTOP_EXT_PREFIX, type CatalogItem, MCP_CONFIG, loadCatalog, skillsUnknown } from './catalog'
+import { DESKTOP_DIR, HOME, readJson, readOwnJson, writeJson } from './env'
 
 type Overrides = Record<string, CapState>
 
@@ -21,7 +21,7 @@ let store: Store | undefined
 
 function load(): Store {
   if (!store) {
-    store = { global: {}, projects: {}, sessions: {}, ...readJson<Partial<Store>>(STORE_FILE, {}) }
+    store = { global: {}, projects: {}, sessions: {}, ...readOwnJson<Partial<Store>>(STORE_FILE, {}) }
     // 会话文件已经不在了（删掉了，或新对话没发过消息），对应的设置也不用留
     for (const key of Object.keys(store.sessions)) if (!fs.existsSync(key)) delete store.sessions[key]
   }
@@ -38,6 +38,8 @@ function resolveItems(catalog: CatalogItem[], key: string, cwd: string): CapItem
   const session = s.sessions[key] ?? {}
   const project = s.projects[cwd] ?? {}
   return catalog.map((item) => {
+    // 没法按对话开关的项，不管以前存过什么，都按它本来的状态显示
+    if (item.locked) return { ...item, state: item.defaultState, from: 'default' as const }
     if (session[item.id]) return { ...item, state: session[item.id], from: 'session' as const }
     if (project[item.id]) return { ...item, state: project[item.id], from: 'project' as const }
     if (s.global[item.id]) return { ...item, state: s.global[item.id], from: 'global' as const }
@@ -157,7 +159,9 @@ export async function launchArgs(key: string, cwd: string): Promise<Launch> {
   const args: string[] = []
 
   const skills = items.filter((item) => item.id.startsWith('skill:'))
-  args.push('--no-skills')
+  // 平时由这里说了算：关掉 Pi 自己的发现，把开着的技能一个个交给它。
+  // 但问不出 Pi 默认会加载哪些技能时，手里的清单是不全的，就让 Pi 照常自己找，这里只补上额外打开的
+  if (!skillsUnknown(cwd)) args.push('--no-skills')
   for (const skill of skills) {
     if (skill.state !== 'off' && skill.path) args.push('--skill', skill.path)
   }
@@ -175,12 +179,17 @@ export async function launchArgs(key: string, cwd: string): Promise<Launch> {
   const bundled = items.filter((item) => item.id.startsWith(DESKTOP_EXT_PREFIX))
   const extensions = items.filter((item) => item.id.startsWith('ext:') && !item.id.startsWith(DESKTOP_EXT_PREFIX))
   for (const ext of bundled) if (ext.state !== 'off' && ext.path) args.push('-e', ext.path)
+  const adapterInstalled = extensions.some((ext) => ext.id.includes('mcp-adapter'))
   if (extensions.some((ext) => ext.state !== ext.defaultState)) {
     args.push('--no-extensions')
     // Pi 1.0 起，--no-extensions 会连内置扩展一起关掉，这里把它们加回来。
-    // 内置的 mcp 不加：MCP 由外挂的适配器负责，适配器关了就等于不用 MCP。
     for (const builtin of BUILTIN_EXTENSIONS) args.push('-e', `builtin:${builtin}`)
-    for (const ext of extensions) if (ext.state !== 'off' && ext.path) args.push('-e', ext.path)
+    // 内置的 MCP：装了外挂适配器时由适配器负责（适配器关了就等于这次不用 MCP），没装时要加回来，不然 MCP 就整个没了
+    if (!adapterInstalled) args.push('-e', 'builtin:mcp')
+    for (const ext of extensions) {
+      if (ext.state === 'off') continue
+      for (const file of ext.paths ?? (ext.path ? [ext.path] : [])) args.push('-e', file)
+    }
   }
 
   const disabledTools = items.filter((item) => item.id.startsWith('tool:') && item.state === 'off').map((item) => item.id.slice(5))
@@ -192,7 +201,10 @@ export async function launchArgs(key: string, cwd: string): Promise<Launch> {
     const config = readJson<{ mcpServers?: Record<string, Record<string, unknown>> }>(MCP_CONFIG, {})
     for (const server of servers) {
       const entry = config.mcpServers?.[server.id.slice(4)]
-      if (entry) entry.disabled = server.state === 'off'
+      if (!entry) continue
+      // 两种写法都有人认，一起写，免得原来写着 enabled:false 的服务打开后还是关着
+      entry.disabled = server.state === 'off'
+      entry.enabled = server.state !== 'off'
     }
     // 这份副本带着原配置里的密钥，只给当前用户读
     fs.mkdirSync(RUN_DIR, { recursive: true, mode: 0o700 })

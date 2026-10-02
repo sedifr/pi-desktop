@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { t } from '@shared/i18n'
 import type { McpServerInfo, McpServerInput } from '@shared/types'
 import { MCP_CONFIG } from './catalog'
-import { readJson, writeJson } from './env'
+import { readJsonForEdit, writeJson } from './env'
 
 type Entry = Record<string, unknown>
 interface McpFile {
@@ -14,7 +14,8 @@ const keysOf = (value: unknown): string[] => (value && typeof value === 'object'
 
 /** 用户级的 MCP 服务（Pi 配置目录下的 mcp.json）。环境变量和请求头只给出名字，值不送到界面上 */
 export function listMcp(): McpServerInfo[] {
-  const config = readJson<McpFile>(MCP_CONFIG, {})
+  // 读不懂时要报出来，不能显示成「还没有服务」
+  const config = readJsonForEdit<McpFile>(MCP_CONFIG)
   return Object.entries(config.mcpServers ?? {}).map(([name, entry]) => ({
     name,
     kind: typeof entry.url === 'string' ? 'http' : 'stdio',
@@ -32,13 +33,14 @@ function write(config: McpFile): void {
   // 第一次动这个文件前留一份原样的备份
   const backup = `${MCP_CONFIG}.bak-desktop`
   if (fs.existsSync(MCP_CONFIG) && !fs.existsSync(backup)) fs.copyFileSync(MCP_CONFIG, backup)
-  writeJson(MCP_CONFIG, config)
+  // 这个文件里可能有密钥，新建时只给当前用户读
+  writeJson(MCP_CONFIG, config, 0o600)
 }
 
 export function saveMcp(input: McpServerInput): void {
   const name = input.name.trim()
   if (!/^[A-Za-z0-9_-]+$/.test(name)) throw new Error(t('名字只能用字母、数字、下划线和短横线'))
-  const config = readJson<McpFile>(MCP_CONFIG, {})
+  const config = readJsonForEdit<McpFile>(MCP_CONFIG)
   const servers = { ...(config.mcpServers ?? {}) }
   if (name !== input.originalName && servers[name]) throw new Error(t('已经有一个叫 {name} 的服务了', { name }))
 
@@ -77,7 +79,7 @@ export function saveMcp(input: McpServerInput): void {
 }
 
 export function removeMcp(name: string): void {
-  const config = readJson<McpFile>(MCP_CONFIG, {})
+  const config = readJsonForEdit<McpFile>(MCP_CONFIG)
   if (!config.mcpServers?.[name]) return
   const servers = { ...config.mcpServers }
   delete servers[name]

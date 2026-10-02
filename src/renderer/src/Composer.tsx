@@ -9,6 +9,7 @@ import {
   addProject,
   api,
   changeCaps,
+  consumeSignal,
   ensureStarted,
   loadCaps,
   newConv,
@@ -301,7 +302,7 @@ export function Composer({ conv }: { conv: Conv }) {
   const [cursor, setCursor] = useState(0)
   const [selected, setSelected] = useState(0)
   const [dismissed, setDismissed] = useState('')
-  const [files, setFiles] = useState<string[]>([])
+  const [found, setFound] = useState<{ query: string; list: string[] }>()
   const input = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
   const nextCursor = useRef<number | undefined>(undefined)
@@ -350,12 +351,15 @@ export function Composer({ conv }: { conv: Conv }) {
     if (needCommands) ensureStarted(conv.key)
   }, [needCommands, conv.key])
 
+  // 只用和当前这次查询对得上的结果。不然打得快的时候，回车选中的会是上一次查到的文件
+  const files = useMemo(() => (found && found.query === fileQuery ? found.list : []), [found, fileQuery])
+
   useEffect(() => {
-    if (fileQuery === undefined) return setFiles([])
+    if (fileQuery === undefined) return setFound(undefined)
     let stale = false
     const timer = setTimeout(() => {
-      void api.filesSearch(conv.cwd, fileQuery).then((found) => {
-        if (!stale) setFiles(found)
+      void api.filesSearch(conv.cwd, fileQuery).then((list) => {
+        if (!stale) setFound({ query: fileQuery, list })
       })
     }, 80)
     return () => {
@@ -379,6 +383,8 @@ export function Composer({ conv }: { conv: Conv }) {
       }
     }
     input.current?.focus()
+    // 做完就清掉：不然从设置页回来、输入栏重新出现时会把同一个动作再做一遍
+    consumeSignal()
     // 只在收到新动作时触发
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signalCount])
@@ -430,7 +436,9 @@ export function Composer({ conv }: { conv: Conv }) {
   }
 
   const model = conv.info.model
-  const modelLabel = model?.name ?? model?.id ?? defaults?.defaultModel ?? t('选择模型')
+  // 一个模型都没有时 Pi 报的是 unknown，这不是给人看的名字
+  const known = model && model.id !== 'unknown' ? model : undefined
+  const modelLabel = known?.name ?? known?.id ?? (model ? undefined : defaults?.defaultModel) ?? t('选择模型')
   const thinking = conv.info.thinkingLevel ?? defaults?.defaultThinkingLevel
   const widgets = Object.entries(conv.widgets)
   // MCP 的连接数小栏里已经有了，扩展自己报的那条不重复显示
@@ -488,6 +496,18 @@ export function Composer({ conv }: { conv: Conv }) {
         </div>
       )}
       <TrustBanner cwd={conv.cwd} />
+      {conv.info.models?.length === 0 && (
+        <div className="trust-banner">
+          <Icon name="spark" size={15} />
+          <div className="grow">
+            {t('还没有可用的模型。')}
+            <div className="muted small">{t('登录一个订阅账号、填一个 API Key，或者接上自己的接口，就可以开始对话。')}</div>
+          </div>
+          <button className="btn primary" onClick={() => openSettings('accounts')}>
+            {t('去连接模型')}
+          </button>
+        </div>
+      )}
       {nearlyFull && (
         <div className="trust-banner">
           <Icon name="chart" size={15} />
@@ -550,7 +570,8 @@ export function Composer({ conv }: { conv: Conv }) {
           onSelect={(event) => setCursor(event.currentTarget.selectionStart)}
           onPaste={(event) => {
             const pasted = [...event.clipboardData.files].filter((file) => file.type.startsWith('image/'))
-            if (!pasted.length) return
+            // 有的应用复制文字时会顺带放一张图；有文字就按文字贴
+            if (!pasted.length || event.clipboardData.getData('text/plain').trim()) return
             event.preventDefault()
             void attach(pasted)
           }}

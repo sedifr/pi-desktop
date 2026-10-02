@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { t } from '@shared/i18n'
 import type { McpServerInfo } from '@shared/types'
-import { api, errorText, getState, loadCaps, toast } from './store'
+import { api, commandsChanged, errorText, getState, loadCaps, toast } from './store'
 import { Icon } from './ui'
 
-/** 把一行命令拆成程序和参数：按空格分，引号里的空格不分 */
+/** 把一行命令拆成程序和参数：按空格分，引号里的空格不分；双引号里可以用反斜杠转义 */
 export function splitCommand(line: string): string[] {
   const parts: string[] = []
   let current = ''
   let quote = ''
   let started = false
-  for (const char of line.trim()) {
+  const text = line.trim()
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
     if (quote) {
-      if (char === quote) quote = ''
+      if (char === '\\' && quote === '"' && (text[i + 1] === '"' || text[i + 1] === '\\')) current += text[++i]
+      else if (char === quote) quote = ''
       else current += char
     } else if (char === '"' || char === "'") {
       quote = char
@@ -27,7 +30,16 @@ export function splitCommand(line: string): string[] {
   return parts
 }
 
-const joinCommand = (parts: string[]): string => parts.map((part) => (/[\s"']/.test(part) || !part ? JSON.stringify(part) : part)).join(' ')
+/** 拆的反过来。保证拼出来的这一行再拆开，得到的还是原来那些参数 */
+export function joinCommand(parts: string[]): string {
+  return parts
+    .map((part) => {
+      if (part && !/[\s"'\\]/.test(part)) return part
+      if (!part.includes("'")) return `'${part}'`
+      return `"${part.replace(/[\\"]/g, '\\$&')}"`
+    })
+    .join(' ')
+}
 
 /** 每行一个「名字=值」 */
 function parsePairs(text: string): Record<string, string> | undefined {
@@ -134,16 +146,27 @@ function Editor({ draft, onDone, onCancel }: { draft: Draft; onDone: () => void;
 /** 设置里的「MCP」页：增删改 Pi 配置目录下 mcp.json 里的服务 */
 export function Mcp() {
   const [list, setList] = useState<McpServerInfo[]>()
+  const [failed, setFailed] = useState<string>()
   const [editing, setEditing] = useState<Draft>()
 
   const reload = useCallback(() => {
-    api.mcpList().then(setList, (error) => toast(errorText(error), 'error'))
+    api.mcpList().then(
+      (servers) => {
+        setList(servers)
+        setFailed(undefined)
+      },
+      (error) => {
+        setList([])
+        setFailed(errorText(error))
+      }
+    )
   }, [])
   useEffect(reload, [reload])
 
   const changed = () => {
     setEditing(undefined)
     reload()
+    commandsChanged()
     // 对话输入栏里的 MCP 列表也跟着更新
     const { activeKey } = getState()
     if (activeKey) void loadCaps(activeKey)
@@ -187,7 +210,8 @@ export function Mcp() {
       </div>
       {editing && <Editor key={editing.originalName ?? 'new'} draft={editing} onCancel={() => setEditing(undefined)} onDone={changed} />}
       {!list && <div className="cap-empty">{t('正在读取…')}</div>}
-      {list && !list.length && !editing && <div className="cap-empty">{t('还没有 MCP 服务。点「添加服务」接上第一个。')}</div>}
+      {failed && <div className="banner error">{failed}</div>}
+      {list && !list.length && !editing && !failed && <div className="cap-empty">{t('还没有 MCP 服务。点「添加服务」接上第一个。')}</div>}
       {list?.map((server) => {
         const secrets = server.kind === 'http' ? server.headerKeys : server.envKeys
         return (

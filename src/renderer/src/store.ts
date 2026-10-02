@@ -45,11 +45,14 @@ export interface Conv {
   queue: string[]
   /** 已经发出、还没被 Pi 回显的用户消息 */
   pending: PendingMsg[]
+  /** 回答进行中发出、还在 Pi 那边排队的消息。撤回时靠它把图片也还回来 */
+  queued: PendingMsg[]
   /** 输入框里还没发出去的图片 */
   attachments: ImageAttachment[]
   widgets: Record<string, string[]>
   statuses: Record<string, string>
-  uiRequest?: UiRequest
+  /** 扩展在等回答的弹窗。可能同时来好几个，一个个答 */
+  uiRequests: UiRequest[]
   notice?: string
   draft: string
   caps?: CapSnapshot
@@ -116,18 +119,29 @@ export interface Prefs {
 
 const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false, notify: true }
 
+/** 读一项存在本地的界面设置。坏了或者形状不对就用默认值，不能让它把整个界面拖垮 */
+function stored<T>(key: string, fallback: T, ok: (value: unknown) => boolean): T {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(key) ?? 'null')
+    return ok(value) ? (value as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+const isRecord = (value: unknown): boolean => typeof value === 'object' && value !== null && !Array.isArray(value)
+
 let state: AppState = {
   sessions: [],
   convs: {},
   toasts: [],
   models: {},
-  extraProjects: JSON.parse(localStorage.getItem('extraProjects') ?? '[]'),
+  extraProjects: stored<string[]>('extraProjects', [], (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')),
   view: 'chat',
   settingsTab: 'look',
-  authStatus: JSON.parse(localStorage.getItem('authStatus') ?? '{}'),
+  authStatus: stored<Record<string, AuthStatus>>('authStatus', {}, isRecord),
   authChecking: {},
   trust: {},
-  prefs: { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('prefs') ?? '{}') }
+  prefs: { ...DEFAULT_PREFS, ...stored<Partial<Prefs>>('prefs', {}, isRecord) }
 }
 const listeners = new Set<() => void>()
 let scheduled = false
@@ -184,10 +198,14 @@ export function toast(text: string, kind: Toast['kind'] = 'info'): void {
   setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), kind === 'error' ? 8000 : 4000)
 }
 
-export const errorText = (error: unknown): string =>
-  String(error instanceof Error ? error.message : error)
+export const errorText = (error: unknown): string => {
+  const text = String(error instanceof Error ? error.message : error)
     .replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
     .trim()
+  // Pi 这句话是写给命令行用户的（让人去打 /login、看文档路径），换成这里能照着做的说法
+  if (/^No API key found|^No model (selected|available)/i.test(text)) return t('这个模型还没有可用的登录或 API Key。到「设置 → 模型」里连接一个，或者换一个已经连接的模型。')
+  return text
+}
 
 function blankConv(key: string, cwd: string): Conv {
   return {
@@ -203,6 +221,8 @@ function blankConv(key: string, cwd: string): Conv {
     queue: [],
     pending: [],
     attachments: [],
+    uiRequests: [],
+    queued: [],
     widgets: {},
     statuses: {},
     draft: ''
@@ -267,7 +287,19 @@ function handleEvent(key: string, event: ConvEvent): void {
         if (e.status === 'exited') {
           c.status = 'idle'
           c.streaming = false
+          c.shellRunning = false
           c.liveIndex = -1
+          c.notice = undefined
+          c.toolRuns = {}
+          c.uiRequests = []
+          // 进程没了，排着队的和还没被接住的消息都发不出去了，还给输入框
+          const lost = [...(e.error ? c.pending : []), ...c.queued]
+          const texts = lost.length ? lost.map((item) => item.text) : c.queue
+          if (texts.some((text) => text.trim())) c.draft = [c.draft, ...texts].filter((text) => text.trim()).join('\n\n')
+          if (lost.some((item) => item.images.length)) c.attachments = [...c.attachments, ...lost.flatMap((item) => item.images)]
+          if (e.error) c.pending = []
+          c.queue = []
+          c.queued = []
           if (e.error) c.error = e.error
         } else {
           c.status = e.status
@@ -293,15 +325,22 @@ function handleEvent(key: string, event: ConvEvent): void {
       })
       break
     case 'agent_end':
+      // 只是一小段跑完了。后面可能还有自动重试、压缩、排队的消息，这时 Pi 还不接新消息
+      updateConv(key, (c) => {
+        c.liveIndex = -1
+        c.toolRuns = {}
+      })
+      break
     case 'agent_settled':
-      // agent_end 之后 Pi 可能还会自动重试或处理排队的消息，那时会再来一个 agent_start
-      if (e.type === 'agent_end' && e.willRetry) break
+      // 这才是彻底停下
       if (state.convs[key]?.streaming) announceLater(key)
       updateConv(key, (c) => {
         c.streaming = false
         c.liveIndex = -1
         c.notice = undefined
         c.toolRuns = {}
+        c.queue = []
+        c.queued = []
       })
       void refreshSessions()
       break
@@ -361,7 +400,17 @@ function handleEvent(key: string, event: ConvEvent): void {
       })
       break
     case 'queue_update':
-      updateConv(key, (c) => (c.queue = [...(e.steering ?? []), ...(e.followUp ?? [])]))
+      updateConv(key, (c) => {
+        c.queue = [...(e.steering ?? []), ...(e.followUp ?? [])]
+        // 已经被 Pi 取走处理的，不用再替它留着图片了
+        const left = [...c.queue]
+        c.queued = c.queued.filter((item) => {
+          const index = left.indexOf(item.text)
+          if (index < 0) return false
+          left.splice(index, 1)
+          return true
+        })
+      })
       break
     case 'compaction_start':
       updateConv(key, (c) => (c.notice = t('正在压缩上下文…')))
@@ -395,7 +444,9 @@ function handleUiRequest(key: string, e: Record<string, any>): void {
     case 'confirm':
     case 'input':
     case 'editor':
-      updateConv(key, (c) => (c.uiRequest = { id: e.id, method: e.method, title: e.title, message: e.message, options: e.options, placeholder: e.placeholder, prefill: e.prefill }))
+      updateConv(key, (c) => (c.uiRequests = [...c.uiRequests, { id: e.id, method: e.method, title: e.title, message: e.message, options: e.options, placeholder: e.placeholder, prefill: e.prefill }]))
+      // 带时限的弹窗到点后 Pi 会自己按默认值处理，这边的弹窗也要跟着收掉，不然点了也没用
+      if (typeof e.timeout === 'number' && e.timeout > 0) setTimeout(() => updateConv(key, (c) => (c.uiRequests = c.uiRequests.filter((request) => request.id !== e.id))), e.timeout)
       announce(key, stripAnsi(e.title ?? e.message ?? t('Pi 在等你回答')))
       break
     case 'notify':
@@ -506,6 +557,9 @@ export function setPrefs(patch: Partial<Prefs>): void {
 
 export function setView(view: AppState['view']): void {
   set({ view })
+  // 回到对话时，眼前这个就算看过了
+  const key = state.activeKey
+  if (view === 'chat' && key && state.convs[key]?.unread) updateConv(key, (c) => (c.unread = false))
 }
 
 export function openSettings(tab: SettingsTab): void {
@@ -567,6 +621,11 @@ function signal(action: UiSignal['action']): void {
   set({ view: 'chat', signal: { action, n: (state.signal?.n ?? 0) + 1 } })
 }
 
+/** 输入栏处理完一个动作后调用。不清掉的话，下次输入栏重新出现时会把它再做一遍 */
+export function consumeSignal(): void {
+  if (state.signal) set({ signal: undefined })
+}
+
 function handleMenu(action: MenuAction): void {
   const key = state.activeKey
   const conv = key ? state.convs[key] : undefined
@@ -585,7 +644,7 @@ function handleMenu(action: MenuAction): void {
     case 'model':
       return signal(action)
     case 'stop':
-      if (key && conv?.streaming) abort(key)
+      if (key && (conv?.streaming || conv?.shellRunning)) abort(key)
       return
     case 'rename':
       if (key) set({ view: 'chat', renamingKey: key })
@@ -614,10 +673,12 @@ export async function init(): Promise<void> {
 
 export function activate(key: string): void {
   const conv = state.convs[key]
-  if (conv) localStorage.setItem('lastCwd', conv.cwd)
+  // 比如点了一条很早的通知，那个对话已经关掉了
+  if (!conv) return
+  localStorage.setItem('lastCwd', conv.cwd)
   set({ activeKey: key, view: 'chat' })
-  if (conv?.unread) updateConv(key, (c) => (c.unread = false))
-  if (conv) loadTrust(conv.cwd)
+  if (conv.unread) updateConv(key, (c) => (c.unread = false))
+  loadTrust(conv.cwd)
 }
 
 export function setConfig(config: DesktopConfig): void {
@@ -799,6 +860,11 @@ export async function runCommand(key: string, name: string, args: string): Promi
         newConv(conv.cwd)
         return true
       case 'compact':
+        // Pi 压缩前会先把正在进行的回答停掉，所以不能在回答中途悄悄触发
+        if (conv.streaming) {
+          toast(t('正在回答时不能压缩。等它做完，或者先停下来'), 'warning')
+          return true
+        }
         updateConv(key, (c) => (c.notice = t('正在压缩上下文…')))
         await ensureProcess(key)
         await api.convCompact(key, args || undefined)
@@ -868,7 +934,8 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
       c.draft = ''
       c.attachments = []
       c.error = undefined
-      if (!c.streaming) c.pending = [...c.pending, pending]
+      if (c.streaming) c.queued = [...c.queued, pending]
+      else c.pending = [...c.pending, pending]
       if (!c.title && text) c.title = text.slice(0, 60)
     },
     true
@@ -883,8 +950,10 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   } catch (error) {
     updateConv(key, (c) => {
       c.pending = c.pending.filter((item) => item !== pending)
-      c.draft = c.draft || text
-      c.attachments = c.attachments.length ? c.attachments : images
+      c.queued = c.queued.filter((item) => item !== pending)
+      // 没发出去的放回输入框；这期间已经开始打的下一条接在后面，不覆盖
+      c.draft = [text, c.draft].filter((part) => part.trim()).join('\n\n')
+      c.attachments = [...images, ...c.attachments]
       c.error = errorText(error)
     })
   }
@@ -911,9 +980,14 @@ export async function forkFrom(key: string, userIndex: number, text: string): Pr
     next.status = 'ready'
     next.info = { ...conv.info, sessionFile: next.sessionFile, sessionName: undefined }
     next.caps = conv.caps
-    // 进程已经跟着去了新对话；原来的对话下次用到时会另起一个
-    const previous = { ...conv, status: 'idle' as const, streaming: false, liveIndex: -1, stats: undefined }
-    state = { ...state, convs: { ...state.convs, [key]: previous, [next.key]: next } }
+    // 进程已经跟着去了新对话；原来的对话下次用到时会另起一个。
+    // 主进程那边已经不认原来的临时名字了，原对话从此用它的会话文件来称呼，
+    // 不然它的技能和权限开关会读写到别处去
+    const previousKey = conv.sessionFile ?? key
+    const previous = { ...conv, key: previousKey, status: 'idle' as const, streaming: false, liveIndex: -1, stats: undefined }
+    const convs = { ...state.convs }
+    delete convs[key]
+    state = { ...state, convs: { ...convs, [previousKey]: previous, [next.key]: next } }
     activate(next.key)
     await api.convSync(next.key)
     void refreshSessions()
@@ -925,18 +999,23 @@ export async function forkFrom(key: string, userIndex: number, text: string): Pr
 /** 快捷指令增删改之后：旧的指令清单作废，下次用到时重新读 */
 export function commandsChanged(): void {
   const convs: Record<string, Conv> = {}
-  for (const [key, conv] of Object.entries(state.convs)) convs[key] = { ...conv, status: conv.streaming ? conv.status : 'idle', info: { ...conv.info, commands: undefined } }
+  // 只作废清单。进程要不要重启由主进程决定，它重启时会自己通知过来
+  for (const [key, conv] of Object.entries(state.convs)) convs[key] = { ...conv, info: { ...conv.info, commands: undefined } }
   set({ convs })
 }
 
 /** 把撤回来的排队消息放回输入框，接在已有内容后面 */
-function restoreQueued(key: string, texts: string[]): void {
-  if (!texts.length) return
+function restoreQueued(key: string, texts: string[], held: PendingMsg[]): void {
+  if (!texts.length && !held.some((item) => item.images.length)) return
   updateConv(
     key,
     (c) => {
+      // Pi 只还回文字；图片是这边自己记着的
+      const images = held.flatMap((item) => item.images)
       c.draft = [c.draft, ...texts].filter((text) => text.trim()).join('\n\n')
+      if (images.length) c.attachments = [...c.attachments, ...images]
       c.queue = []
+      c.queued = []
     },
     true
   )
@@ -948,16 +1027,20 @@ export function abort(key: string): void {
     api.convAbortBash(key).catch((error) => toast(errorText(error), 'error'))
     return
   }
+  // 先记下排队的那几条：撤回时 Pi 会报「队列空了」，那时这边的记录也跟着清掉了
+  const held = state.convs[key]?.queued ?? []
   api.convAbort(key).then(
-    (texts) => restoreQueued(key, texts),
+    (texts) => restoreQueued(key, texts, texts.length ? held : []),
     (error) => toast(errorText(error), 'error')
   )
 }
 
 /** 撤回排队中的消息，放回输入框 */
 export async function recallQueue(key: string): Promise<void> {
+  const held = state.convs[key]?.queued ?? []
   try {
-    restoreQueued(key, await api.convClearQueue(key))
+    const texts = await api.convClearQueue(key)
+    restoreQueued(key, texts, texts.length ? held : [])
   } catch (error) {
     toast(errorText(error), 'error')
   }
@@ -1017,15 +1100,21 @@ export async function setAutoCompaction(key: string, enabled: boolean): Promise<
 
 /** 模型列表要等 Pi 进程起来才有；打开选择器时按需启动 */
 export function ensureStarted(key: string): void {
-  startInBackground(key)
+  const conv = state.convs[key]
+  if (!conv) return
+  if (conv.status === 'idle') return startInBackground(key)
+  // 进程还在，但模型或指令清单被作废了（账号、指令、技能有变动）：让主进程重新读一遍
+  if (conv.status === 'ready' && (!conv.info.models || !conv.info.commands)) void api.convSync(key).catch(() => {})
 }
 
 export async function setModel(key: string, model: ModelInfo): Promise<void> {
+  const before = state.convs[key]?.info.model
   updateConv(key, (c) => (c.info = { ...c.info, model }))
   try {
     await ensureProcess(key)
     await api.convSetModel(key, model.provider, model.id)
   } catch (error) {
+    updateConv(key, (c) => (c.info = { ...c.info, model: before }))
     toast(t('切换模型失败：{error}', { error: errorText(error) }), 'error')
   }
 }
@@ -1041,10 +1130,10 @@ export async function setThinking(key: string, level: string): Promise<void> {
 }
 
 export function answerUi(key: string, payload: Record<string, unknown>): void {
-  const request = state.convs[key]?.uiRequest
+  const request = state.convs[key]?.uiRequests[0]
   if (!request) return
   api.convUiResponse(key, { id: request.id, ...payload })
-  updateConv(key, (c) => (c.uiRequest = undefined))
+  updateConv(key, (c) => (c.uiRequests = c.uiRequests.filter((item) => item.id !== request.id)))
 }
 
 export async function loadCaps(key: string): Promise<void> {

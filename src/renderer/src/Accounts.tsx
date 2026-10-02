@@ -188,6 +188,8 @@ export function Accounts() {
   }, [])
   useEffect(reload, [reload])
   useEffect(() => api.onAuthEvent((event) => setFlow((current) => current && applyEvent(current, event))), [])
+  // 登录弹窗开着时离开这一页，那个登录也要结束掉，不然下次再登录会被它挡住
+  useEffect(() => () => api.authAbort(), [])
 
   const changed = () => {
     accountsChanged()
@@ -215,6 +217,8 @@ export function Accounts() {
     } catch (error) {
       // 用户自己点了取消时窗口已经关了，这里不会再弹错误
       setFlow((current) => current && { ...current, prompt: undefined, error: errorText(error) })
+      reload()
+      return
     }
     changed()
   }
@@ -289,7 +293,15 @@ export function Accounts() {
               </button>
             )}
             {provider.configured === 'config' && (
-              <button className="btn" onClick={() => void api.customProviderGet(provider.id).then((detail) => detail && setEditing(detail))}>
+              <button
+                className="btn"
+                onClick={() =>
+                  void api.customProviderGet(provider.id).then(
+                    (detail) => detail && setEditing(detail),
+                    (error) => toast(errorText(error), 'error')
+                  )
+                }
+              >
                 {t('修改')}
               </button>
             )}
@@ -368,7 +380,7 @@ export function Accounts() {
               <button
                 className="btn"
                 onClick={() => {
-                  if (!flow.error) api.authAbort()
+                  api.authAbort()
                   setFlow(undefined)
                 }}
               >

@@ -62,6 +62,19 @@ function localDay(iso: string | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/**
+ * 从别的对话另开出来的会话，文件开头是把原对话那一段整个抄过来的，时间还是原来的时间。
+ * 那部分的花费已经算在原对话头上了，这里按「比这个会话的创建时间还早」认出来，不再算一遍。
+ */
+function inheritedBefore(header: Entry): (timestamp: unknown) => boolean {
+  const created = header.parentSession ? Date.parse(header.timestamp) : NaN
+  if (Number.isNaN(created)) return () => false
+  return (timestamp) => {
+    const at = typeof timestamp === 'string' ? Date.parse(timestamp) : NaN
+    return !Number.isNaN(at) && at < created
+  }
+}
+
 function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
   const entries = parseLines(file)
   const header = entries[0]
@@ -77,8 +90,9 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
     usage: emptyUsage()
   }
   const buckets = new Map<string, Bucket>()
+  const inherited = inheritedBefore(header)
   const count = (u: any, model: string, timestamp: string) => {
-    if (!u) return
+    if (!u || inherited(timestamp)) return
     addUsage(meta.usage, u)
     const day = localDay(timestamp)
     const key = `${day}|${model}`
@@ -103,7 +117,7 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
 }
 
 let cache: Record<string, CacheEntry> | undefined
-const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v2.json')
+const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v3.json')
 
 function refresh(): Record<string, CacheEntry> {
   cache ??= readJson<Record<string, CacheEntry>>(cacheFile(), {})
@@ -231,10 +245,12 @@ export function readSession(file: string): SessionData {
     messages: [],
     usage: emptyUsage()
   }
+  const inherited = inheritedBefore(header)
   for (const e of entries) {
+    if (e.type === 'session_info' && typeof e.name === 'string') data.meta.name = e.name
+    if (inherited(e.timestamp)) continue
     if (e.type === 'message') addUsage(data.usage, e.message?.usage)
     else if (e.usage) addUsage(data.usage, e.usage)
-    if (e.type === 'session_info' && typeof e.name === 'string') data.meta.name = e.name
   }
   for (const e of branch) {
     if (e.type === 'message' && e.message) {

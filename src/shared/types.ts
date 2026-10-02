@@ -13,6 +13,8 @@ export interface CapItem {
   /** 原始说明（技能自带的那段） */
   description?: string
   path?: string
+  /** 扩展包只加载其中这几个文件时，是哪几个 */
+  paths?: string[]
   /** 不做任何设置时的状态 */
   defaultState: CapState
   /** 技能有「自动」这一档，其它只有开和关 */
@@ -20,6 +22,8 @@ export interface CapItem {
   state: CapState
   /** 当前状态来自哪一层 */
   from: 'default' | 'global' | 'project' | 'session'
+  /** 这一项现在没法按对话开关，只能看 */
+  locked?: boolean
 }
 
 export interface CapSnapshot {

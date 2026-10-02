@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { t } from '@shared/i18n'
 import type { PackageInfo } from '@shared/types'
-import { AGENT_DIR, HOME, nodeExecPath, piCliPath, readJson, shellEnv } from './env'
+import { AGENT_DIR, HOME, cleanEnvPath, nodeExecPath, piCliPath, readJson, shellEnv } from './env'
 
 /** 已经装上的 Pi 包（技能、扩展、指令打成的一包），来自 Pi 的 settings.json */
 export function listPackages(): PackageInfo[] {
@@ -31,7 +31,7 @@ async function run(args: string[], onLine: (line: string) => void): Promise<void
   try {
     const env = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1' }
     await new Promise<void>((resolve, reject) => {
-      const child = spawn(nodeExecPath(), [piCliPath(), ...args], { cwd: HOME, env, stdio: ['ignore', 'pipe', 'pipe'] })
+      const child = spawn(nodeExecPath(), ['-r', cleanEnvPath(), piCliPath(), ...args], { cwd: HOME, env, stdio: ['ignore', 'pipe', 'pipe'] })
       let tail = ''
       const feed = (chunk: Buffer) => {
         const text = chunk.toString('utf8').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')

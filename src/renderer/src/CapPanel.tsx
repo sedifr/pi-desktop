@@ -22,6 +22,8 @@ export function capCount(items: CapItem[] | undefined, kind: CapKind): number | 
   return items?.filter((item) => item.kind === kind && item.state !== 'off').length
 }
 
+const LOCKED_HINT = t('按对话开关 MCP 服务需要 pi-mcp-adapter 这个扩展。没装它时，这里的服务对所有对话都一样，要改就去「设置 → MCP」')
+
 /** 自带的四个工具的名字和说明跟着界面语言走，不让改 */
 const FIXED = new Set(['tool:read', 'tool:bash', 'tool:edit', 'tool:write'])
 
@@ -43,7 +45,10 @@ export function Tile({ item, onToggle, onEdit }: { item: CapItem; onToggle: () =
             value={value}
             placeholder={t('用一句话写下它是干什么的。留空就用它自带的说明')}
             onChange={(event) => setValue(event.target.value)}
-            onBlur={() => setEditing(false)}
+            // 切到别的应用去复制一句话再回来，不该把打了一半的字丢掉；只有在窗口里点到别处才算放弃
+            onBlur={() => {
+              if (document.hasFocus()) setEditing(false)
+            }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing) return
               if (event.key !== 'Enter' && event.key !== 'Escape') return
@@ -62,11 +67,11 @@ export function Tile({ item, onToggle, onEdit }: { item: CapItem; onToggle: () =
     <div
       role="button"
       tabIndex={0}
-      className={`cap-tile state-${item.state}`}
-      title={item.description || item.summary}
-      onClick={onToggle}
+      className={`cap-tile state-${item.state} ${item.locked ? 'locked' : ''}`}
+      title={item.locked ? LOCKED_HINT : item.description || item.summary}
+      onClick={() => !item.locked && onToggle()}
       onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
+        if ((event.key === 'Enter' || event.key === ' ') && !item.locked) {
           event.preventDefault()
           onToggle()
         }
@@ -130,7 +135,7 @@ export function CapPanel({ conv, kind, onClose }: { conv: Conv; kind: CapKind; o
     <Popover onClose={onClose} group="composer" className={`cap-panel ${wide ? '' : 'compact'}`}>
       <div className="cap-head">
         <span className="cap-title">{KIND_TITLE[kind]}</span>
-        <span className="muted small">{KIND_HINT[kind]}</span>
+        <span className="muted small">{items.some((item) => item.locked) ? LOCKED_HINT : KIND_HINT[kind]}</span>
         <span className="grow" />
         {wide && (
           <label className="cap-search">

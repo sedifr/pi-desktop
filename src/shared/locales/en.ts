@@ -457,5 +457,13 @@ export const en: Record<string, string> = {
   '想要更多技能和工具？': 'Want more skills and tools?',
   '装别人打包好的技能和扩展，或者把自己的技能文件夹加进来': 'Install skills and extensions packaged by others, or add your own skill folders',
   '去「安装技能」': 'Go to "Install skills"',
-  '安装技能': 'Install skills'
+  '安装技能': 'Install skills',
+  '正在回答时不能压缩。等它做完，或者先停下来': 'You cannot compact while an answer is in progress. Wait for it to finish, or stop it first',
+  '这个项目自带的扩展': 'An extension that ships with this project',
+  '{file} 不是合法的 JSON（可能有注释、多余的逗号，或者手改时留下了错误）。为了不弄丢里面的内容，这次没有改动它。先把它改对再试。': '{file} is not valid JSON (it may contain comments, a trailing comma, or a mistake from a manual edit). To avoid losing its contents, it was left untouched. Fix the file and try again.',
+  '按对话开关 MCP 服务需要 pi-mcp-adapter 这个扩展。没装它时，这里的服务对所有对话都一样，要改就去「设置 → MCP」': 'Switching MCP servers per conversation needs the pi-mcp-adapter extension. Without it, these servers are the same for every conversation; change them under Settings → MCP',
+  '这个模型还没有可用的登录或 API Key。到「设置 → 模型」里连接一个，或者换一个已经连接的模型。': 'This model has no usable sign-in or API key. Connect one under Settings → Models, or switch to a model that is already connected.',
+  '还没有可用的模型。': 'No model is available yet.',
+  '登录一个订阅账号、填一个 API Key，或者接上自己的接口，就可以开始对话。': 'Sign in with a subscription, add an API key, or connect your own endpoint to start a conversation.',
+  '去连接模型': 'Connect a model'
 }
