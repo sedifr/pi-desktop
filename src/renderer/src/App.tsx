@@ -170,7 +170,7 @@ function Header({ conv }: { conv: Conv }) {
           {conv.title ?? t('新对话')}
         </span>
       )}
-      <span className="muted small" title={conv.cwd}>
+      <span className="muted small ellipsis header-project" title={conv.cwd}>
         {baseName(conv.cwd)}
       </span>
       <div className="anchor no-drag">

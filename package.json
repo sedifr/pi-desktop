@@ -1,7 +1,7 @@
 {
   "name": "pi-desktop",
   "productName": "Pi Desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "An unofficial desktop app for the pi coding agent (macOS)",
   "main": "./out/main/index.js",

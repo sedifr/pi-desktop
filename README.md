@@ -16,7 +16,7 @@ Pi Desktop puts a window around pi. It uses pi's own local configuration and ses
 
 pi is deliberately small and leaves the rest to you. The app treats the interface the same way. It brings what pi can do into view, and leaves how it looks and what sits where to you: no themes of its own, no buttons you did not put there, every part can be hidden or moved — and you can ask pi to change the interface for you.
 
-> **Status**: early (0.1.0). macOS only, developed on Apple silicon. There is no signed installer yet; run it from source or build the app yourself.
+> **Status**: early. macOS only, developed on Apple silicon. The download is not signed by Apple, so macOS asks before opening it the first time — see [Download](#download).
 
 ## Highlights
 
@@ -57,13 +57,20 @@ The complete list is in [docs/features.md](docs/features.md).
 
 ## Getting started
 
-### Requirements
+### Download
 
-- macOS
-- Node.js 22.19 or newer
-- Nothing else. The app bundles its own copy of pi; you do not need the pi CLI installed.
+Get `Pi Desktop-…-arm64.dmg` from the [latest release](https://github.com/sedifr/pi-desktop/releases/latest), open it, and drag **Pi Desktop** into Applications. It needs an Apple silicon Mac with macOS 13 or later, and nothing else: the app carries its own copy of pi.
+
+The build is not signed with an Apple developer certificate, so macOS refuses to open it the first time. Either:
+
+- open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to Pi Desktop (on macOS 14 and earlier, right-clicking the app and choosing *Open* works too); or
+- remove the download flag in Terminal: `xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"`.
+
+If you would rather not run a binary you did not build, run it from source or build it yourself — both are below.
 
 ### Run from source
+
+You need macOS and Node.js 22.19 or newer. The pi CLI does not have to be installed.
 
 ```bash
 git clone https://github.com/sedifr/pi-desktop.git
@@ -81,7 +88,7 @@ npm run pack
 
 puts `Pi Desktop.app` in `release/mac-arm64/`. `npm run dist` also makes a `.dmg` and a `.zip`.
 
-- The app is signed only for local use (there is no Apple developer certificate behind it). On your own Mac it just runs; on someone else's, right-click it and choose *Open* the first time.
+- The app is signed only for local use (there is no Apple developer certificate behind it). On the Mac that built it, it just runs; a copy moved to another Mac has to be allowed once, as described under [Download](#download).
 - For the same reason it cannot update itself. *Settings → About → Check for updates* tells you when a newer release exists and takes you to the download page.
 - If the project sits in a folder synced by iCloud Drive (Desktop and Documents often are), signing fails on the attributes the sync adds. Build somewhere else: `npm run pack -- -c.directories.output=/tmp/pi-desktop-release`.
 

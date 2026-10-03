@@ -665,7 +665,7 @@ button {
 
 /* 主区 */
 .main {
-  flex: 1;
+  flex: 1 1 420px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1271,6 +1271,8 @@ button {
 }
 .composer textarea::placeholder {
   color: var(--text-3);
+  /* 输入框窄的时候提示语不折行：折到第二行会被切掉半行 */
+  white-space: nowrap;
 }
 .composer {
   position: relative;
@@ -2522,8 +2524,12 @@ div.cap-tile {
 /* ---- 聊天框右边的面板 ---- */
 .pane {
   position: relative;
-  flex: none;
-  min-width: 0;
+  /*
+   * 宽度是用户拖出来的，但窗口放不下时面板先让：聊天区至少留 420px，
+   * 不然输入框里的模型、推理和发送会挤到一起。面板自己最窄到 320px。
+   */
+  flex: 0 10000 auto;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   border-left: 0.5px solid var(--border);
@@ -2532,6 +2538,7 @@ div.cap-tile {
 /* 收起时不销毁，只是不占地方、看不见 */
 .pane.closed {
   width: 0 !important;
+  min-width: 0;
   border-left: 0;
   visibility: hidden;
   overflow: hidden;
@@ -3619,4 +3626,10 @@ body.dragging .pane-body {
 .caps-head .hint:focus-visible::after {
   left: auto;
   right: -10px;
+}
+
+/* 标题栏里的项目名：一行放不下就省略，不折成两行 */
+.header-project {
+  min-width: 0;
+  flex-shrink: 2;
 }

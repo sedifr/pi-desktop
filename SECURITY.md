@@ -25,4 +25,4 @@ Pi Desktop runs the pi coding agent with your user's permissions. That is the po
 
 ## Builds
 
-The packaged app is signed ad hoc and is not notarized by Apple: there is no developer certificate behind this project. If you did not build it yourself, build it from source rather than running a binary from somewhere else.
+The packaged app is signed ad hoc and is not notarized by Apple: there is no developer certificate behind this project. Download it only from this repository's [releases](https://github.com/sedifr/pi-desktop/releases), and compare the checksum in the release notes; or build it from source.

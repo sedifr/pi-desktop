@@ -2,6 +2,20 @@
 
 Notable changes to Pi Desktop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-10-03
+
+The first version with a downloadable build.
+
+### Fixed
+
+- A very wide side panel no longer squeezes the conversation until the model picker, the reasoning level and the send button overlap. The panel gives way and the conversation keeps at least 420 px.
+- The project name in the title bar is cut with an ellipsis instead of wrapping onto a second line.
+- The hint in a narrow input box no longer wraps into a half-visible second line.
+
+### Changed
+
+- The README says how to open the download on a Mac that did not build it.
+
 ## [0.1.0] - 2026-10-03
 
 The first public version. Everything is new; this is what it covers.
@@ -51,4 +65,5 @@ The first public version. Everything is new; this is what it covers.
 - English and Simplified Chinese interface.
 - Packaging with electron-builder (ad hoc signed), and a manual check for updates.
 
-[0.1.0]: https://github.com/sedifr/pi-desktop/releases/tag/v0.1.0
+[0.1.1]: https://github.com/sedifr/pi-desktop/releases/tag/v0.1.1
+[0.1.0]: https://github.com/sedifr/pi-desktop/tree/v0.1.0

@@ -24,7 +24,7 @@ body:
     attributes:
       label: App version and pi version
       description: Both are shown in Settings → About.
-      placeholder: "Pi Desktop 0.1.0, pi 1.0.0"
+      placeholder: "Pi Desktop 0.1.1, pi 1.0.0"
     validations:
       required: true
   - type: input

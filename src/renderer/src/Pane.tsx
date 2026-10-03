@@ -15,6 +15,8 @@ const TABS: { id: PaneTab; label: string; icon: string }[] = [
 ]
 
 const MIN_WIDTH = 320
+/** 面板再宽，也要给聊天区留这么多：再窄的话输入框里的模型、推理和发送就挤到一起了 */
+const MAIN_MIN = 420
 
 /**
  * 聊天框右边的面板：项目里的文件、改动的文件、内置浏览器、终端，用上面的页签切换。
@@ -41,15 +43,18 @@ export function Pane({ conv, visible: open }: { conv: Conv; visible: boolean }) 
   const startDrag = (event: React.MouseEvent) => {
     event.preventDefault()
     const right = box.current?.getBoundingClientRect().right ?? window.innerWidth
+    // 最宽到哪：不超过窗口的六成，也不能把聊天区挤得比它的下限还窄
+    const mainLeft = document.querySelector('.main')?.getBoundingClientRect().left ?? 0
+    const widest = Math.max(MIN_WIDTH, Math.min(window.innerWidth * 0.62, right - mainLeft - MAIN_MIN))
+    const clamp = (x: number) => Math.min(Math.max(right - x, MIN_WIDTH), widest)
     const move = (e: MouseEvent) => {
-      const next = Math.min(Math.max(right - e.clientX, MIN_WIDTH), Math.max(MIN_WIDTH, window.innerWidth * 0.62))
-      if (box.current) box.current.style.width = `${next}px`
+      if (box.current) box.current.style.width = `${clamp(e.clientX)}px`
     }
     const up = (e: MouseEvent) => {
       document.removeEventListener('mousemove', move)
       document.removeEventListener('mouseup', up)
       document.body.classList.remove('dragging')
-      setPrefs({ paneWidth: Math.round(Math.min(Math.max(right - e.clientX, MIN_WIDTH), Math.max(MIN_WIDTH, window.innerWidth * 0.62))) })
+      setPrefs({ paneWidth: Math.round(clamp(e.clientX)) })
     }
     document.body.classList.add('dragging')
     document.addEventListener('mousemove', move)
