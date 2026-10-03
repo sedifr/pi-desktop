@@ -12,6 +12,8 @@
 
 ![Pi Desktop: a conversation, with your own buttons above the input box](docs/screenshots/main.png)
 
+<p align="center"><sub>A conversation. Left: every pi session, grouped by project, pinned ones on top. Middle: the answer, with pi's steps folded into one line. Above the input box: three buttons the user added. Beside the chat: the icons for skills, MCP servers, tools and the marketplace.</sub></p>
+
 Pi Desktop puts a window around pi. It uses pi's own local configuration and session files, so conversations, models, skills and MCP servers are shared with the pi CLI: what you did in one shows up in the other. The app bundles its own copy of pi, so nothing else has to be installed.
 
 pi is deliberately small and leaves the rest to you. The app treats the interface the same way. It brings what pi can do into view, and leaves how it looks and what sits where to you: no themes of its own, no buttons you did not put there, every part can be hidden or moved — and you can ask pi to change the interface for you.
@@ -51,9 +53,11 @@ The complete list is in [docs/features.md](docs/features.md).
 | | |
 |---|---|
 | ![The skills of a conversation, each with a one-line description](docs/screenshots/skills.png) | ![Settings: your own buttons and where they sit](docs/screenshots/layout.png) |
-| Skills for this conversation: *auto*, *on* or *off* | Your own buttons, and what is shown where |
+| **What a conversation carries.** Each skill is a tile with a one-line description you can rewrite. Click to switch between *Auto*, *On* and *Off*; save the result as the default for a project or for everything. | **Your own buttons.** *Settings → Layout* lists the buttons you added and where each one sits. Below it, every built-in part can be hidden; *Ask pi…* lets pi make the changes. |
 
 ![The same conversation with a background image and colors taken from it](docs/screenshots/appearance.png)
+
+<p align="center"><sub>Your own look: the same conversation with a background image, and an accent color and tint taken from it. Text stays readable whatever you pick.</sub></p>
 
 ## Getting started
 
