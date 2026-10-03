@@ -6,7 +6,7 @@ Notable changes to Pi Desktop. The format follows [Keep a Changelog](https://kee
 
 ### Added
 
-- Install with Homebrew: `brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop`, then `brew install --cask pi-desktop`.
+- Install with Homebrew: `brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop`, then `brew install --cask sedifr/pi-desktop/pi-desktop`.
 - A demo at the top of the README, screenshots of the Chinese interface, and the scripts that take them (`scripts/demo/`).
 
 ## [0.1.1] - 2026-10-03

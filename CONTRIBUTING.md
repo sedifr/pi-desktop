@@ -96,7 +96,7 @@ For the Chinese set, use `zh` instead of `en`, and write to `docs/screenshots/zh
 1. Set the version (`npm version x.y.z --no-git-tag-version`), add the entry to `CHANGELOG.md`, commit, tag `vx.y.z`, push both.
 2. `npm run dist` builds `Pi Desktop.app`, a `.dmg` and a `.zip` into `release/`. The app is signed ad hoc; there is no Apple developer certificate behind the project, so builds are not notarized. If the checkout is inside a folder synced by iCloud Drive, build to a folder outside it: `npm run dist -- -c.directories.output=/tmp/pi-desktop-release`.
 3. Create the GitHub release from the tag and attach the `.dmg` and the `.zip`. A tag that has been published is not moved; a fix after it is a new version.
-4. Update `Casks/pi-desktop.rb`: the `version` and the `sha256` of the new `.dmg` (`shasum -a 256`). The file name in `url` is `Pi.Desktop-…` for 0.1.1 and `Pi-Desktop-…` from the next version on. `brew style Casks/pi-desktop.rb` checks the file.
+4. Update `Casks/pi-desktop.rb`: the `version` and the `sha256` of the new `.dmg` (`shasum -a 256`). The file name in `url` is `Pi.Desktop-…` for 0.1.1 and `Pi-Desktop-…` from the next version on. `brew style Casks/pi-desktop.rb` checks the file. Homebrew only loads a cask from a tap like this one when it is named in full (`sedifr/pi-desktop/pi-desktop`), so keep the full name in the instructions.
 
 ## License
 

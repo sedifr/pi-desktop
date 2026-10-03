@@ -16,7 +16,7 @@ If you already use the pi CLI, your existing sessions, models, skills and MCP se
 
 ## Updating
 
-The app does not update itself. *Settings → About → Check for updates* tells you when there is a new release; download it and replace the app, or, if you installed with Homebrew, run `brew upgrade --cask pi-desktop`. Your sessions and settings live in `~/.pi/agent/` and are not touched.
+The app does not update itself. *Settings → About → Check for updates* tells you when there is a new release; download it and replace the app, or, if you installed with Homebrew, run `brew upgrade --cask sedifr/pi-desktop/pi-desktop`. Your sessions and settings live in `~/.pi/agent/` and are not touched.
 
 ## Project trust
 

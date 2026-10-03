@@ -36,7 +36,7 @@ pi 是有意做小的：四个工具，一段很短的提示词，再加上你�
 
 ```bash
 brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop
-brew install --cask pi-desktop
+brew install --cask sedifr/pi-desktop/pi-desktop
 ```
 
 需要 Apple 芯片的 Mac、macOS 13 或更新。
@@ -129,7 +129,7 @@ npx electron .
 
 还没有的：
 
-- **经过公证的安装包。** 项目没有 Apple 开发者证书，所以应用不能自己更新；「设置 → 关于 → 检查更新」会告诉你有没有新版本，用 Homebrew 装的可以 `brew upgrade --cask pi-desktop`。
+- **经过公证的安装包。** 项目没有 Apple 开发者证书，所以应用不能自己更新；「设置 → 关于 → 检查更新」会告诉你有没有新版本，用 Homebrew 装的可以 `brew upgrade --cask sedifr/pi-desktop/pi-desktop`。
 - **挪动自带的部件。** 现在只能藏起来或者换到另一边，还不能像自己的按钮那样放到别的位置。
 - **回到被换掉的分支。** 修改已发的消息后，原来那几轮还留在会话文件里，但界面上还没有回去的入口。
 - **别的 Agent。** 应用只认 pi 的协议。想法是通用的，适配层还没有。

@@ -16,7 +16,7 @@
 
 ## 更新
 
-应用不会自己更新。「设置 → 关于 → 检查更新」会告诉你有没有新版本；下载后替换掉旧的应用即可，用 Homebrew 装的运行 `brew upgrade --cask pi-desktop`。会话和设置都在 `~/.pi/agent/` 里，更新不会动它们。
+应用不会自己更新。「设置 → 关于 → 检查更新」会告诉你有没有新版本；下载后替换掉旧的应用即可，用 Homebrew 装的运行 `brew upgrade --cask sedifr/pi-desktop/pi-desktop`。会话和设置都在 `~/.pi/agent/` 里，更新不会动它们。
 
 ## 项目信任
 

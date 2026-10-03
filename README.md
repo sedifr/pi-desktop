@@ -36,7 +36,7 @@ Download the `.dmg` from the [latest release](https://github.com/sedifr/pi-deskt
 
 ```bash
 brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop
-brew install --cask pi-desktop
+brew install --cask sedifr/pi-desktop/pi-desktop
 ```
 
 It needs an Apple silicon Mac with macOS 13 or later.
@@ -129,7 +129,7 @@ Early, and macOS only. The interface is available in English and Simplified Chin
 
 Not there yet:
 
-- **Notarized builds.** There is no Apple developer certificate behind the project, so the app cannot update itself; *Settings → About → Check for updates* tells you when there is a new release, and `brew upgrade --cask pi-desktop` fetches it.
+- **Notarized builds.** There is no Apple developer certificate behind the project, so the app cannot update itself; *Settings → About → Check for updates* tells you when there is a new release, and `brew upgrade --cask sedifr/pi-desktop/pi-desktop` fetches it.
 - **Moving built-in parts.** They can be hidden or switched to the other side, but not yet placed somewhere else the way your own buttons can.
 - **Going back to a replaced branch.** Editing a message keeps the old turns in the session file; the interface has no way back to them yet.
 - **Other agents.** The app speaks pi's protocol only. The ideas are general; an adapter does not exist.
