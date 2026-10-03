@@ -2145,6 +2145,15 @@ div.cap-tile {
 .menu.below.wide {
   width: 320px;
 }
+/* 贴着右边往左展开（按钮在一栏的右头时用） */
+.menu.below.end {
+  left: auto;
+  right: 0;
+}
+.menu-item.two-line > svg {
+  margin-top: 2px;
+  flex: none;
+}
 
 /* 输入框下面那一行：项目名太长时缩短，右边的说明先让位 */
 .composer-strip > * {
@@ -3202,6 +3211,15 @@ body.dragging .pane-body {
 .browser-bar .icon-btn:disabled {
   opacity: 0.3;
 }
+/* 「适应宽度」：缩小了的时候把缩到百分之几写在图标旁边 */
+.browser-bar .browser-zoom {
+  width: auto;
+  min-width: 20px;
+  gap: 3px;
+  padding: 0 3px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
 .browser-address {
   flex: 1;
   min-width: 0;
@@ -3349,6 +3367,8 @@ body.dragging .pane-body {
   margin-left: 4px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* 输入框窄的时候先让自己加的按钮让位（可以横着滚），模型和发送不能被挤到叠在一起 */
+  flex: 0 1000 auto;
 }
 .slot-composer-bar .ubtn {
   height: 26px;

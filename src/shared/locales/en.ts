@@ -843,5 +843,13 @@ export const en: Record<string, string> = {
   '装更多…': 'Get more…',
   '技能、MCP、工具的那句简介存在这里': 'The one-line descriptions of skills, MCP servers and tools are stored here',
   '市场': 'Marketplace',
-  '布局已恢复默认': 'Layout reset'
+  '布局已恢复默认': 'Layout reset',
+  '缩小到能看全': 'Shrink to fit',
+  '页面比面板宽时自动缩小': 'Pages wider than the panel are scaled down',
+  '手机版页面': 'Mobile version',
+  '让网站给窄屏用的那一版，字不用缩小': 'Sites send their narrow-screen layout, nothing is scaled',
+  '原始大小': 'Actual size',
+  '不缩小，放不下就横着滚': 'No scaling; scroll sideways when it does not fit',
+  '比面板宽的页面怎么放进来': 'How pages wider than the panel are shown',
+  '这一页已经缩到 {percent}%': 'This page is shown at {percent}%'
 }
