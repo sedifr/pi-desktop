@@ -535,6 +535,8 @@ export interface PiApi {
   templateTrash(file: string, cwd?: string): Promise<void>
   filesSearch(cwd: string, query: string): Promise<string[]>
   /** 弹出选文件的窗口挑一张背景图。返回拷进来之后的路径，和从图里取出的代表色。取消了就什么都不返回 */
+  /** 内置浏览器里的页面现在按多宽排的、内容实际有多宽。页面一有内容就能量，不用等加载完 */
+  browserMeasure(webContentsId: number): Promise<{ inner: number; wide: number } | undefined>
   /** 自己加的按钮（桌面端文件夹里的 buttons.json） */
   buttonsGet(): Promise<ButtonsFile>
   buttonsSet(buttons: UserButton[]): Promise<ButtonsFile>

@@ -47,6 +47,7 @@ const api: PiApi = {
   docText: call('doc:text'),
   marketSearch: call('market:search'),
   updateCheck: call('update:check'),
+  browserMeasure: call('browser:measure'),
   buttonsGet: call('buttons:get'),
   buttonsSet: call('buttons:set'),
   buttonsReveal: () => ipcRenderer.send('buttons:reveal'),

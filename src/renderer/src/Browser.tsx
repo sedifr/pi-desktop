@@ -17,12 +17,12 @@ interface WebviewElement extends HTMLWebViewElement {
   getZoomFactor(): number
   setZoomFactor(factor: number): void
   setUserAgent(userAgent: string): void
-  getUserAgent(): string
-  executeJavaScript(code: string): Promise<unknown>
+  getWebContentsId(): number
 }
 
 const LAST_URL = 'browserUrl'
 const VIEW = 'browserView'
+const WIDTHS = 'browserWidths'
 /**
  * 比面板宽的页面怎么放进来。很多网站是按电脑的宽屏排的，面板窄，照原样放只能看到一半。
  * fit：自动缩小到能看全；mobile：让网站给手机用的那一版，字不用缩小；actual：照原样，放不下就横着滚。
@@ -37,8 +37,9 @@ const MODES: { id: Mode; icon: string; label: string; hint: string }[] = [
 const MIN_ZOOM = 0.5
 /** 「手机版页面」时对网站自称是手机上的 Safari，网站就会给适合窄屏的那一版 */
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
-/** 量一下：页面现在按多宽排的，内容实际有多宽 */
-const MEASURE = '({ inner: window.innerWidth, wide: Math.max(document.documentElement ? document.documentElement.scrollWidth : 0, document.body ? document.body.scrollWidth : 0) })'
+
+/** 记着的网站太多了就丢掉最早的 */
+const MAX_HOSTS = 300
 
 const hostOf = (url: string): string => {
   try {
@@ -92,31 +93,79 @@ export function Browser() {
   // 网页视图第一次出现时就要定好身份，之后再换要调它自己的方法
   const mobileAtStart = useRef(mode === 'mobile')
   const fitSeq = useRef(0)
-  const fitHost = useRef('')
   // 上一次没量成（窗口在后台，页面没排好），等回到前台再量
   const fitPending = useRef(false)
   const frame = useRef<HTMLDivElement>(null)
+  /**
+   * 每个网站要多宽才放得下（量出来的内容宽度；0 表示量过、不用缩）。
+   * 记下来有两个好处：下次一进这个网站就直接是合适的大小，不用等页面出来再缩；
+   * 面板拖宽拖窄时直接算，不用先回到原始大小再量一遍。
+   */
+  const widths = useRef<Record<string, number>>({})
+  const loadWidths = (): Record<string, number> => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(WIDTHS) ?? '{}')
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) return Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === 'number')) as Record<string, number>
+    } catch {
+      // 读不懂就当没记过
+    }
+    return {}
+  }
+  useEffect(() => {
+    widths.current = loadWidths()
+  }, [])
+  const remember = (host: string, wide: number | undefined) => {
+    if (!host) return
+    // 先读一遍存着的再改：别的窗口也可能刚记了别的网站，不能拿自己手里的旧的整个盖回去
+    const all = loadWidths()
+    // 先拿掉再放，等于挪到最后：丢的时候先丢很久没去的
+    delete all[host]
+    if (wide !== undefined) all[host] = Math.round(wide)
+    const hosts = Object.keys(all)
+    for (const old of hosts.slice(0, Math.max(0, hosts.length - MAX_HOSTS))) delete all[old]
+    widths.current = all
+    localStorage.setItem(WIDTHS, JSON.stringify(all))
+  }
+  /** 这个网站在这么宽的面板里该缩到多少 */
+  const zoomFor = (host: string, panel: number): number => {
+    const need = widths.current[host]
+    // 往下取整：往上取的话会宽出几个像素，底下又冒出一条滚动条
+    return need && panel > 0 && need > panel * 1.02 ? Math.max(MIN_ZOOM, Math.min(1, Math.floor((panel / need) * 100) / 100)) : 1
+  }
+  // 第一次去一个网站，还不知道它要多宽：页面先盖住，量好、缩好了再露出来，免得先看到一个放不下的页面再跳一下
+  const [veil, setVeil] = useState(false)
+  const veilTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const cover = () => {
+    setVeil(true)
+    clearTimeout(veilTimer.current)
+    // 页面迟迟出不来也不能一直盖着
+    veilTimer.current = setTimeout(() => setVeil(false), 2500)
+  }
+  const uncover = () => {
+    clearTimeout(veilTimer.current)
+    setVeil(false)
+  }
 
   /**
-   * 按面板的宽度定页面的缩放。fresh 为真时先回到原始大小再量（换了网站、面板宽度变了）；
-   * 否则在现在的大小上量，只会缩得更小，不会来回跳。
+   * 按面板的宽度定页面的缩放：量一下内容有多宽，比面板宽就记下这个网站要多宽，再按「面板宽 ÷ 要的宽度」缩。
    *
    * 量之前先等页面「排好」：面板变宽、缩放改了之后，网页要过一会儿才按新的宽度重排，
    * 窗口在后台时甚至要等到回到前台。没排好就量，量到的是旧的宽度，会算出错的缩放。
    * 排好的标志是「页面排版宽 × 缩放 ≈ 面板宽」。
    */
-  const refit = useCallback(async (fresh: boolean, attempt = 0): Promise<void> => {
+  const refit = useCallback(async (attempt = 0): Promise<void> => {
     const el = view.current
     if (!el || !ready.current) return
     const mine = ++fitSeq.current
     const stale = () => mine !== fitSeq.current
     const settled = async () => {
       for (let i = 0; i < 12; i++) {
-        const size = (await el.executeJavaScript(MEASURE)) as { inner: number; wide: number }
+        // 让主进程去量：网页视图自带的办法要等整页加载完才给结果，那就又是先看好几秒放不下的页面
+        const size = await api.browserMeasure(el.getWebContentsId())
         if (stale()) return undefined
         const panel = el.getBoundingClientRect().width
         const factor = el.getZoomFactor()
-        if (panel > 0 && size.inner > 0 && Math.abs(size.inner * factor - panel) <= Math.max(4, panel * 0.03)) return { ...size, panel, factor }
+        if (size && panel > 0 && size.inner > 0 && Math.abs(size.inner * factor - panel) <= Math.max(4, panel * 0.03)) return { ...size, panel, factor }
         await new Promise((resolve) => setTimeout(resolve, 120))
         if (stale()) return undefined
       }
@@ -126,10 +175,10 @@ export function Browser() {
     const later = () => {
       if (stale()) return
       fitPending.current = true
-      if (attempt < 3 && !document.hidden) setTimeout(() => !stale() && void refit(fresh, attempt + 1), 900)
+      if (attempt < 3 && !document.hidden) setTimeout(() => !stale() && void refit(attempt + 1), 900)
     }
     try {
-      let now = await settled()
+      const now = await settled()
       if (!now) return later()
       fitPending.current = false
       // 只有「缩小到能看全」才动缩放；另外两种都按原始大小
@@ -137,18 +186,23 @@ export function Browser() {
         if (Math.abs(now.factor - 1) > 0.005) el.setZoomFactor(1)
         return setZoom(1)
       }
-      if (fresh && now.factor < 0.995) {
-        el.setZoomFactor(1)
-        now = await settled()
-        if (!now) return later()
+      const host = hostOf(el.getURL())
+      // 内容比现在排的还宽：这个网站要这么宽。宽出来一点点的不算，很多页面有藏在屏幕外面的小东西
+      if (now.wide > now.inner * 1.02) remember(host, now.wide)
+      // 第一次量这个网站，放得下。如果它已经是缩着的（浏览器内核自己也会按网站记缩放），
+      // 只能说明「排成现在这么宽放得下」，不能当成不用缩：那样会先放大到放不下，等加载完又缩回来
+      else if (!(host in widths.current)) remember(host, now.factor < 0.995 ? now.inner : 0)
+      const target = zoomFor(host, now.panel)
+      if (Math.abs(target - now.factor) > 0.005) {
+        el.setZoomFactor(target)
+        // 等它按新的大小画出来，再让盖着的页面露出来
+        await new Promise((resolve) => setTimeout(resolve, 90))
       }
-      // 宽出来一点点的不算：很多页面有藏在屏幕外面的小东西
-      const target = now.wide > now.inner * 1.02 ? Math.round(Math.max(MIN_ZOOM, Math.min(1, now.panel / now.wide)) * 100) / 100 : now.factor
-      if (Math.abs(target - now.factor) > 0.005) el.setZoomFactor(target)
-      setZoom(target)
+      if (!stale()) setZoom(target)
     } catch {
       // 页面正在跳转，量不了；下一次加载完会再量
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const go = (input: string) => {
@@ -156,7 +210,11 @@ export function Browser() {
     if (!url) return
     setAddress(url)
     setFailed(undefined)
-    if (!started) return setFirst(url)
+    if (!started) {
+      // 刚打开时缩放还没法设，要等页面有了内容；除非量过、知道它不用缩，否则先盖住
+      if (mode === 'fit' && widths.current[hostOf(url)] !== 0) cover()
+      return setFirst(url)
+    }
     if (ready.current) void view.current?.loadURL(url).catch(() => {})
     else wanted.current = url
   }
@@ -188,6 +246,18 @@ export function Browser() {
           ready.current = true
           if (wanted.current) void el.loadURL(wanted.current).catch(() => {})
           wanted.current = undefined
+          // 页面刚有了内容就量，不等图片这些都加载完：不然要先看好几秒放不下的页面，才缩到合适
+          void refit().then(uncover)
+        }
+      ],
+      [
+        'did-start-navigation',
+        (event) => {
+          const detail = event as Event & { url?: string; isMainFrame?: boolean; isInPlace?: boolean }
+          if (!detail.isMainFrame || detail.isInPlace || modeRef.current !== 'fit') return
+          const host = hostOf(detail.url ?? '')
+          // 去一个没量过的网站：先盖住，量好了再露出来
+          if (host && host !== hostOf(el.getURL()) && !(host in widths.current)) cover()
         }
       ],
       ['did-start-loading', () => setLoading(true)],
@@ -196,18 +266,26 @@ export function Browser() {
         () => {
           setLoading(false)
           sync()
-          // 换了网站要从原始大小重新量；还在同一个网站里就沿用现在的大小
-          const host = hostOf(el.getURL())
-          void refit(host !== fitHost.current)
-          fitHost.current = host
+          // 后来才出来的内容可能把页面撑得更宽，再量一次
+          void refit().then(uncover)
         }
       ],
-      ['did-navigate', sync],
+      [
+        'did-navigate',
+        () => {
+          sync()
+          // 量过的网站：页面一换过来就先按记着的宽度缩好，不等它加载
+          if (modeRef.current !== 'fit' || !ready.current) return
+          const target = zoomFor(hostOf(el.getURL()), el.getBoundingClientRect().width)
+          if (Math.abs(el.getZoomFactor() - target) > 0.005) el.setZoomFactor(target)
+          setZoom(target)
+        }
+      ],
       [
         'did-navigate-in-page',
         () => {
           sync()
-          void refit(false)
+          void refit()
         }
       ],
       ['page-title-updated', sync],
@@ -216,7 +294,10 @@ export function Browser() {
         (event) => {
           const detail = event as Event & { errorCode?: number; errorDescription?: string; isMainFrame?: boolean; validatedURL?: string }
           // -3 是被新的跳转打断，不算失败
-          if (detail.isMainFrame && detail.errorCode !== -3) setFailed(`${detail.errorDescription ?? ''}　${detail.validatedURL ?? ''}`.trim())
+          if (detail.isMainFrame && detail.errorCode !== -3) {
+            setFailed(`${detail.errorDescription ?? ''}　${detail.validatedURL ?? ''}`.trim())
+            uncover()
+          }
         }
       ]
     ]
@@ -226,7 +307,7 @@ export function Browser() {
     }
   }, [started, refit])
 
-  // 面板拖宽、拖窄了：等手停下来，从原始大小重新量一遍
+  // 面板拖宽、拖窄了：等手停下来再算一遍
   useEffect(() => {
     const box = frame.current
     if (!box || !started) return
@@ -236,7 +317,7 @@ export function Browser() {
       if (Math.abs(box.clientWidth - width) < 2) return
       width = box.clientWidth
       clearTimeout(timer)
-      timer = setTimeout(() => void refit(true), 260)
+      timer = setTimeout(() => void refit(), 200)
     })
     observer.observe(box)
     return () => {
@@ -249,7 +330,7 @@ export function Browser() {
   useEffect(() => {
     if (!started) return
     const retry = () => {
-      if (fitPending.current && !document.hidden) void refit(true)
+      if (fitPending.current && !document.hidden) void refit()
     }
     window.addEventListener('focus', retry)
     document.addEventListener('visibilitychange', retry)
@@ -261,18 +342,26 @@ export function Browser() {
 
   const choose = (next: Mode) => {
     setMenu(false)
-    if (next === mode) return
     const el = view.current
+    const usable = el && ready.current
+    if (next === mode) {
+      // 已经是「缩小到能看全」时再点一次：把这个网站记着的宽度忘掉，从原始大小重新量
+      if (next !== 'fit' || !usable) return
+      remember(hostOf(el.getURL()), undefined)
+      el.setZoomFactor(1)
+      return void refit()
+    }
     const agentChanges = (next === 'mobile') !== (mode === 'mobile')
     setMode(next)
     modeRef.current = next
     localStorage.setItem(VIEW, next)
-    if (!el || !ready.current) return
-    if (!agentChanges) return void refit(true)
+    uncover()
+    if (!usable) return
+    if (!agentChanges) return void refit()
     // 电脑版的身份就是这个应用自己的。不能去问网页视图原来是什么：上次选的是手机版的话，它一出生就是手机身份
     el.setUserAgent(next === 'mobile' ? MOBILE_UA : navigator.userAgent)
-    // 换了身份要重新要一次页面；大小也要从头量
-    fitHost.current = ''
+    // 手机版和电脑版要的宽度不一样，之前量的不能用了
+    remember(hostOf(el.getURL()), undefined)
     el.reload()
   }
   const shrunk = mode === 'fit' && zoom < 0.995
@@ -341,6 +430,7 @@ export function Browser() {
             )}
           </div>
         )}
+        {veil && started && !failed && <div className="browser-veil" />}
         {failed && (
           <div className="browser-failed">
             <div>{t('这个页面打不开')}</div>

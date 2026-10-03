@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
 import { pathToFileURL } from 'node:url'
-import { BrowserWindow, Menu, type MenuItemConstructorOptions, type WebContents, app, clipboard, dialog, ipcMain, nativeTheme, net, protocol, screen, shell } from 'electron'
+import { BrowserWindow, Menu, type MenuItemConstructorOptions, type WebContents, app, clipboard, dialog, ipcMain, nativeTheme, net, protocol, screen, shell, webContents } from 'electron'
 import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
@@ -447,6 +447,19 @@ function registerIpc(): void {
   handle('wallpaper:use', (file: string) => useWallpaper(String(file)))
   handle('wallpaper:clear', () => clearWallpaper())
   handle('wallpaper:color', (file: string) => (IMAGE_EXT.test(String(file)) ? dominantColor(String(file)) : undefined))
+  // 内置浏览器里的页面现在按多宽排的、内容实际有多宽。界面那边自带的办法要等整页加载完才给结果，
+  // 这里直接问页面，页面刚有内容就能量。只量发问的那个窗口自己的网页视图，量什么也是写死的
+  ipcMain.handle('browser:measure', async (event, id: number) => {
+    const guest = webContents.fromId(Number(id))
+    if (!guest || guest.isDestroyed() || guest.hostWebContents !== event.sender) return undefined
+    try {
+      return (await guest.mainFrame.executeJavaScript(
+        '({ inner: window.innerWidth, wide: Math.max(document.documentElement ? document.documentElement.scrollWidth : 0, document.body ? document.body.scrollWidth : 0) })'
+      )) as { inner: number; wide: number }
+    } catch {
+      return undefined
+    }
+  })
   handle('buttons:get', () => readButtons())
   handle('buttons:set', (buttons: unknown) => writeButtons(buttons))
   ipcMain.on('buttons:reveal', () => revealButtons())
