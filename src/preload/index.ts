@@ -17,6 +17,7 @@ const api: PiApi = {
   usageTotals: call('usageTotals'),
   pickFolder: call('pickFolder'),
   openExternal: (url) => ipcRenderer.send('openExternal', url),
+  newWindow: () => ipcRenderer.send('window:new'),
   clipboardText: (text) => ipcRenderer.send('clipboard:text', text),
 
   convStart: call('conv:start'),

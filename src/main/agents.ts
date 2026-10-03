@@ -7,6 +7,11 @@ import { PiProcess } from './rpc'
 
 interface Conv {
   key: string
+  /**
+   * 界面用来称呼这个对话的所有名字。开了几个窗口、或者界面重新加载过，同一个对话会有不止一个名字；
+   * 它的事件要发给每一个名字，谁开着这个对话谁就能收到。
+   */
+  keys: Set<string>
   cwd: string
   sessionFile?: string
   proc?: PiProcess
@@ -46,22 +51,31 @@ export class AgentManager {
     let conv = this.convs.get(key)
     if (!conv) {
       if (!cwd) throw new Error(t('对话还没有打开'))
-      // 界面重新加载之后，同一个会话会换一个名字来找。认出它来接着用，
-      // 不然会对同一个会话文件再起一个 Pi，两个进程同时往里写
-      const same = sessionFile ? [...this.convs.values()].find((other) => other.sessionFile === sessionFile) : undefined
+      // 界面重新加载之后、或者在另一个窗口里，同一个会话会换一个名字来找。认出它来接着用，
+      // 不然会对同一个会话文件再起一个 Pi，两个进程同时往里写。原来的名字留着：别的窗口可能还开着它
+      const same = sessionFile ? this.all().find((other) => other.sessionFile === sessionFile) : undefined
       if (same) {
-        this.convs.delete(same.key)
-        same.key = key
+        same.keys.add(key)
         this.convs.set(key, same)
         same.lastUsed = Date.now()
         if (same.streaming) setImmediate(() => this.emit(key, { type: 'agent_start' }))
         return same
       }
-      conv = { key, cwd, sessionFile, streaming: false, working: 0, settled: 0, info: {}, lastUsed: Date.now() }
+      conv = { key, keys: new Set([key]), cwd, sessionFile, streaming: false, working: 0, settled: 0, info: {}, lastUsed: Date.now() }
       this.convs.set(key, conv)
     }
     conv.lastUsed = Date.now()
     return conv
+  }
+
+  /** 所有对话，每个只算一次（一个对话可能挂在好几个名字下面） */
+  private all(): Conv[] {
+    return [...new Set(this.convs.values())]
+  }
+
+  /** 把一件事告诉所有开着这个对话的窗口 */
+  private tell(conv: Conv, event: ConvEvent): void {
+    for (const key of conv.keys) this.emit(key, event)
   }
 
   /** 这个对话存能力设置时用的名字：有会话文件就用文件路径，否则用临时 key */
@@ -93,7 +107,7 @@ export class AgentManager {
   }
 
   private async spawn(conv: Conv): Promise<ConvInfo> {
-    this.emit(conv.key, { type: '_status', status: 'starting' })
+    this.tell(conv, { type: '_status', status: 'starting' })
     const launch = await launchArgs(this.capsKey(conv.key), conv.cwd)
     const proc = new PiProcess(conv.cwd, [...(conv.sessionFile ? ['--session', conv.sessionFile] : []), ...launch.args])
     conv.proc = proc
@@ -102,7 +116,7 @@ export class AgentManager {
 
     proc.on('event', (event: ConvEvent) => {
       if (event.type === 'agent_start') conv.streaming = true
-      this.emit(conv.key, event)
+      this.tell(conv, event)
       // agent_end 只是一小段跑完了，后面可能还有自动重试、压缩、排队的消息；
       // agent_settled 才是 Pi 彻底停下、可以接新消息的时候
       if (event.type === 'agent_settled') {
@@ -119,7 +133,7 @@ export class AgentManager {
       if (conv.proc !== proc) return
       conv.proc = undefined
       conv.streaming = false
-      this.emit(conv.key, { type: '_status', status: 'exited', error })
+      this.tell(conv, { type: '_status', status: 'exited', error })
     })
 
     try {
@@ -142,7 +156,7 @@ export class AgentManager {
       proc.kill()
       throw error
     }
-    this.emit(conv.key, { type: '_status', status: 'ready' })
+    this.tell(conv, { type: '_status', status: 'ready' })
     return conv.info
   }
 
@@ -174,9 +188,9 @@ export class AgentManager {
     }
     const levels = await proc.request<{ levels?: string[] }>({ type: 'get_available_thinking_levels' }).catch(() => undefined)
     conv.info.thinkingLevels = levels?.levels
-    this.emit(conv.key, { type: '_info', info: conv.info })
+    this.tell(conv, { type: '_info', info: conv.info })
     const stats = await proc.request({ type: 'get_session_stats' }).catch(() => undefined)
-    if (stats) this.emit(conv.key, { type: '_stats', stats })
+    if (stats) this.tell(conv, { type: '_stats', stats })
   }
 
   private async stop(conv: Conv): Promise<void> {
@@ -253,8 +267,10 @@ export class AgentManager {
     const previous = this.capsKey(key)
     const nextKey = state.sessionFile ?? `new:${Date.now()}`
     copySession(previous, nextKey)
-    this.convs.delete(key)
+    // 进程跟着去了新会话。原来那个对话的所有名字都不再指它；别的窗口再用到原对话时会另起一个进程
+    for (const old of conv.keys) this.convs.delete(old)
     conv.key = nextKey
+    conv.keys = new Set([nextKey])
     conv.sessionFile = state.sessionFile
     this.convs.set(nextKey, conv)
     return { key: nextKey, text: result.text ?? text }
@@ -321,7 +337,7 @@ export class AgentManager {
     await this.start(key, conv.cwd, conv.sessionFile)
     await conv.proc!.request({ type: 'set_auto_compaction', enabled })
     // 这是全局设置，但别的 Pi 进程启动时已经读过旧值了，一起改过来
-    for (const other of this.convs.values()) {
+    for (const other of this.all()) {
       if (other !== conv && other.proc && !other.proc.exited) void other.proc.request({ type: 'set_auto_compaction', enabled }).catch(() => {})
     }
     await this.refresh(conv)
@@ -362,17 +378,25 @@ export class AgentManager {
    * 不等的话，进程收尾时可能还往老位置写一笔。正忙的不让挪。
    */
   async release(sessionFile: string): Promise<void> {
-    const using = [...this.convs.values()].filter((conv) => conv.sessionFile === sessionFile || conv.key === sessionFile)
+    const using = this.all().filter((conv) => conv.sessionFile === sessionFile || conv.keys.has(sessionFile))
     if (using.some((conv) => this.busy(conv))) throw new Error(t('这个对话正在运行，等它停下来再移'))
     for (const conv of using) {
-      this.convs.delete(conv.key)
+      for (const key of conv.keys) this.convs.delete(key)
       await this.stop(conv)
     }
   }
 
   close(key: string): void {
     const conv = this.convs.get(key)
-    if (!conv || this.busy(conv)) return
+    if (!conv) return
+    // 别的窗口还开着这个对话：只是这个名字不用了，进程留给它们
+    if (conv.keys.size > 1) {
+      conv.keys.delete(key)
+      this.convs.delete(key)
+      if (conv.key === key) conv.key = [...conv.keys][0]
+      return
+    }
+    if (this.busy(conv)) return
     conv.proc?.kill()
     this.convs.delete(key)
   }
@@ -392,7 +416,7 @@ export class AgentManager {
     }
     conv.proc = undefined
     proc.kill()
-    this.emit(conv.key, { type: '_status', status: 'exited' })
+    this.tell(conv, { type: '_status', status: 'exited' })
   }
 
   private busy(conv: Conv): boolean {
@@ -413,7 +437,7 @@ export class AgentManager {
 
   /** 关掉所有没在忙的进程；正忙的记下来，等它停了再关 */
   restartIdle(): void {
-    for (const conv of this.convs.values()) {
+    for (const conv of this.all()) {
       if (!conv.proc || conv.proc.exited) continue
       if (this.busy(conv)) conv.restartWhenIdle = true
       else this.retire(conv)
@@ -422,15 +446,15 @@ export class AgentManager {
 
   /** 有几个对话正在回答或者在跑命令。退出前用它来提醒 */
   busyCount(): number {
-    return [...this.convs.values()].filter((conv) => conv.proc && !conv.proc.exited && (conv.streaming || conv.working > 0)).length
+    return this.all().filter((conv) => conv.proc && !conv.proc.exited && (conv.streaming || conv.working > 0)).length
   }
 
   closeAll(): void {
-    for (const conv of this.convs.values()) conv.proc?.kill()
+    for (const conv of this.all()) conv.proc?.kill()
   }
 
   private reap(): void {
-    const live = [...this.convs.values()].filter((conv) => conv.proc && !conv.proc.exited && !this.busy(conv))
+    const live = this.all().filter((conv) => conv.proc && !conv.proc.exited && !this.busy(conv))
     live.sort((a, b) => a.lastUsed - b.lastUsed)
     const now = Date.now()
     live.forEach((conv, index) => {

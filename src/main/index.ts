@@ -25,7 +25,13 @@ import { setTrust, trustStatus } from './trust'
 import { AGENT_DIR, DESKTOP_DIR, HOME, piVersion, readJson, shellEnv, writeJson } from './env'
 import { listSessions, moveSession, readSession, searchSessions, usageTotals, writeTranscript } from './sessions'
 
+/** 最近用过的那个窗口。可以开好几个窗口；弹系统对话框、响应菜单都找它 */
 let win: BrowserWindow | undefined
+
+/** 把一件事发给所有窗口。每个窗口自己只认它开着的对话 */
+function broadcast(channel: string, ...args: unknown[]): void {
+  for (const each of BrowserWindow.getAllWindows()) if (!each.isDestroyed()) each.webContents.send(channel, ...args)
+}
 
 // 调试用：窗口被挡住时也继续渲染，这样不用把窗口抢到前台就能截图检查
 const DEBUG_RENDER = process.env.PI_DESKTOP_DEBUG === '1'
@@ -52,9 +58,7 @@ function focusWindow(): void {
 }
 app.on('second-instance', focusWindow)
 
-const agents = new AgentManager((key: string, event: ConvEvent) => {
-  if (win && !win.isDestroyed()) win.webContents.send('conv:event', key, event)
-})
+const agents = new AgentManager((key: string, event: ConvEvent) => broadcast('conv:event', key, event))
 
 /**
  * 右键菜单。Electron 默认什么都不弹：输入框里不能右键粘贴，选中的字不能右键复制。
@@ -106,8 +110,10 @@ function savedBounds(): { x?: number; y?: number; width: number; height: number 
 }
 
 function createWindow(): void {
-  win = new BrowserWindow({
-    ...savedBounds(),
+  // 已经有窗口时再开一个：和上一个错开一点，别正好盖住
+  const beside = win && !win.isDestroyed() ? win.getBounds() : undefined
+  const created = new BrowserWindow({
+    ...(beside ? { x: beside.x + 28, y: beside.y + 28, width: beside.width, height: beside.height } : savedBounds()),
     minWidth: 760,
     minHeight: 520,
     titleBarStyle: 'hiddenInset',
@@ -123,32 +129,37 @@ function createWindow(): void {
       backgroundThrottling: !DEBUG_RENDER
     }
   })
-  win.once('ready-to-show', () => win?.show())
-  attachContextMenu(win.webContents)
+  created.once('ready-to-show', () => created.show())
+  win = created
+  created.on('focus', () => (win = created))
+  created.on('closed', () => {
+    if (win === created) win = BrowserWindow.getAllWindows().find((other) => !other.isDestroyed())
+  })
+  attachContextMenu(created.webContents)
   // 记住窗口的位置和大小，下次打开还在原处。全屏和最大化时的尺寸不记
   let saving: ReturnType<typeof setTimeout> | undefined
   const remember = (): void => {
     clearTimeout(saving)
     saving = setTimeout(() => {
-      if (!win || win.isDestroyed() || win.isFullScreen() || win.isMaximized() || win.isMinimized()) return
+      if (created.isDestroyed() || created.isFullScreen() || created.isMaximized() || created.isMinimized()) return
       try {
-        writeJson(windowStateFile(), win.getBounds())
+        writeJson(windowStateFile(), created.getBounds())
       } catch {
         // 记不下来不影响使用
       }
     }, 400)
   }
-  win.on('resize', remember)
-  win.on('move', remember)
+  created.on('resize', remember)
+  created.on('move', remember)
   // 内置浏览器里的网页是外人写的：不给它任何本机能力，也只让它打开普通网址
-  win.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+  created.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     delete webPreferences.preload
     webPreferences.nodeIntegration = false
     webPreferences.contextIsolation = true
     webPreferences.sandbox = true
     if (!/^(https?:|about:blank)/i.test(params.src)) event.preventDefault()
   })
-  win.webContents.on('did-attach-webview', (_event, guest) => {
+  created.webContents.on('did-attach-webview', (_event, guest) => {
     attachContextMenu(guest)
     // 网页想开新窗口时，就在原地打开；不是普通网址的一律不理
     guest.setWindowOpenHandler(({ url }) => {
@@ -159,24 +170,24 @@ function createWindow(): void {
       if (!/^https?:/i.test(url)) event.preventDefault()
     })
   })
-  win.webContents.on('render-process-gone', (_event, details) => console.error('[pi-desktop] renderer process gone:', details.reason))
-  win.webContents.on('did-fail-load', (_event, code, description, url) => console.error('[pi-desktop] page failed to load:', code, description, url))
-  win.webContents.on('console-message', (event) => {
+  created.webContents.on('render-process-gone', (_event, details) => console.error('[pi-desktop] renderer process gone:', details.reason))
+  created.webContents.on('did-fail-load', (_event, code, description, url) => console.error('[pi-desktop] page failed to load:', code, description, url))
+  created.webContents.on('console-message', (event) => {
     if (event.level === 'error') console.error('[renderer]', event.message)
   })
   // 对话里的链接一律交给系统浏览器，应用窗口本身不跳转
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  created.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
-  win.webContents.on('will-navigate', (event, url) => {
-    if (url !== win?.webContents.getURL()) {
+  created.webContents.on('will-navigate', (event, url) => {
+    if (url !== created.webContents.getURL()) {
       event.preventDefault()
       if (/^https?:/.test(url)) void shell.openExternal(url)
     }
   })
-  if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(process.env.ELECTRON_RENDERER_URL)
-  else void win.loadFile(path.join(__dirname, '../renderer/index.html'))
+  if (process.env.ELECTRON_RENDERER_URL) void created.loadURL(process.env.ELECTRON_RENDERER_URL)
+  else void created.loadFile(path.join(__dirname, '../renderer/index.html'))
 }
 
 async function snapshot(key: string, cwd: string, items = getItems(agents.capsKey(key), cwd)): Promise<CapSnapshot> {
@@ -209,7 +220,7 @@ function registerIpc(): void {
   handle('auth:login', (provider: string, type: AuthType) =>
     afterAccountChange(
       accounts.login(provider, type, (event) => {
-        if (win && !win.isDestroyed()) win.webContents.send('auth:event', event)
+        broadcast('auth:event', event)
       })
     )
   )
@@ -285,9 +296,7 @@ function registerIpc(): void {
     return setConfig({ imageDir: undefined })
   })
   // 包装上或卸掉以后，技能清单要重新问，闲着的 Pi 进程下次用时重启
-  const send = (channel: string, ...args: unknown[]) => {
-    if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
-  }
+  const send = broadcast
   const afterPackageChange = async (work: Promise<void>) => {
     try {
       await work
@@ -346,7 +355,7 @@ function registerIpc(): void {
     if (lang !== 'zh' && lang !== 'en') return
     setLang(lang)
     // 菜单栏的文字也跟着换
-    buildMenu(() => win)
+    buildMenu(() => win, createWindow)
   })
   ipcMain.on('setTheme', (_event, theme: Theme) => {
     if (theme === 'system' || theme === 'light' || theme === 'dark') nativeTheme.themeSource = theme
@@ -389,7 +398,12 @@ function registerIpc(): void {
   handle('conv:bash', (key: string, command: string, exclude: boolean) => agents.bash(key, command, exclude))
   handle('conv:abortBash', (key: string) => agents.abortBash(key))
   handle('conv:setAutoCompaction', (key: string, enabled: boolean) => agents.setAutoCompaction(key, enabled))
-  ipcMain.on('window:focus', focusWindow)
+  // 点通知回到对话：把发通知的那个窗口带到前面
+  ipcMain.on('window:focus', (event) => {
+    win = BrowserWindow.fromWebContents(event.sender) ?? win
+    focusWindow()
+  })
+  ipcMain.on('window:new', () => createWindow())
   handle('conv:setModel', (key: string, provider: string, id: string) => agents.setModel(key, provider, id))
   handle('conv:setThinking', (key: string, level: string) => agents.setThinking(key, level))
   handle('conv:compact', (key: string, instructions?: string) => agents.compact(key, instructions))
@@ -447,7 +461,7 @@ void app.whenReady().then(() => {
     return net.fetch(pathToFileURL(file).toString())
   })
   setLang(resolveLang(app.getLocale()))
-  buildMenu(() => win)
+  buildMenu(() => win, createWindow)
   void shellEnv()
   // 调试实例可能和正常的实例共用同一个 Pi 配置目录，不去动那边的临时文件
   if (!DEBUG_RENDER) cleanRunDir()

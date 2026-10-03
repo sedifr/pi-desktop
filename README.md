@@ -22,6 +22,7 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **Room to read**: the conversation uses the width of the window (*Settings → Appearance → Conversation width*: standard, wide or full). Code blocks are syntax-highlighted and have a copy button; `⌘F` finds text inside the current conversation; a button jumps back to the latest message after scrolling up.
 - **Change your mind**: edit a message you already sent and the conversation continues from there, or regenerate the last answer. The replaced turns stay in the session file as another branch (pi's `/tree` can go back to them). Hover a message to see when it was sent; click an image you attached to enlarge it.
 - **Automatic titles** (optional, *Settings → Appearance*): after the first exchange a model sums the conversation up in a few words, about 150 tokens each time. Off by default; it can use the conversation's model or a cheaper one you pick.
+- **More than one window**: `⌘⇧N` opens another window. Each has its own conversation in front; the same conversation open in two windows updates live in both, backed by a single pi process.
 - **The small things**: right-click menus for copy and paste, the window reopens where you left it, unsent drafts survive a restart, `↑` in an empty input recalls your last message, a failed answer can be retried with one click and says in plain words what went wrong, and quitting asks first while an answer is still running.
 - **Find a conversation**: `⌘K` searches titles, project names and everything said in your conversations; several words narrow it down. Opening a result jumps to the message that matched. With nothing typed it lists recent conversations, so it doubles as a quick switcher.
 - **Keep conversations in order**: pin the ones you keep coming back to (they stay at the top of the sidebar, and can be dragged into any order), drag a conversation onto another project when it was started in the wrong folder, double-click one to rename it, or right-click for all of these. A moved conversation continues in the new project's folder and shows up under that project in the pi CLI too; files it already wrote stay where they are.
@@ -80,6 +81,7 @@ pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extens
 | Keys | Action |
 |---|---|
 | `⌘N` | New conversation |
+| `⌘⇧N` | New window |
 | `⌘O` | Add a project folder |
 | `⌘,` | Settings |
 | `⌘K` | Search conversations |

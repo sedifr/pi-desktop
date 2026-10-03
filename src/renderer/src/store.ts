@@ -332,6 +332,8 @@ function markStart(key: string): void {
 }
 
 function handleEvent(key: string, event: ConvEvent): void {
+  // 事件是发给所有窗口的，这个窗口没开着的对话不用管
+  if (!state.convs[key]) return
   const e = event as Record<string, any>
   // Pi 发来的任何事件都算「有动静」；以下划线开头的是桌面端自己的状态通知，不算
   if (typeof e.type === 'string' && !e.type.startsWith('_')) {
@@ -736,7 +738,23 @@ export async function init(): Promise<void> {
   const [defaults, sessions, config] = await Promise.all([api.defaults(), api.listSessions(), api.configGet()])
   set({ defaults, sessions, config })
   // 在命令行或别处开的对话，回到这个窗口时要看得到
-  window.addEventListener('focus', refreshSessionsSoon)
+  window.addEventListener('focus', () => {
+    refreshSessionsSoon()
+    // 置顶、常用模型这些可能在另一个窗口里改过
+    api.configGet().then((latest) => set({ config: latest }), () => {})
+  })
+  // 外观设置在另一个窗口里改了，这个窗口也跟上
+  window.addEventListener('storage', (event) => {
+    if (event.key !== 'prefs' || !event.newValue) return
+    try {
+      const prefs = { ...DEFAULT_PREFS, ...JSON.parse(event.newValue), sidebarCollapsed: state.prefs.sidebarCollapsed, paneOpen: state.prefs.paneOpen, paneTab: state.prefs.paneTab }
+      if (prefs.language !== state.prefs.language) return
+      set({ prefs })
+      applyPrefs(prefs)
+    } catch {
+      // 读不懂就不动
+    }
+  })
   listeners.add(saveDraftsSoon)
   const cwd = localStorage.getItem('lastCwd') ?? sessions[0]?.cwd
   if (cwd) newConv(cwd)

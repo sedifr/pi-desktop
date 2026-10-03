@@ -151,6 +151,7 @@ export function Commands() {
 
 const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: '⌘N', label: t('新对话') },
+  { keys: '⌘⇧N', label: t('新开一个窗口') },
   { keys: '⌘O', label: t('添加项目文件夹') },
   { keys: '⌘K', label: t('搜索对话') },
   { keys: '⌘F', label: t('在当前对话里查找') },

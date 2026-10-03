@@ -3,7 +3,7 @@ import { t } from '@shared/i18n'
 import type { MenuAction } from '@shared/types'
 
 /** 系统菜单栏。快捷键都挂在这里，这样在菜单里能看到，也符合 macOS 的习惯 */
-export function buildMenu(getWindow: () => BrowserWindow | undefined): void {
+export function buildMenu(getWindow: () => BrowserWindow | undefined, newWindow: () => void): void {
   const send = (action: MenuAction) => () => {
     const win = getWindow()
     if (!win || win.isDestroyed()) return
@@ -31,6 +31,7 @@ export function buildMenu(getWindow: () => BrowserWindow | undefined): void {
       label: t('文件'),
       submenu: [
         { label: t('新对话'), accelerator: 'Cmd+N', click: send('new') },
+        { label: t('新窗口'), accelerator: 'Cmd+Shift+N', click: () => newWindow() },
         { label: t('添加项目文件夹…'), accelerator: 'Cmd+O', click: send('addProject') },
         { label: t('搜索对话…'), accelerator: 'Cmd+K', click: send('search') },
         { label: t('在这个对话里查找…'), accelerator: 'Cmd+F', click: send('find') },

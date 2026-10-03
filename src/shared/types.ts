@@ -479,6 +479,8 @@ export interface PiApi {
   usageTotals(): Promise<UsageTotals>
   pickFolder(): Promise<string | null>
   openExternal(url: string): void
+  /** 再开一个窗口 */
+  newWindow(): void
   /** 把一段文字放进剪贴板 */
   clipboardText(text: string): void
 
