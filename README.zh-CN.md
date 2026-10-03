@@ -136,7 +136,7 @@ npx electron .
 
 不打算做的：Windows 和 Linux 版。
 
-发现了 bug，或者缺了什么？[提一个 issue](https://github.com/sedifr/pi-desktop/issues/new/choose)，两种情况各有一张表单。
+怎么用、怎么配，到 [Discussions](https://github.com/sedifr/pi-desktop/discussions) 里聊。发现了 bug，或者缺了什么？[提一个 issue](https://github.com/sedifr/pi-desktop/issues/new/choose)，两种情况各有一张表单。
 
 ## 许可证
 

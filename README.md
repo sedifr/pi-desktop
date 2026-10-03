@@ -136,7 +136,7 @@ Not there yet:
 
 Not planned: Windows and Linux builds.
 
-Found a bug, or missing something? [Open an issue](https://github.com/sedifr/pi-desktop/issues/new/choose) — there is a form for each.
+Questions, and how you set yours up, go to [Discussions](https://github.com/sedifr/pi-desktop/discussions). Found a bug, or missing something? [Open an issue](https://github.com/sedifr/pi-desktop/issues/new/choose) — there is a form for each.
 
 ## License
 

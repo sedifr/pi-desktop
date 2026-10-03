@@ -4,6 +4,7 @@ Thanks for taking a look. Bug reports, ideas and pull requests are all welcome.
 
 ## Before you start
 
+- For a question about using the app, ask in [Discussions](https://github.com/sedifr/pi-desktop/discussions).
 - For a bug, please open an issue with the steps that lead to it and the versions shown in *Settings → About*.
 - For a larger change, open an issue first and say what you have in mind. It saves both of us a pull request that goes in a direction the project will not take.
 - Problems with the agent itself (how it answers, what its tools do) belong to [pi](https://github.com/earendil-works/pi), not here.
