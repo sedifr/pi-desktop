@@ -1,0 +1,41 @@
+name: Bug report
+description: Something does not work the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: App version and pi version
+      description: Both are shown in Settings → About.
+      placeholder: "Pi Desktop 0.1.0, pi 1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: macOS version and Mac
+      placeholder: "macOS 15.5, Apple silicon"
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, the error text, the model in use. Please remove anything private first.

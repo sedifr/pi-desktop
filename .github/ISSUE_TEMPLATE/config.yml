@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A problem with pi itself
+    url: https://github.com/earendil-works/pi/issues
+    about: How the agent answers, what its tools do, the CLI — those belong to pi, not to this app.
+  - name: Security problem
+    url: https://github.com/sedifr/pi-desktop/security/advisories/new
+    about: Please report security problems privately.

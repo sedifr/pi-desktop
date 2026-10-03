@@ -3,7 +3,7 @@
   "productName": "Pi Desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "A desktop app for the pi coding agent",
+  "description": "An unofficial desktop app for the pi coding agent (macOS)",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -39,6 +39,23 @@
     "vite": "^7.0.0"
   },
   "license": "MIT",
+  "homepage": "https://github.com/sedifr/pi-desktop#readme",
+  "bugs": {
+    "url": "https://github.com/sedifr/pi-desktop/issues"
+  },
+  "keywords": [
+    "pi",
+    "pi-coding-agent",
+    "coding-agent",
+    "ai",
+    "desktop",
+    "electron",
+    "macos",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/sedifr/pi-desktop.git"

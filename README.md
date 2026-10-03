@@ -1,57 +1,69 @@
-# Pi Desktop
+<h1 align="center">Pi Desktop</h1>
 
-[简体中文](./README.zh-CN.md)
+<p align="center">An unofficial desktop app for the <a href="https://github.com/earendil-works/pi">pi coding agent</a>, for macOS.</p>
 
-An unofficial desktop app for the [pi coding agent](https://github.com/earendil-works/pi). It uses the same local configuration and session files as pi, so conversations, models, skills, and MCP servers are shared with the pi CLI.
+<p align="center">
+  <a href="https://github.com/sedifr/pi-desktop/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/sedifr/pi-desktop/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS-lightgrey.svg">
+</p>
 
-> Status: early. macOS only. Not packaged yet — you run it from source.
+<p align="center"><b>English</b> · <a href="./README.zh-CN.md">简体中文</a></p>
 
-## What it does
+![Pi Desktop: a conversation, with your own buttons above the input box](docs/screenshots/main.png)
 
-- **Conversations by project**: every pi session on your machine, grouped by project folder.
-- **Clean composer**: the input box holds only what writing a message needs: a `+` menu, the model, and the send button. The line under it says which project you are in and how far pi may go. Skills, MCP servers, tools and the marketplace live in a slim column of icons to the left of the chat, one icon each.
-- **See it working**: thinking scrolls live, a running tool shows its latest output, and a line at the bottom says what is happening and for how long — so you can tell thinking from stuck.
-- **Commands**: type `/` to pick a command — your own saved prompts, skills, and extension commands, each with a one-line description. Write and edit your own in *Settings → Commands*; they are stored as pi prompt templates, so the CLI can use them too.
-- **Files and images**: type `@` to reference a file in the project. Paste or drop an image to attach it.
-- **Access level**: one switch for *read only*, *can edit files*, or *full access*.
-- **Steer while it works**: send a message during an answer to slip it in after the current step, or hold Option to queue it until the answer is done.
-- **Branch and tidy up**: start a new conversation from any earlier message, rename conversations, copy answers, compact the context, or export a conversation as a web page.
-- **Run a command yourself**: start a message with `!` to run a shell command and show its output in the conversation; the output goes to pi with your next message. Use `!!` to keep it to yourself.
-- **Queue and take back**: messages sent during an answer wait in a queue you can take back into the input box. Stopping an answer returns the queue too.
-- **Context under control**: a switch for automatic compaction, a *Compact now* button, and a hint when the context is nearly full.
-- **Room to read**: the conversation uses the width of the window (*Settings → Appearance → Conversation width*: standard, wide or full). Code blocks are syntax-highlighted and have a copy button; `⌘F` finds text inside the current conversation; a button jumps back to the latest message after scrolling up.
-- **Change your mind**: edit a message you already sent and the conversation continues from there, or regenerate the last answer. The replaced turns stay in the session file as another branch (pi's `/tree` can go back to them). Hover a message to see when it was sent; click an image you attached to enlarge it.
-- **Automatic titles** (optional, *Settings → General*): after the first exchange a model sums the conversation up in a few words, about 150 tokens each time. Off by default; it can use the conversation's model or a cheaper one you pick.
-- **More than one window**: `⌘⇧N` opens another window. Each has its own conversation in front; the same conversation open in two windows updates live in both, backed by a single pi process.
-- **The small things**: right-click menus for copy and paste, the window reopens where you left it, unsent drafts survive a restart, `↑` in an empty input recalls your last message, a failed answer can be retried with one click and says in plain words what went wrong, and quitting asks first while an answer is still running.
-- **Find a conversation**: `⌘K` searches titles, project names and everything said in your conversations; several words narrow it down. Opening a result jumps to the message that matched. With nothing typed it lists recent conversations, so it doubles as a quick switcher.
-- **Keep conversations in order**: pin the ones you keep coming back to (they stay at the top of the sidebar, and can be dragged into any order), drag a conversation onto another project when it was started in the wrong folder, double-click one to rename it, or right-click for all of these. A moved conversation continues in the new project's folder and shows up under that project in the pi CLI too; files it already wrote stay where they are.
-- **Reply point by point**: select any part of an answer and click *Quote*; it appears in the input as its own highlighted card with a reply field underneath. Quote as many passages as you like, answer each one, and send them together. The quoted text itself cannot be edited by accident, only removed.
-- **Attach documents**: PDF, Word, PowerPoint and Excel files are turned into text when you attach them (the `+` menu, drag and drop, `@`, or the Files tab), and pi reads that text. Nothing extra has to be installed, it works in read-only mode, and pi reads only as much as it needs. Scanned PDFs have no text to extract, so their first pages are attached as images for a model that can see them. Other files are passed by path, as before.
-- **Marketplace**: *Settings → Plugins* browses pi's package catalog (the npm packages tagged `pi-package`, the same set as pi.dev/packages): most used first, by category, or by search, with one-click install. Nothing there is reviewed, so the page says so and asks before installing.
-- **See the project's files**: the *Files* tab of the side panel shows the folder the conversation works in and everything inside it. Click a file (or drag it into the chat) to `@` it in the input; search by name; open or reveal any file.
-- **Hand a conversation to another one**: drag a conversation from the sidebar into the chat and it becomes a reference pi can read. What pi gets is a text-only transcript (what both sides said, one line per tool call, no tool output dumps or images), so it reads as much as it needs instead of swallowing the raw session file. The right-click menu also copies the path of that transcript, of the session file, or the conversation ID, for handing it to a different AI.
-- **Make it look like yours**: the app is only a shell around pi and ships no themes of its own. In *Settings → Appearance* you can put your own image behind the interface, pick an accent color and tint the background (or let the colors follow the image). Every part of the interface — the sidebar entries, the icons next to the chat, the buttons in the title bar and the input, the tabs of the side panel — can be hidden on its own in *Settings → Layout*, and the conversation list and the icon column can move to the right. If that is not enough, write every color into a palette file, or add a CSS file of your own after the built-in styles. All of it changes looks only: menus, the input and cards keep their own background so the image never shows through them, less of the image shows when it is much brighter or darker than the theme, colors that are too light or too dark are adjusted until they are readable, and *View → Reset Appearance* in the menu bar brings back the original.
-- **Your own buttons**: the interface has six places — above the input box, inside it, the icon column beside the chat, the title bar, the sidebar, and the empty page of a new conversation — where you can put buttons of your own. A button can say something you say often (or run a saved command or a skill; sent at once or put into the input box first), run a shell command, open a web address or a file, use one of the app's own functions (terminal, search, compact, minimal mode…), or switch to a model, reasoning level or access level in one click. Add them in *Settings → Layout* or from the `+` menu of the input box; right-click a button to change it. There are none by default.
-- **Let pi change the interface**: buttons (`buttons.json`), styles (`custom.css`) and palettes (`skins/*.json`) are plain files, and the app watches them — whoever edits them, the change shows up at once, no restart. So you can simply tell pi “add a button above the input box that…” or “make the corners squarer”: *Settings → Layout → Ask pi* opens a new conversation and hands pi the guide written for it (`CUSTOMIZE.md`). A button that is written wrongly is skipped and reported in settings instead of breaking the interface.
-- **Know when it is done**: a system notification when an answer finishes while the window is in the background, and a dot in the sidebar for conversations that finished out of sight.
-- **MCP servers**: add, edit, and remove servers in *Settings → MCP*, see whether each one connects, sign in to remote servers that use OAuth (your browser opens the authorization page), and choose how each server's tools reach the model (found when needed, called from scripts, or all declared up front). Secrets in environment variables and headers are never shown back. If the `pi-mcp-adapter` extension is installed, the same page switches between it and pi's built-in MCP support.
-- **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for. For items that have none yet, a button lets a model draft them.
-- **Install skills**: *Settings → Plugins → Installed* installs and removes pi packages (npm, git, or a local folder) — the same as `pi install` — and lets you add extra skill folders.
-- **Side panel**: next to the conversation, a tabbed panel — *Files* (see above), *Changes* (uncommitted changes in the project, with the files pi touched marked, and a diff per file), *Browser* (a small built-in browser for pages running on your Mac; localhost links in answers open there. Pages wider than the panel are scaled down to fit, or you can ask sites for their mobile version, or keep the actual size), and *Terminal* (a real shell in the project folder).
-- **Images in one place**: the *Images* page lists every image generated in any conversation and project — browse, search, open the conversation that made one, copy, save a copy, or move a batch to the Trash. Images an answer mentions by local path are shown inline.
-- **See sub-agents**: when the AI starts sub-agents, a chip next to the title lists them; open one to read what it did, and jump back to the main conversation.
-- **Pick what a conversation can use**: turn each skill, MCP server, and tool on or off per conversation, then save the setup as the default for the project or for everything. Skills have three states: *auto* (the model decides), *on* (always loaded), *off* (hidden from the model). *Leanest* turns everything off in one click, so a conversation starts with almost nothing but pi itself; switch on what you need, or save that as the default.
-- **Usage at a glance**: cost, tokens, cache hit rate, and context usage for the conversation, plus totals for today and this month.
-- **Models**: sign in with a subscription, add an API key, or add an OpenAI- or Anthropic-compatible endpoint. A dot next to each provider shows whether its sign-in still works. Search the model menu and star the models you use most.
+Pi Desktop puts a window around pi. It uses pi's own local configuration and session files, so conversations, models, skills and MCP servers are shared with the pi CLI: what you did in one shows up in the other. The app bundles its own copy of pi, so nothing else has to be installed.
 
-## Requirements
+pi is deliberately small and leaves the rest to you. The app treats the interface the same way. It brings what pi can do into view, and leaves how it looks and what sits where to you: no themes of its own, no buttons you did not put there, every part can be hidden or moved — and you can ask pi to change the interface for you.
+
+> **Status**: early (0.1.0). macOS only, developed on Apple silicon. There is no signed installer yet; run it from source or build the app yourself.
+
+## Highlights
+
+**Talking to pi**
+
+- Every pi session on your machine, grouped by project. `⌘K` searches titles and everything that was said; pin, rename, or drag a conversation to another project.
+- You can see it working: thinking streams live, a running tool shows its latest output, and a status line tells thinking from stuck.
+- Send a message while it works to steer it, queue messages and take them back, edit a message you already sent, or regenerate an answer. Replaced turns stay in the session file as a branch.
+- `/` for commands and skills, `@` for files, `!` to run a shell command yourself. Quote parts of an answer and reply point by point. Attach images, PDF, Word, PowerPoint and Excel files.
+
+**Deciding what a conversation carries**
+
+- Every skill, MCP server and tool is a tile with a one-line description you can rewrite in your own words. Turn each on or off per conversation, and save the setup as the default for a project or for everything.
+- *Leanest* starts a conversation with almost nothing but pi itself, so the opening context stays small.
+- One switch for *read only*, *can edit files* or *full access*.
+- Browse pi's package catalog and install with one click, or install from npm, git or a folder.
+- Sign in with a subscription, add an API key, or add a compatible endpoint. A dot shows whether each sign-in still works. Cost, tokens, cache hits and context use are one click away.
+
+**Around the conversation**
+
+- A side panel with the project's files, the uncommitted changes, a small browser for pages running on your Mac, and a terminal.
+- A page for every image generated in any conversation, a chip for sub-agents, several windows, and a notification when an answer finishes in the background.
+
+**Making it yours**
+
+- Your own buttons in six places of the interface. A button can say something you say often, run a command or a skill, run a shell command, open a page or a file, use one of the app's functions, or switch model, reasoning level and access level.
+- Your own background image, accent color and tint; a palette file; a CSS file. Any part of the interface can be hidden, and the conversation list and the icon column can move to the right.
+- Buttons, styles and palettes are plain files that the app watches, so pi can edit them for you and the change shows up at once.
+
+The complete list is in [docs/features.md](docs/features.md).
+
+| | |
+|---|---|
+| ![The skills of a conversation, each with a one-line description](docs/screenshots/skills.png) | ![Settings: your own buttons and where they sit](docs/screenshots/layout.png) |
+| Skills for this conversation: *auto*, *on* or *off* | Your own buttons, and what is shown where |
+
+![The same conversation with a background image and colors taken from it](docs/screenshots/appearance.png)
+
+## Getting started
+
+### Requirements
 
 - macOS
 - Node.js 22.19 or newer
 - Nothing else. The app bundles its own copy of pi; you do not need the pi CLI installed.
 
-## Run from source
+### Run from source
 
 ```bash
 git clone https://github.com/sedifr/pi-desktop.git
@@ -61,13 +73,7 @@ npm run build
 npx electron .
 ```
 
-For development with hot reload:
-
-```bash
-npm run dev
-```
-
-## Build the app
+### Build the app
 
 ```bash
 npm run pack
@@ -79,19 +85,35 @@ puts `Pi Desktop.app` in `release/mac-arm64/`. `npm run dist` also makes a `.dmg
 - For the same reason it cannot update itself. *Settings → About → Check for updates* tells you when a newer release exists and takes you to the download page.
 - If the project sits in a folder synced by iCloud Drive (Desktop and Documents often are), signing fails on the attributes the sync adds. Build somewhere else: `npm run pack -- -c.directories.output=/tmp/pi-desktop-release`.
 
-## First steps
+### First steps
 
 1. **Add a project folder.** Click the `+` next to *Projects* in the sidebar and choose the folder you want pi to work in.
 2. **Connect a model.** Open *Settings → Models*. Pick a provider and either sign in or paste an API key. A green dot means it works.
 3. **Start a conversation.** Type in the box at the bottom and press Enter. Shift+Enter adds a new line.
 4. **Choose skills and tools.** Click an icon in the column left of the chat (skills, MCP, tools). Changes apply to the current conversation from the next message on.
-5. **Save what you keep repeating.** Open *Settings → Commands*, write the request once, and run it later with `/name`.
+5. **Save what you keep repeating.** Open *Settings → Commands*, write the request once, and run it later with `/name` — or make it a button in *Settings → Layout*.
+
+If you already use the pi CLI, your existing sessions, models, skills and MCP servers show up right away.
 
 ### Project trust
 
 pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extensions`, `.pi/mcp.json`, and so on) only after you trust that folder. When a project has such files and no decision is saved, the app shows a prompt above the input box. Choosing *Trust and load* saves the decision in pi's `~/.pi/agent/trust.json`, the same file the CLI uses. You can change it later from the `···` menu in the title bar. Project extensions can run code on your computer, so only trust projects whose source you know.
 
-### Keyboard shortcuts
+## Making it yours
+
+Everything that shapes the interface is a plain file in `~/.pi/agent/desktop/`:
+
+| File | What it controls |
+|---|---|
+| `buttons.json` | Your own buttons: where each one sits, what it is called, what it does |
+| `custom.css` | Any visual change: colors, fonts, spacing, hiding or moving parts |
+| `skins/*.json` | Complete color palettes, a light and a dark version each |
+
+You can edit them in *Settings → Appearance* and *Settings → Layout*, by hand, or by telling pi what you want: *Settings → Layout → Ask pi* opens a conversation and hands pi the guide written for it. The app watches these files, so a change applies at once, in every window. The formats are described in [`resources/customize-guide.md`](resources/customize-guide.md) — the same guide pi gets.
+
+None of this can make the interface unusable: a button that is written wrongly is skipped and reported, palette files only accept color values, colors that are too light or too dark are adjusted until they are readable, and *View → Reset Appearance* brings back the original.
+
+## Keyboard shortcuts
 
 | Keys | Action |
 |---|---|
@@ -110,8 +132,6 @@ pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extens
 | `Enter` / `⇧Enter` | Send / new line |
 | `!` / `!!` at the start | Run a shell command (with / without passing the output to pi) |
 | `⌥Enter` | While answering: handle this message after everything is done |
-
-If you already use the pi CLI, your existing sessions, models, skills, and MCP servers show up right away.
 
 ## Where things are stored
 
@@ -141,9 +161,20 @@ The *Images* page finds an image when a tool result carries its saved location i
 
 Each conversation is a `pi --mode rpc` child process. The app talks to it over pi's JSON protocol, and translates the on/off choices into pi's startup flags. Sign-in and model management use pi's SDK.
 
-The bundled pi version is pinned in `package.json`. To move to a newer pi, change the version, run `npm install`, and check that a conversation still works.
+The app is Electron, React and TypeScript, built with electron-vite. The bundled pi version is pinned in `package.json`. To move to a newer pi, change the version, run `npm install`, and check that a conversation still works.
 
 The interface is available in English and Simplified Chinese (*Settings → General*).
+
+## Development
+
+```bash
+npm run dev          # run with hot reload
+npm run typecheck    # TypeScript
+npm run i18n:check   # every interface string has an English translation
+npm run build        # production build into out/
+```
+
+Comments in the source and the interface strings are written in Chinese; the English interface comes from `src/shared/locales/en.ts`. [CONTRIBUTING.md](CONTRIBUTING.md) explains the layout of the code, how to test without touching your own pi data, and the few rules the project keeps.
 
 ## Limitations
 
@@ -152,7 +183,12 @@ The interface is available in English and Simplified Chinese (*Settings → Gene
 - Switching MCP servers per conversation relies on the `pi-mcp-adapter` extension, which declares every tool up front and so costs tokens in every conversation. pi's built-in MCP support finds tools on demand and costs almost nothing, but its servers apply to every conversation.
 - Turning an extension off for a conversation restarts pi with the extensions the app knows about. Packages declared only in a project's `.pi/settings.json` are not carried over in that case.
 - Sign-in for remote MCP servers works with pi's built-in MCP support. Servers that need a pre-registered OAuth client are configured in `mcp.json` by hand.
+- Built-in parts of the interface can be hidden but not yet moved between places, and new panels cannot be added without changing the source.
+
+## Contributing
+
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). For security problems, see [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-MIT. This project is not affiliated with the authors of pi.
+[MIT](LICENSE). This project is not affiliated with the authors of pi. It builds on [pi](https://github.com/earendil-works/pi), which does all the actual work.
