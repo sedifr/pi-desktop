@@ -72,9 +72,10 @@ Rather build it yourself? See [Run from source](#run-from-source).
 
 ### Make it yours
 
-| | |
-|---|---|
-| ![Settings: your own buttons and where they sit](docs/screenshots/layout.png) | ![The same conversation with a background image and colors taken from it](docs/screenshots/appearance.png) |
+<p>
+  <img src="docs/screenshots/layout.png" alt="Settings: your own buttons and where they sit" width="49%">
+  <img src="docs/screenshots/appearance.png" alt="The same conversation with a background image and colors taken from it" width="49%">
+</p>
 
 - **Your own buttons** — in six places; a prompt, a skill, a shell command, an app function, or a switch of model.
 - **Your own look** — a background image, an accent color, a tint, a palette file, a stylesheet.

@@ -74,9 +74,10 @@ xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"
 
 ### 自己定界面
 
-| | |
-|---|---|
-| ![设置：自己的按钮和它们放在哪](docs/screenshots/layout.png) | ![同一个对话，铺了背景图，颜色从图里取](docs/screenshots/appearance.png) |
+<p>
+  <img src="docs/screenshots/layout.png" alt="设置：自己的按钮和它们放在哪" width="49%">
+  <img src="docs/screenshots/appearance.png" alt="同一个对话，铺了背景图，颜色从图里取" width="49%">
+</p>
 
 - **自己的按钮**——六个位置可以放；一句话、一个技能、一条命令、界面上的一个功能，或者切换模型。
 - **自己的外观**——背景图、强调色、色调、配色文件、样式文件。
