@@ -3,7 +3,7 @@ import { t } from '@shared/i18n'
 import { DEFAULT_DARK, DEFAULT_LIGHT } from '@shared/skins'
 import { ButtonsSettings } from './Buttons'
 import { DEFAULT_LOOK, wallShown } from './skins'
-import { api, errorText, loadCustomCss, loadSkins, resetLook, setLook, setPrefs, toast, togglePart, useApp } from './store'
+import { api, askPiToCustomize, errorText, resetLook, setLook, setPrefs, toast, togglePart, useApp } from './store'
 import { Icon, imgUrl } from './ui'
 
 /** 能单独开关的界面部件。只是藏起来，功能还在，随时能打开 */
@@ -17,7 +17,7 @@ const PARTS: { group: string; items: { id: string; label: string }[] }[] = [
     ]
   },
   {
-    group: t('聊天区旁边的图标'),
+    group: t('图标列'),
     items: [
       { id: 'rail-skill', label: t('技能') },
       { id: 'rail-mcp', label: 'MCP' },
@@ -41,7 +41,7 @@ const PARTS: { group: string; items: { id: string; label: string }[] }[] = [
     ]
   },
   {
-    group: t('右侧面板的页签'),
+    group: t('右侧面板'),
     items: [
       { id: 'pane-files', label: t('文件') },
       { id: 'pane-changes', label: t('改动') },
@@ -60,14 +60,13 @@ const SIDES: { id: 'left' | 'right'; label: string }[] = [
 const hex = (color: string | undefined, fallback: string): string => (color && /^#[0-9a-f]{6}$/i.test(color) ? color : fallback)
 
 /**
- * 设置里的「个性化」页：界面只是 Pi 的一层外壳，长什么样、摆哪些部件由用的人自己定。
- * 这里不预设任何风格，只给入口：一张背景图、两个颜色、每个部件的开关和位置，再往下是完全自己写的配色文件和样式文件。
+ * 「外观」页的下半部分：背景图、颜色，和完全自己写的配色文件、样式文件。
+ * 不预设任何风格，什么都不动就是原样。菜单、输入框、卡片有自己的底色，图不会透过去。
  */
-export function Personalize() {
+export function Appearance() {
   const prefs = useApp((s) => s.prefs)
   const userSkins = useApp((s) => s.userSkins)
   const look = { ...DEFAULT_LOOK, ...prefs.look }
-  const hidden = prefs.hidden ?? []
   const [busy, setBusy] = useState(false)
   // 图和主题的明暗差得多时，实际露出的会比想要的少
   const shown = wallShown(look, userSkins)
@@ -102,23 +101,9 @@ export function Personalize() {
 
   return (
     <>
-      <div className="set-note">
-        {t('界面只是 Pi 的一层外壳。长什么样、留哪些部件，这里都由你定；不预设任何风格，什么都不动就是原样。')}
-        <br />
-        {t('这些改动只影响外观：部件只是藏起来或换了位置，功能都还在。调乱了，点最下面的「全部恢复默认」，或者菜单栏「显示 → 恢复默认外观」。')}
-      </div>
-
-      <ButtonsSettings />
-
       <div className="cap-section spaced">{t('背景图片')}</div>
       <div className="set-row">
-        <div className="set-label grow">
-          {look.wallpaper ? (
-            <img className="wall-thumb" src={imgUrl(look.wallpaper)} alt="" />
-          ) : (
-            <div className="muted small">{t('选一张自己喜欢的图铺在界面底下。菜单、输入框、卡片这些有自己的底色，不会被图透过去')}</div>
-          )}
-        </div>
+        <div className="set-label grow">{look.wallpaper ? <img className="wall-thumb" src={imgUrl(look.wallpaper)} alt="" /> : <span className="muted">{t('没有')}</span>}</div>
         <div className="set-control">
           <button className="btn" disabled={busy} onClick={() => void pick()}>
             {look.wallpaper ? t('换一张…') : t('选择图片…')}
@@ -140,11 +125,8 @@ export function Personalize() {
         <>
           <div className="set-row">
             <div className="set-label">
-              {t('图片露出多少')}
-              <div className="muted small">
-                {t('最多露一半。图和主题的明暗差得多时会自动少露一些，保证写在背景上的字认得清')}
-                {held && <> · {t('现在实际露出：浅色主题 {light}%，深色主题 {dark}%', { light: Math.round(shown.light * 100), dark: Math.round(shown.dark * 100) })}</>}
-              </div>
+              {t('露出多少')}
+              {held && <div className="muted small">{t('这张图和主题明暗差得多，实际露出：浅色 {light}%，深色 {dark}%', { light: Math.round(shown.light * 100), dark: Math.round(shown.dark * 100) })}</div>}
             </div>
             <div className="set-control">
               <input type="range" min={5} max={50} step={1} value={Math.round(look.wallShow * 100)} onChange={(event) => setLook({ wallShow: Number(event.target.value) / 100 })} />
@@ -152,10 +134,7 @@ export function Personalize() {
             </div>
           </div>
           <div className="set-row">
-            <div className="set-label">
-              {t('模糊')}
-              <div className="muted small">{t('图太花的时候糊一点，字更好认')}</div>
-            </div>
+            <div className="set-label">{t('模糊')}</div>
             <div className="set-control">
               <input type="range" min={0} max={24} step={1} value={look.wallBlur} onChange={(event) => setLook({ wallBlur: Number(event.target.value) })} />
               <span className="set-value">{look.wallBlur}</span>
@@ -164,28 +143,37 @@ export function Personalize() {
         </>
       )}
 
-      <div className="cap-section">{t('颜色')}</div>
+      <div className="cap-section spaced">
+        {t('颜色')}
+        <span className="grow" />
+        {look.wallpaper && (
+          <button className="link-btn" onClick={() => void fromImage()}>
+            {t('从背景图取色')}
+          </button>
+        )}
+      </div>
       <div className="set-row">
-        <div className="set-label">
-          {t('强调色')}
-          <div className="muted small">{t('链接、按钮、高亮用的颜色。挑得太浅或太深时会自动调到看得清为止')}</div>
-        </div>
+        <div className="set-label">{t('强调色')}</div>
         <div className="set-control">
-          <input type="color" className="color-pick" value={hex(look.accent, '#2563eb')} onChange={(event) => setLook({ accent: event.target.value })} />
           {look.accent && (
             <button className="link-btn" onClick={() => setLook({ accent: undefined })}>
               {t('用默认的')}
             </button>
           )}
+          <input type="color" className="color-pick" value={hex(look.accent, '#2563eb')} onChange={(event) => setLook({ accent: event.target.value })} />
         </div>
       </div>
       <div className="set-row">
         <div className="set-label">
           {t('色调')}
-          <div className="muted small">{t('给整个界面的底色染上一点这个颜色。浅色和深色主题下都管用')}</div>
+          <div className="muted small">{t('给底色染上一点颜色')}</div>
         </div>
         <div className="set-control">
-          <input type="color" className="color-pick" value={hex(look.tint, '#8a8f98')} onChange={(event) => setLook({ tint: event.target.value })} />
+          {look.tint && (
+            <button className="link-btn" onClick={() => setLook({ tint: undefined })}>
+              {t('不染了')}
+            </button>
+          )}
           <input
             type="range"
             min={0}
@@ -196,26 +184,81 @@ export function Personalize() {
             value={Math.round(look.tintStrength * 100)}
             onChange={(event) => setLook({ tintStrength: Number(event.target.value) / 100 })}
           />
-          {look.tint && (
-            <button className="link-btn" onClick={() => setLook({ tint: undefined })}>
-              {t('不染了')}
-            </button>
-          )}
+          <input type="color" className="color-pick" value={hex(look.tint, '#8a8f98')} onChange={(event) => setLook({ tint: event.target.value })} />
         </div>
       </div>
-      {look.wallpaper && (
-        <div className="set-row">
-          <div className="set-label">
-            {t('配色跟着背景图走')}
-            <div className="muted small">{t('从图里取一个有代表性的颜色，同时当强调色和色调')}</div>
-          </div>
-          <button className="btn" onClick={() => void fromImage()}>
-            {t('从图片取色')}
+
+      <div className="cap-section spaced">{t('自己写')}</div>
+      <div className="set-row">
+        <div className="set-label">
+          {t('配色文件')}
+          <div className="muted small">{t('每个颜色都自己定')}</div>
+        </div>
+        <div className="set-control">
+          <select className="field" value={userSkins.some((skin) => skin.id === look.skin) ? look.skin : ''} onChange={(event) => setLook({ skin: event.target.value || undefined })}>
+            <option value="">{t('不用')}</option>
+            {userSkins.map((skin) => (
+              <option key={skin.id} value={skin.id}>
+                {skin.name}
+              </option>
+            ))}
+          </select>
+          <button className="btn" onClick={() => void newSkin()}>
+            {t('新建…')}
           </button>
         </div>
-      )}
+      </div>
+      <div className="set-row">
+        <div className="set-label">
+          {t('样式文件')}
+          <div className="muted small">{t('用 CSS 改任何地方')}</div>
+        </div>
+        <div className="set-control">
+          <button className="btn" onClick={() => api.customCssReveal()}>
+            {t('打开文件')}
+          </button>
+          <div className="segmented">
+            <button className={prefs.customCss ? 'on' : ''} onClick={() => setPrefs({ customCss: true })}>
+              {t('开')}
+            </button>
+            <button className={prefs.customCss ? '' : 'on'} onClick={() => setPrefs({ customCss: false })}>
+              {t('关')}
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <div className="cap-section">{t('界面上留哪些部件')}</div>
+      <div className="set-foot">
+        <button className="link-btn" onClick={() => resetLook('look')}>
+          {t('恢复默认外观')}
+        </button>
+      </div>
+    </>
+  )
+}
+
+/**
+ * 「布局」页：界面上放什么、放在哪。自己加的按钮、每个部件的开关、左右位置，都由用的人定；
+ * 也可以直接交给 Pi 去改。部件只是藏起来，功能都还在。
+ */
+export function LayoutSettings() {
+  const prefs = useApp((s) => s.prefs)
+  const hidden = prefs.hidden ?? []
+  return (
+    <>
+      <div className="set-row">
+        <div className="set-label grow">
+          {t('让 Pi 来改界面')}
+          <div className="muted small">{t('说出想要的样子，它改完当场生效')}</div>
+        </div>
+        <button className="btn primary" onClick={() => void askPiToCustomize()}>
+          {t('让 Pi 来改…')}
+        </button>
+      </div>
+
+      <ButtonsSettings />
+
+      <div className="cap-section spaced">{t('显示哪些')}</div>
       {PARTS.map((group) => (
         <div key={group.group} className="set-row">
           <div className="set-label">{group.group}</div>
@@ -229,8 +272,10 @@ export function Personalize() {
           </div>
         </div>
       ))}
+
+      <div className="cap-section spaced">{t('位置')}</div>
       <div className="set-row">
-        <div className="set-label">{t('对话列表放在')}</div>
+        <div className="set-label">{t('对话列表')}</div>
         <div className="segmented">
           {SIDES.map((side) => (
             <button key={side.id} className={(prefs.sidebarSide ?? 'left') === side.id ? 'on' : ''} onClick={() => setPrefs({ sidebarSide: side.id })}>
@@ -240,7 +285,7 @@ export function Personalize() {
         </div>
       </div>
       <div className="set-row">
-        <div className="set-label">{t('那列图标放在聊天区的')}</div>
+        <div className="set-label">{t('图标列')}</div>
         <div className="segmented">
           {SIDES.map((side) => (
             <button key={side.id} className={(prefs.railSide ?? 'left') === side.id ? 'on' : ''} onClick={() => setPrefs({ railSide: side.id })}>
@@ -250,58 +295,9 @@ export function Personalize() {
         </div>
       </div>
 
-      <div className="cap-section">{t('完全自己来')}</div>
-      <div className="set-row">
-        <div className="set-label">
-          {t('配色文件')}
-          <div className="muted small">{t('把每一个颜色都写进一个文件，浅色、深色各一版。可以自己写，也可以让 Pi 帮你写，或者拿别人做好的')}</div>
-        </div>
-        <div className="set-control">
-          <select className="field" value={userSkins.some((skin) => skin.id === look.skin) ? look.skin : ''} onChange={(event) => setLook({ skin: event.target.value || undefined })}>
-            <option value="">{t('不用')}</option>
-            {userSkins.map((skin) => (
-              <option key={skin.id} value={skin.id}>
-                {skin.name}
-              </option>
-            ))}
-          </select>
-          <button className="btn" onClick={() => void newSkin()}>
-            {t('新建一份…')}
-          </button>
-          <button className="icon-btn" title={t('重新读取')} onClick={() => void loadSkins()}>
-            <Icon name="refresh" size={13} />
-          </button>
-        </div>
-      </div>
-      <div className="set-row">
-        <div className="set-label">
-          {t('自己写的样式')}
-          <div className="muted small">{t('一个 CSS 文件，排在自带样式的后面：字体、圆角、间距、每个部件的样子都能改。文件里列了各个部件的名字')}</div>
-        </div>
-        <div className="set-control">
-          <div className="segmented">
-            <button className={prefs.customCss ? '' : 'on'} onClick={() => setPrefs({ customCss: false })}>
-              {t('关')}
-            </button>
-            <button className={prefs.customCss ? 'on' : ''} onClick={() => setPrefs({ customCss: true })}>
-              {t('开')}
-            </button>
-          </div>
-          <button className="btn" onClick={() => api.customCssReveal()}>
-            {t('打开文件')}
-          </button>
-          <button className="icon-btn" title={t('重新读取')} onClick={() => void loadCustomCss().then(() => toast(t('已重新读取')))}>
-            <Icon name="refresh" size={13} />
-          </button>
-        </div>
-      </div>
-      <div className="set-row">
-        <div className="set-label grow">
-          {t('全部恢复默认')}
-          <div className="muted small">{t('背景图、颜色、部件的开关和位置、自己写的样式，都回到最初的样子。配色文件和样式文件本身不会被删')}</div>
-        </div>
-        <button className="btn" onClick={resetLook}>
-          {t('恢复默认')}
+      <div className="set-foot">
+        <button className="link-btn" title={t('部件全部显示，位置回到左边。自己加的按钮不会被删')} onClick={() => resetLook('layout')}>
+          {t('恢复默认布局')}
         </button>
       </div>
     </>

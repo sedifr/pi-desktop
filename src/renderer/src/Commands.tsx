@@ -106,11 +106,6 @@ export function Commands() {
 
   return (
     <>
-      <div className="set-note">
-        {t('快捷指令是一段存好的话。在输入框里打 / 加上它的名字，就等于把这段话发给 Pi。适合反复要说的要求。')}
-        <br />
-        {t('它们存成 Pi 的提示词模板，命令行里也能用。')}
-      </div>
       {cwd && <TrustBanner cwd={cwd} always />}
       <div className="cap-section">
         {t('我的指令')}
@@ -121,7 +116,7 @@ export function Commands() {
       </div>
       {editing && <Editor key={editing.originalFile ?? 'new'} draft={editing} cwd={cwd} onCancel={() => setEditing(undefined)} onDone={changed} />}
       {!list && <div className="cap-empty">{t('正在读取…')}</div>}
-      {list && !list.length && !editing && <div className="cap-empty">{t('还没有指令。点「新建指令」写第一条。')}</div>}
+      {list && !list.length && !editing && <div className="cap-empty">{t('还没有指令。指令是一段存好的话，在输入框里打 / 加它的名字来用。')}</div>}
       {list?.map((template) => (
         <div key={template.file} className="set-row">
           <div className="set-label grow">

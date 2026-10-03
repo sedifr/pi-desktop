@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AuthFlowEvent, AuthNotice, AuthPrompt, AuthStatus, AuthType, CustomProviderDetail, CustomProviderInput, ProviderInfo } from '@shared/types'
 import { accountsChanged, api, checkProvider, clearAuthStatus, errorText, toast, useApp } from './store'
-import { type DotState, Icon, StatusDot, relTime } from './ui'
+import { type DotState, Hint, Icon, StatusDot, relTime } from './ui'
 import { t } from '@shared/i18n'
 
 interface Flow {
@@ -248,14 +248,9 @@ export function Accounts() {
 
   return (
     <>
-      <div className="set-note">
-        {t('这里连接的账号和 Pi 命令行、Pi Web 共用。连接之后，这个提供商的模型会出现在对话输入栏的模型列表里。')}
-        <br />
-        {t('订阅账号登录会打开浏览器；API Key 只保存在本机 Pi 的凭证文件里。')}
-      </div>
-
       <div className="cap-section">
         {t('已连接')}
+        <Hint text={[t('这里连接的账号和 Pi 命令行共用。连接之后，这个提供商的模型会出现在输入框的模型列表里。'), t('订阅账号登录会打开浏览器；API Key 只保存在本机 Pi 的凭证文件里。')].join('\n')} />
         <span className="grow" />
         <button className="link-btn" onClick={() => connected.forEach((provider) => void checkProvider(provider.id))}>
           {t('全部重新检测')}
@@ -270,12 +265,8 @@ export function Accounts() {
           <StatusDot state={status.dot} title={status.detail} />
           <div className="set-label grow">
             {provider.name}
-            <div className="muted small">
-              {KIND_LABEL[provider.configured!]} · {t('{n} 个模型', { n: provider.models })}
-            </div>
-            <div className={`small status-${status.dot}`} title={status.detail}>
-              {status.text}
-              {status.detail && status.dot !== 'ok' && <span className="muted">　{status.detail.slice(0, 90)}</span>}
+            <div className="muted small" title={status.detail}>
+              {KIND_LABEL[provider.configured!]} · {t('{n} 个模型', { n: provider.models })} · <span className={`status-${status.dot}`}>{status.text}</span>
             </div>
           </div>
           <div className="set-control">
@@ -353,7 +344,7 @@ export function Accounts() {
           <StatusDot state="off" title={t('还没连接')} />
           <div className="set-label grow">
             {provider.name}
-            <div className="muted small">{t('未连接 · {n} 个模型', { n: provider.models })}</div>
+            <div className="muted small">{t('{n} 个模型', { n: provider.models })}</div>
           </div>
           <div className="set-control">
             {provider.methods.map((method) => (

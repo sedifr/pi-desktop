@@ -137,7 +137,8 @@ export interface AppState {
   config?: DesktopConfig
 }
 
-export type SettingsTab = 'look' | 'custom' | 'caps' | 'market' | 'sources' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
+/** 设置里的页。sources 是「插件」页里的「已安装」那一半，和 market 共用左边同一项 */
+export type SettingsTab = 'general' | 'look' | 'layout' | 'accounts' | 'caps' | 'mcp' | 'commands' | 'market' | 'sources' | 'keys' | 'about'
 
 export type ChatWidth = 'normal' | 'wide' | 'full'
 /** 每一档对话区最宽到多少。窗口不够宽时都会自动铺满 */
@@ -153,7 +154,7 @@ export interface Prefs {
   chatWidth: ChatWidth
   /** 自己定的外观：背景图、强调色、色调、配色文件 */
   look: Look
-  /** 不想看到的界面部件（见「设置 → 个性化」里的清单） */
+  /** 不想看到的界面部件（见「设置 → 布局」里的清单） */
   hidden: string[]
   /** 左边那列图标放在聊天区的哪一边 */
   railSide: 'left' | 'right'
@@ -196,7 +197,7 @@ let state: AppState = {
   customCss: '',
   buttons: [],
   imagesVersion: 0,
-  settingsTab: 'look',
+  settingsTab: 'general',
   authStatus: stored<Record<string, AuthStatus>>('authStatus', {}, isRecord),
   authChecking: {},
   trust: {},
@@ -950,11 +951,15 @@ export async function loadCustomCss(): Promise<void> {
   applyPrefs(state.prefs)
 }
 
-/** 外观全部回到出厂的样子：背景图、颜色、部件开关、位置、自己写的样式都还原 */
-export function resetLook(): void {
-  void api.wallpaperClear().catch(() => {})
-  setPrefs({ look: DEFAULT_LOOK, hidden: [], railSide: 'left', sidebarSide: 'left', customCss: false })
-  toast(t('外观已恢复默认'))
+/**
+ * 回到出厂的样子。look 是长相（背景图、颜色、自己写的样式），layout 是摆法（部件开关、左右位置）；
+ * 不说哪一样就全部还原——菜单栏里那一项是界面调乱之后的退路，要一下回到能用的样子。
+ * 自己加的按钮是内容，不算在里面。
+ */
+export function resetLook(scope?: 'look' | 'layout'): void {
+  if (scope !== 'layout') void api.wallpaperClear().catch(() => {})
+  setPrefs({ ...(scope !== 'layout' ? { look: DEFAULT_LOOK, customCss: false } : {}), ...(scope !== 'look' ? { hidden: [], railSide: 'left' as const, sidebarSide: 'left' as const } : {}) })
+  toast(scope === 'layout' ? t('布局已恢复默认') : t('外观已恢复默认'))
 }
 
 /** 改外观的定制。只传要改的那几项 */

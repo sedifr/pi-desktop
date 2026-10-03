@@ -2,7 +2,7 @@ import { api } from './store'
 
 /**
  * 正在进行的安装或移除。放在组件外面，这样离开这一页它也不会丢；
- * 「安装技能」页和「插件市场」页共用同一个，谁在装都看得到。
+ * 「插件」页的「市场」和「已安装」两边共用同一个，谁在装都看得到。
  */
 export const installing = {
   label: undefined as string | undefined,

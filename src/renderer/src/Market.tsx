@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getLang, t } from '@shared/i18n'
 import type { MarketItem } from '@shared/types'
 import { installing } from './installing'
-import { api, commandsChanged, errorText, setSettingsTab, toast } from './store'
+import { api, commandsChanged, errorText, toast } from './store'
 import { Icon, relTime } from './ui'
 
 /** 推荐页上的几类。点一个就只看带这个关键词的包 */
@@ -20,8 +20,9 @@ const TOPICS: { id: string; label: string }[] = [
 const count = (n: number): string => new Intl.NumberFormat(getLang() === 'en' ? 'en' : 'zh-CN', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 
 /**
- * 插件市场：Pi 的包目录（npm 上带 pi-package 关键词的包，和 pi.dev/packages 是同一批）。
- * 不搜索时按下载量列出最常用的；可以按类别看，也可以搜。装和「安装技能」页走的是同一条路。
+ * 「插件」页的市场那一半：Pi 的包目录（npm 上带 pi-package 关键词的包，和 pi.dev/packages 是同一批）。
+ * 不搜索时按下载量列出最常用的；可以按类别看，也可以搜。装和「已安装」那一半走的是同一条路。
+ * 目录没有人审核，这一点在点「安装」时的确认框里说。
  */
 export function Market() {
   const [query, setQuery] = useState('')
@@ -98,11 +99,6 @@ export function Market() {
 
   return (
     <>
-      <div className="set-note">
-        {t('Pi 的包目录：别人打包好的技能、扩展、指令和主题，和 pi.dev/packages 上列的是同一批。不搜索时按每周下载量排，最常用的在前面。')}
-        <br />
-        {t('这里谁都能发布，没有人审核。扩展能在你的电脑上运行代码，装之前看看它的来源和下载量。')}
-      </div>
       <div className="files-search market-search">
         <Icon name="search" size={14} />
         <input autoFocus value={query} placeholder={t('搜包名、功能，比如 memory、browser、review')} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === 'Escape' && setQuery('')} />
@@ -189,9 +185,6 @@ export function Market() {
           )}
           <span className="grow" />
           <span className="muted small">{!query && !topic ? t('目录里一共 {n} 个包', { n: count(total) }) : ''}</span>
-          <button className="link-btn" onClick={() => setSettingsTab('sources')}>
-            {t('管理已装的，或者从 git、本机文件夹安装…')}
-          </button>
         </div>
       )}
     </>

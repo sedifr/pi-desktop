@@ -2716,7 +2716,7 @@ body.dragging .pane-body {
   color: var(--danger);
 }
 
-/* 个性化 */
+/* 外观和布局 */
 .wall-thumb {
   display: block;
   width: 160px;
@@ -3496,4 +3496,101 @@ body.dragging .pane-body {
 }
 .icon-btn:disabled {
   opacity: 0.3;
+}
+
+/*
+ * 设置页的整理：左边的分页分成几组，组和组之间一条细线；
+ * 说明文字只留一眼能看完的一句，其余收进小问号里。
+ */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-group + .settings-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--border);
+}
+.settings-column > .set-row:first-child,
+.settings-narrow > .set-row:first-child {
+  padding-top: 4px;
+}
+.settings-column > .cap-section:first-child {
+  margin-top: 0;
+}
+/* 页面最下面的「恢复默认」：一个不起眼的入口，不占一整行设置 */
+.set-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 14px;
+}
+/* 「插件」页顶上的「市场 / 已安装」 */
+.page-switch {
+  align-self: flex-start;
+  width: max-content;
+  margin-bottom: 14px;
+}
+/* 宽的页里，表单类的内容不拉那么宽 */
+.settings-narrow {
+  max-width: 620px;
+}
+.caps-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.caps-head .cap-search {
+  flex: 1;
+  margin-bottom: 0;
+}
+.hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border: 0.5px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: help;
+  outline: 0;
+}
+.hint:hover,
+.hint:focus-visible {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+.hint:hover::after,
+.hint:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  left: -10px;
+  z-index: 60;
+  width: max-content;
+  max-width: 340px;
+  padding: 9px 12px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-line;
+  cursor: default;
+}
+/* 靠右的问号，说明往左展开，不伸出窗口 */
+.caps-head .hint:hover::after,
+.caps-head .hint:focus-visible::after {
+  left: auto;
+  right: -10px;
 }

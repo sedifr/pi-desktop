@@ -15,7 +15,7 @@ This document is rewritten by the app every time it is needed. Do not edit it.
 - Change only these files. Never edit the app's own source or its installation.
 - Read a file before changing it and keep everything the user did not ask you to change.
 - `buttons.json` must stay valid JSON: no comments, no trailing commas.
-- `custom.css` only takes effect when the switch is on: *Settings → Personalize → Your own styles* (设置 → 个性化 → 自己写的样式). When the user asked Pi to change the interface from that settings page, the app has already turned it on.
+- `custom.css` only takes effect when the switch is on: *Settings → Appearance → Style file* (设置 → 外观 → 样式文件). When the user started this conversation with *Let pi change the interface* in settings, the app has already turned it on.
 - Answer in the language the user writes in. When you are done, say in one or two sentences what you changed and where it shows up. If something cannot be done with these files, say so instead of approximating.
 - If the result is unusable, the user can undo everything visual with *View → Reset Appearance* (显示 → 恢复默认外观). Buttons are removed by deleting them from `buttons.json` or by right-clicking them in the app.
 
@@ -41,7 +41,7 @@ This document is rewritten by the app every time it is needed. Do not edit it.
 - `slot` — where the button sits (see the table).
 - `action` — what happens on click (see below).
 - Order in the array is the order on screen within a slot.
-- A button that is missing a label and an icon, has an unknown action, or lacks what its action needs is skipped; the app reports how many were skipped in *Settings → Personalize*.
+- A button that is missing a label and an icon, has an unknown action, or lacks what its action needs is skipped; the app reports how many were skipped in *Settings → Layout* (设置 → 布局).
 
 ### Slots
 
@@ -165,7 +165,7 @@ Keep text readable: do not set text and background to similar colors, and do not
 
 ## skins/*.json
 
-One file per palette. Both versions take the same keys as the color variables above, without the leading dashes. Only color values are accepted (`#rrggbb`, `rgb()`, `rgba()`, `hsl()`); anything else is ignored. Keys left out fall back to the default palette. The user picks a palette in *Settings → Personalize → Palette file* (设置 → 个性化 → 配色文件).
+One file per palette. Both versions take the same keys as the color variables above, without the leading dashes. Only color values are accepted (`#rrggbb`, `rgb()`, `rgba()`, `hsl()`); anything else is ignored. Keys left out fall back to the default palette. The user picks a palette in *Settings → Appearance → Palette file* (设置 → 外观 → 配色文件).
 
 ```json
 {

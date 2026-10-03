@@ -88,11 +88,11 @@ export function ensureCustomCss(): void {
 }
 
 const CSS_TEMPLATE = `/*
- * Pi Desktop 的自定义样式。在「设置 → 个性化」里打开开关后生效，存盘就能看到效果。
+ * Pi Desktop 的自定义样式。在「设置 → 外观 → 样式文件」里打开开关后生效，存盘就能看到效果。
  * 这个文件排在自带样式的后面，写在这里的规则会盖过自带的。
  * 把界面调乱了也不要紧：菜单栏「显示 → 恢复默认外观」会把这个开关关掉。
  *
- * Custom styles for Pi Desktop. Turn them on in Settings → Personalize; changes show up as soon as you save.
+ * Custom styles for Pi Desktop. Turn them on in Settings → Appearance → Style file; changes show up as soon as you save.
  * If the interface ends up unusable, View → Reset Appearance switches this file off.
  *
  * 颜色 / colors（在 :root 里改）:
@@ -111,7 +111,7 @@ const CSS_TEMPLATE = `/*
  *   .composer       输入框 / input box
  *   .composer-strip 输入框下面那一行 / the line under the input box
  *   .pane           右侧面板 / side panel
- *   [data-part="…"] 「设置 → 个性化」里能开关的每个部件 / every part that can be switched in settings
+ *   [data-part="…"] 「设置 → 布局」里能开关的每个部件 / every part that can be switched in Settings → Layout
  *   [data-slot="…"] 放自己的按钮的位置 / a place that holds your own buttons
  *   [data-button="…"] 自己加的某一个按钮（写它的 id） / one of your own buttons, by id
  */

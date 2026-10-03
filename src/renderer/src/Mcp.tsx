@@ -275,33 +275,24 @@ export function Mcp() {
 
   return (
     <>
-      <div className="set-note">
-        {t('MCP 服务给 Pi 接上外部的工具和数据，比如浏览器、数据库、邮箱。这里管的是所有项目共用的那一份。')}
-        <br />
-        {builtin ? t('现在这些服务对所有对话都一样。') : t('每次对话用不用某个服务，点聊天区左边那列里的 MCP 图标来开关。')}
-      </div>
       {overview?.adapterInstalled && (
         <div className="set-row">
           <div className="set-label grow">
-            {t('MCP 用哪种接法')}
-            <div className="muted small">
-              {builtin
-                ? t('Pi 自带的：工具用到时才去找，平时几乎不占 token。服务对所有对话都一样，不能按对话单独开关。')
-                : t('pi-mcp-adapter 扩展：可以在每次对话里单独开关服务，但每次对话都要把工具说明带上，工具多的话很占 token。')}
-            </div>
+            {t('接法')}
+            <div className="muted small">{builtin ? t('省 token；所有对话共用，不能单独开关') : t('每次对话可以单独开关；开场要带上全部工具说明')}</div>
           </div>
           <div className="segmented">
             <button className={builtin ? 'on' : ''} onClick={() => void switchEngine('builtin')}>
-              {t('Pi 自带的（省 token）')}
+              {t('Pi 自带')}
             </button>
             <button className={builtin ? '' : 'on'} onClick={() => void switchEngine('adapter')}>
-              {t('扩展（可按对话开关）')}
+              {t('扩展')}
             </button>
           </div>
         </div>
       )}
-      <div className="cap-section">
-        {t('已添加的服务')}
+      <div className="cap-section spaced">
+        {t('服务')}
         <span className="grow" />
         {builtin && (
           <button className="btn" disabled={checking} title={t('挨个连一遍，看每个服务连不连得上')} onClick={check}>
@@ -350,18 +341,18 @@ export function Mcp() {
               )}
               {!now && builtin && checking && <span className="mcp-state">{t('正在检查…')}</span>}
               {!server.enabled && <span className="muted">　{t('默认不连接')}</span>}
-              <div className="muted small ellipsis">{server.kind === 'http' ? server.url : joinCommand([server.command ?? '', ...server.args])}</div>
-              {(server.description || secrets.length > 0 || builtin) && (
-                <div className="muted small">
-                  {[
-                    server.description,
-                    secrets.length > 0 && (server.kind === 'http' ? t('{n} 个请求头', { n: secrets.length }) : t('{n} 个环境变量', { n: secrets.length })),
-                    builtin && EXPOSURES.find((item) => item.id === server.exposure)?.label
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </div>
-              )}
+              <div
+                className="muted small ellipsis"
+                title={[
+                  server.kind === 'http' ? server.url : joinCommand([server.command ?? '', ...server.args]),
+                  secrets.length > 0 && (server.kind === 'http' ? t('{n} 个请求头', { n: secrets.length }) : t('{n} 个环境变量', { n: secrets.length })),
+                  builtin && EXPOSURES.find((item) => item.id === server.exposure)?.label
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              >
+                {server.description || (server.kind === 'http' ? server.url : joinCommand([server.command ?? '', ...server.args]))}
+              </div>
             </div>
             <div className="set-control">
               {oauth && now?.state === 'needs-auth' && (
@@ -387,7 +378,7 @@ export function Mcp() {
       <div className="set-row">
         <div className="set-label grow">
           {t('配置文件')}
-          <div className="muted small">{t('更细的选项（超时、预先注册的登录客户端等）直接改这个文件。第一次从这里改动前会自动留一份备份')}</div>
+          <div className="muted small">{t('更细的选项直接改这个文件')}</div>
         </div>
         <button className="btn" onClick={() => api.openPath('mcp')}>
           {t('在访达中显示')}

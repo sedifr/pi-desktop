@@ -234,6 +234,15 @@ export function Popover({ onClose, className, group, style, children }: { onClos
   )
 }
 
+/** 一个小问号：不是每次都用得上的说明收在里面，鼠标停上去才显示。界面上只留一眼能看完的字 */
+export function Hint({ text }: { text: string }) {
+  return (
+    <span className="hint" tabIndex={0} data-tip={text}>
+      ?
+    </span>
+  )
+}
+
 export type DotState = 'ok' | 'invalid' | 'error' | 'checking' | 'none' | 'off'
 
 /** 登录状态的小圆点：绿 可用，红 失效，黄 没检测成，灰色闪动 检测中，空心 未检测或未连接 */

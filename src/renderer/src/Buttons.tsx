@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ACCESS_LEVELS, APP_ACTIONS, type AccessLevel, type AppAction, BUTTON_SLOTS, type ButtonAction, type ButtonSlot, type UserButton } from '@shared/buttons'
 import { t } from '@shared/i18n'
-import { addButton, api, askPiToCustomize, editButton, moveButton, removeButton, runButton, saveButtons, useApp } from './store'
+import { addButton, api, editButton, moveButton, removeButton, runButton, saveButtons, useApp } from './store'
 import { ICON_CHOICES, Icon, hasIcon } from './ui'
 
 /** 每个位置在界面上叫什么。icons 表示那里只显示图标，名字放在提示里 */
@@ -405,22 +405,24 @@ export function ButtonEditor() {
   return edit ? <Editor key={edit.button.id} original={edit.button} isNew={edit.isNew} /> : null
 }
 
-/** 设置里「个性化」页的按钮那一段：列出来、加、改、挪、删，或者交给 Pi 去改 */
+/** 设置里「布局」页的按钮那一段：列出来、加、改、挪、删 */
 export function ButtonsSettings() {
   const buttons = useApp((s) => s.buttons)
   const problem = useApp((s) => s.buttonsProblem)
   return (
     <>
-      <div className="cap-section">
+      <div className="cap-section spaced">
         {t('自己的按钮')}
         <span className="grow" />
+        <button className="link-btn" title={t('在访达里指出 buttons.json')} onClick={() => api.buttonsReveal()}>
+          {t('打开文件')}
+        </button>
         <button className="btn" onClick={() => addButton()}>
           <Icon name="plus" size={13} /> {t('添加按钮')}
         </button>
       </div>
-      <div className="muted small set-hint">{t('把常说的话、常用的指令和技能、常跑的命令、界面上现成的功能做成按钮，放到你顺手的位置。放哪、叫什么、做什么都由你定；在界面上右键一个按钮就能改它。')}</div>
       {problem && <div className="banner error">{problem}</div>}
-      {!buttons.length && !problem && <div className="cap-empty">{t('还没有按钮。')}</div>}
+      {!buttons.length && !problem && <div className="cap-empty">{t('还没有按钮。常说的话、指令、命令、界面功能都可以做成按钮。')}</div>}
       {BUTTON_SLOTS.filter((slot) => buttons.some((button) => button.slot === slot)).map((slot) => (
         <div key={slot}>
           <div className="slot-label">{SLOTS[slot].label}</div>
@@ -453,20 +455,6 @@ export function ButtonsSettings() {
             ))}
         </div>
       ))}
-      <div className="set-row">
-        <div className="set-label grow">
-          {t('让 Pi 来改界面')}
-          <div className="muted small">{t('按钮、样式、配色都是文件夹里的文件。把想要的样子告诉 Pi，它改完这里马上生效，不用重启')}</div>
-        </div>
-        <div className="set-control">
-          <button className="btn" title={t('在访达里指出 buttons.json')} onClick={() => api.buttonsReveal()}>
-            {t('打开文件')}
-          </button>
-          <button className="btn primary" onClick={() => void askPiToCustomize()}>
-            {t('让 Pi 来改…')}
-          </button>
-        </div>
-      </div>
     </>
   )
 }
