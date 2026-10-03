@@ -407,7 +407,6 @@ export const en: Record<string, string> = {
   '已经存着：{keys}。留空就保持不变；要改的话把全部重新写一遍。': 'Already stored: {keys}. Leave empty to keep them; to change any, write all of them again.',
   '删除 MCP 服务「{name}」？它的配置会从 mcp.json 里去掉。': 'Remove the MCP server "{name}"? Its configuration will be removed from mcp.json.',
   'MCP 服务给 Pi 接上外部的工具和数据，比如浏览器、数据库、邮箱。这里管的是所有项目共用的那一份。': 'MCP servers connect pi to outside tools and data, such as a browser, a database, or a mailbox. This page manages the set shared by all projects.',
-  '每次对话用不用某个服务，在输入框的「技能和工具 → MCP」里开关。': 'Whether a conversation uses a server is switched under Skills & tools → MCP in the input box.',
   '已添加的服务': 'Servers',
   '添加服务': 'Add server',
   '还没有 MCP 服务。点「添加服务」接上第一个。': 'No MCP servers yet. Click "Add server" to connect the first one.',
@@ -473,8 +472,6 @@ export const en: Record<string, string> = {
   '添加图片、文件，或者用一条快捷指令': 'Add an image or file, or use a command',
   '图片或文件…': 'Image or file…',
   '也可以粘贴、拖进来': 'or paste / drop',
-  '这次对话能用哪些技能、MCP 和工具': 'Which skills, MCP servers and tools this conversation can use',
-  '技能和工具': 'Skills & tools',
   '这不是图库里的图片': 'This is not an image in the gallery',
   '把这 {n} 张图片移到废纸篓？对话里已经显示过的图不受影响，那里看到的是对话记录里存的一份。': 'Move these {n} images to the Trash? Images already shown in conversations are not affected; those come from a copy kept in the conversation record.',
   '{n} 张图片已移到废纸篓': '{n} images moved to the Trash',
@@ -665,5 +662,10 @@ export const en: Record<string, string> = {
   '再看一些': 'Show more',
   '就这些了': 'That is all',
   '目录里一共 {n} 个包': '{n} packages in the catalog',
-  '管理已装的，或者从 git、本机文件夹安装…': 'Manage installed packages, or install from git or a local folder…'
+  '管理已装的，或者从 git、本机文件夹安装…': 'Manage installed packages, or install from git or a local folder…',
+  '技能：这次对话能用哪些技能': 'Skills: which skills this conversation can use',
+  'MCP：这次对话接哪些外部服务': 'MCP: which external services this conversation connects to',
+  '工具：这次对话 AI 能用哪些工具和扩展': 'Tools: which tools and extensions the AI may use in this conversation',
+  '插件市场：找别人做好的技能和扩展': 'Marketplace: find skills and extensions made by others',
+  '每次对话用不用某个服务，点聊天区左边那列里的 MCP 图标来开关。': 'Whether a conversation uses a server is switched from the MCP icon in the column left of the chat.'
 }

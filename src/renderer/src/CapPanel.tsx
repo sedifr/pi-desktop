@@ -102,8 +102,11 @@ export function Tile({ item, onToggle, onEdit }: { item: CapItem; onToggle: () =
 
 const KINDS: CapKind[] = ['skill', 'mcp', 'tool']
 
-/** 输入框里「技能和工具」按钮点开的面板。上面三个页签，每个页签里只平铺自己那一类 */
-export function CapPanel({ conv, kind, onKind, onClose }: { conv: Conv; kind: CapKind; onKind: (kind: CapKind) => void; onClose: () => void }) {
+/**
+ * 这次对话能用哪些技能、MCP、工具。从聊天区左边那列图标点开（rail）时只平铺那一类；
+ * 不带 rail 时上面有三个页签可以切。
+ */
+export function CapPanel({ conv, kind, onKind, onClose, rail }: { conv: Conv; kind: CapKind; onKind: (kind: CapKind) => void; onClose: () => void; rail?: boolean }) {
   const [query, setQuery] = useState('')
   useEffect(() => {
     void loadCaps(conv.key)
@@ -142,16 +145,23 @@ export function CapPanel({ conv, kind, onKind, onClose }: { conv: Conv; kind: Ca
   const wide = kind === 'skill'
 
   return (
-    <Popover onClose={onClose} group="composer" className="cap-panel">
+    <Popover onClose={onClose} group={rail ? 'rail' : 'composer'} className={`cap-panel ${rail ? 'at-rail' : ''} ${wide ? 'wide' : ''}`}>
       <div className="cap-head">
-        <div className="segmented">
-          {KINDS.map((item) => (
-            <button key={item} className={item === kind ? 'on' : ''} onClick={() => onKind(item)}>
-              {KIND_TITLE[item]}
-              <span className="strip-count">{capCount(all, item) ?? ''}</span>
-            </button>
-          ))}
-        </div>
+        {rail ? (
+          <span className="cap-title">
+            {KIND_TITLE[kind]}
+            <span className="strip-count">{capCount(all, kind) ?? ''}</span>
+          </span>
+        ) : (
+          <div className="segmented">
+            {KINDS.map((item) => (
+              <button key={item} className={item === kind ? 'on' : ''} onClick={() => onKind(item)}>
+                {KIND_TITLE[item]}
+                <span className="strip-count">{capCount(all, item) ?? ''}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <span className="grow" />
         <label className="cap-search">
           <Icon name="search" size={13} />

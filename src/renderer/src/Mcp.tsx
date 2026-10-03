@@ -234,7 +234,7 @@ export function Mcp() {
       <div className="set-note">
         {t('MCP 服务给 Pi 接上外部的工具和数据，比如浏览器、数据库、邮箱。这里管的是所有项目共用的那一份。')}
         <br />
-        {builtin ? t('现在这些服务对所有对话都一样。') : t('每次对话用不用某个服务，在输入框的「技能和工具 → MCP」里开关。')}
+        {builtin ? t('现在这些服务对所有对话都一样。') : t('每次对话用不用某个服务，点聊天区左边那列里的 MCP 图标来开关。')}
       </div>
       {overview?.adapterInstalled && (
         <div className="set-row">

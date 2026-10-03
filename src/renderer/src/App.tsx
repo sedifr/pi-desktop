@@ -6,6 +6,7 @@ import { Gallery, ImagePreview } from './Gallery'
 import { Pane } from './Pane'
 import { Settings } from './Settings'
 import { FILE_DRAG } from './Files'
+import { Rail } from './Rail'
 import { SearchPalette } from './Search'
 import { SESSION_DRAG, Sidebar } from './Sidebar'
 import {
@@ -387,8 +388,13 @@ export function App() {
         ) : conv ? (
           <>
             <Header conv={conv} />
-            {empty ? <Welcome conv={conv} /> : conv.loading ? <div className="welcome muted">{t('正在读取对话…')}</div> : <Chat conv={conv} />}
-            <Composer conv={conv} />
+            <div className="main-row">
+              <Rail conv={conv} />
+              <div className="main-col">
+                {empty ? <Welcome conv={conv} /> : conv.loading ? <div className="welcome muted">{t('正在读取对话…')}</div> : <Chat conv={conv} />}
+                <Composer conv={conv} />
+              </div>
+            </div>
             {conv.uiRequests[0] && <UiDialog key={conv.uiRequests[0].id} conv={conv} request={conv.uiRequests[0]} />}
           </>
         ) : (

@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { t } from '@shared/i18n'
-import type { CapKind, CapState, ImageAttachment, ModelInfo } from '@shared/types'
-import { CapPanel } from './CapPanel'
+import type { CapState, ImageAttachment, ModelInfo } from '@shared/types'
 import {
   abort,
   addAttachments,
@@ -292,7 +291,7 @@ function readImage(file: File): Promise<ImageAttachment> {
   })
 }
 
-type Open = 'caps' | 'model' | 'thinking' | 'project' | 'access' | 'plus'
+type Open = 'model' | 'thinking' | 'project' | 'access' | 'plus'
 
 /**
  * 输入框里的一段引用：一个带底色的框，上面是原文（改不了，只能整段移除），下面是对这一段的回复。
@@ -341,7 +340,6 @@ export function Composer({ conv }: { conv: Conv }) {
   const signal = useApp((s) => s.signal)
   const [open, setOpen] = useState<Open | undefined>()
   // 能力面板上次停在哪个页签
-  const [capKind, setCapKind] = useState<CapKind>('skill')
   const [cursor, setCursor] = useState(0)
   const [selected, setSelected] = useState(0)
   const [dismissed, setDismissed] = useState('')
@@ -513,7 +511,7 @@ export function Composer({ conv }: { conv: Conv }) {
   const modelLabel = known?.name ?? known?.id ?? (model ? undefined : defaults?.defaultModel) ?? t('选择模型')
   const thinking = conv.info.thinkingLevel ?? defaults?.defaultThinkingLevel
   const widgets = Object.entries(conv.widgets)
-  // MCP 开了几个在「技能和工具」里看得到，扩展自己报的那条不重复显示
+  // MCP 开了几个在左边那列的 MCP 图标里看得到，扩展自己报的那条不重复显示
   const statuses = Object.entries(conv.statuses)
     .filter(([key]) => key !== 'mcp')
     .map(([, text]) => text)
@@ -531,7 +529,6 @@ export function Composer({ conv }: { conv: Conv }) {
 
   return (
     <div className="composer-wrap">
-      {open === 'caps' && <CapPanel conv={conv} kind={capKind} onKind={setCapKind} onClose={close} />}
       {menuOpen && (
         <div className="popover suggest">
           {needCommands && <div className="menu-note">{t('正在读取技能和扩展的指令…')}</div>}
@@ -609,7 +606,7 @@ export function Composer({ conv }: { conv: Conv }) {
           {lines.join('\n')}
         </pre>
       ))}
-      {/* 输入框里：加号、技能和工具、模型、推理、发送。下面那一行只说「在哪个项目里、能做到哪一步」 */}
+      {/* 输入框里只留写消息要用的：加号、模型、推理、发送。技能、MCP、工具在聊天区左边那列图标里 */}
       <div
         className={`composer ${shellMode ? 'shell-mode' : ''}`}
         onDragOver={(event) => event.preventDefault()}
@@ -740,10 +737,6 @@ export function Composer({ conv }: { conv: Conv }) {
               </Popover>
             )}
           </div>
-          <button className={`chip ${open === 'caps' ? 'active' : ''}`} data-popover-trigger="composer" title={t('这次对话能用哪些技能、MCP 和工具')} onClick={() => toggle('caps')}>
-            <Icon name="spark" size={14} />
-            {t('技能和工具')}
-          </button>
           <input
             ref={picker}
             type="file"
