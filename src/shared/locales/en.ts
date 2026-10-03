@@ -603,5 +603,7 @@ export const en: Record<string, string> = {
   '复制对话 ID': 'Copy conversation ID',
   '这就是当前这个对话': 'That is the conversation you are in',
   '参考这个对话的记录：': 'Refer to the transcript of this conversation: ',
-  '这个对话的文字记录会交给 Pi 参考：{path}': 'The transcript of this conversation will be given to pi as reference: {path}'
+  '这个对话的文字记录会交给 Pi 参考：{path}': 'The transcript of this conversation will be given to pi as reference: {path}',
+  '引用': 'Quote',
+  '把选中的文字引用到输入框。可以接着引用别的段落，在每段下面各写各的回复': 'Quote the selection in the input. Quote more passages and write a reply under each one'
 }

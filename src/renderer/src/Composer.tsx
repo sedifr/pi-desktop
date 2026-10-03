@@ -380,6 +380,13 @@ export function Composer({ conv }: { conv: Conv }) {
       }
     }
     input.current?.focus()
+    // 引用了一段文字之后：光标落在引用下面，接着就能写回复
+    if (signal.action === 'focus' && input.current) {
+      const end = input.current.value.length
+      input.current.setSelectionRange(end, end)
+      input.current.scrollTop = input.current.scrollHeight
+      setCursor(end)
+    }
     // 做完就清掉：不然从设置页回来、输入栏重新出现时会把同一个动作再做一遍
     consumeSignal()
     // 只在收到新动作时触发

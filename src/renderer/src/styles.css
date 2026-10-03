@@ -396,6 +396,41 @@ button {
     box-shadow: 0 0 0 8px transparent;
   }
 }
+/* 选中回答里的文字后冒出来的「引用」 */
+.quote-btn {
+  position: fixed;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
+  background: var(--invert);
+  color: var(--invert-text);
+  font-size: 12.5px;
+  box-shadow: var(--shadow);
+  cursor: default;
+  user-select: none;
+}
+/* 用户消息里引用的原文 */
+.user-quote {
+  margin: 2px 0 6px;
+  padding: 1px 0 1px 10px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-2);
+  font-size: 0.93em;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.user-quote.open {
+  display: block;
+}
+.user-quote + .user-quote {
+  margin-top: 8px;
+}
 /* 输入框里和消息里：引用的别的对话 */
 .ref-chip {
   display: inline-flex;

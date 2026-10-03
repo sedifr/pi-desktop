@@ -836,6 +836,23 @@ export async function attachSession(key: string, file: string): Promise<void> {
   }
 }
 
+/**
+ * 把回答里选中的一段文字引用到输入框。每次引用都接在已有内容后面另起一段，
+ * 所以可以引用好几段，在每段下面各写各的回复，一次发出去。
+ */
+export function quoteInto(key: string, text: string): void {
+  const conv = state.convs[key]
+  const clean = text.replace(/\r/g, '').trim()
+  if (!conv || !clean) return
+  const quote = clean
+    .split('\n')
+    .map((line) => (line.trim() ? `> ${line}` : '>'))
+    .join('\n')
+  const draft = conv.draft.replace(/\s+$/, '')
+  setDraft(key, `${draft}${draft ? '\n\n' : ''}${quote}\n`)
+  signal('focus')
+}
+
 export function removeRef(key: string, index: number): void {
   updateConv(key, (c) => (c.refs = c.refs.filter((_, i) => i !== index)))
 }

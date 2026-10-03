@@ -1,6 +1,6 @@
 import { type ReactNode, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import { type Conv, type ToolRun, activityOf, clearJump, copyText, forkFrom, openInBrowser, previewImage, useApp } from './store'
+import { type Conv, type ToolRun, activityOf, clearJump, copyText, forkFrom, openInBrowser, previewImage, quoteInto, useApp } from './store'
 import { Icon, ImageContext, Markdown } from './ui'
 import { t } from '@shared/i18n'
 
@@ -358,9 +358,42 @@ function UserMessage({ msg, onFork }: { msg: Msg; onFork?: () => void }) {
           .map((b, i) => (
             <img key={i} className="user-image" src={`data:${b.mimeType};base64,${b.data}`} alt={t('附带的图片')} />
           ))}
-        <WithRefs text={textOf(msg.content)} />
+        <UserText text={textOf(msg.content)} />
       </div>
     </div>
+  )
+}
+
+/** 引用的一段原文。长的先收成几行，点一下展开 */
+function Quoted({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`user-quote ${open ? 'open' : ''}`} onClick={() => setOpen(!open)}>
+      {text}
+    </div>
+  )
+}
+
+/** 用户消息的正文：以 > 开头的行是引用的原文，显示成引用块；其余照常 */
+function UserText({ text }: { text: string }) {
+  if (!/^>/m.test(text)) return <WithRefs text={text} />
+  const segments: { quote: boolean; lines: string[] }[] = []
+  for (const line of text.split('\n')) {
+    const quote = line.startsWith('>')
+    const last = segments[segments.length - 1]
+    const value = quote ? line.replace(/^> ?/, '') : line
+    if (last && last.quote === quote) last.lines.push(value)
+    else segments.push({ quote, lines: [value] })
+  }
+  return (
+    <>
+      {segments.map((segment, index) => {
+        if (segment.quote) return <Quoted key={index} text={segment.lines.join('\n')} />
+        // 引用块自己占一行，紧挨着它的空行不用再留
+        const body = segment.lines.join('\n').replace(/^\n+|\n+$/g, '')
+        return body ? <WithRefs key={index} text={body} /> : null
+      })}
+    </>
   )
 }
 
@@ -460,6 +493,41 @@ export function Chat({ conv }: { conv: Conv }) {
     clearJump()
   }, [jump, blocks, shown])
 
+  // 在回答里选中一段文字，旁边冒出「引用」
+  const [picked, setPicked] = useState<{ x: number; y: number; text: string }>()
+  const readSelection = () => {
+    const selection = window.getSelection()
+    const el = scroller.current
+    const inAnswer = (node: Node | null) => {
+      const element = node instanceof Element ? node : node?.parentElement
+      return Boolean(element && el?.contains(element) && element.closest('.turn, .shell-block, .note'))
+    }
+    const text = selection?.toString().trim()
+    if (!selection || selection.isCollapsed || !selection.rangeCount || !text || !inAnswer(selection.anchorNode) || !inAnswer(selection.focusNode)) return setPicked(undefined)
+    const rects = selection.getRangeAt(0).getClientRects()
+    const first = rects[0]
+    const last = rects[rects.length - 1]
+    if (!first || !last || !el) return setPicked(undefined)
+    // 放在选区上方，不挡住下面还想接着选的字；上面没地方了（选区顶到了窗口上沿）才放到下面
+    const top = el.getBoundingClientRect().top
+    const above = first.top - 34
+    setPicked({ x: Math.max(8, Math.min(first.left, window.innerWidth - 90)), y: above > top + 4 ? above : Math.min(last.bottom + 6, window.innerHeight - 44), text })
+  }
+  useEffect(() => {
+    // 等这次松手或按键把选区定下来再看
+    const settle = () => setTimeout(readSelection)
+    const cleared = () => window.getSelection()?.isCollapsed && setPicked(undefined)
+    document.addEventListener('mouseup', settle)
+    document.addEventListener('keyup', settle)
+    document.addEventListener('selectionchange', cleared)
+    return () => {
+      document.removeEventListener('mouseup', settle)
+      document.removeEventListener('keyup', settle)
+      document.removeEventListener('selectionchange', cleared)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const visible = blocks.slice(Math.max(0, blocks.length - shown))
   // 这是第几条用户消息（从 0 数），另开对话时要告诉 Pi
   const userIndexOf = (target: Block) => blocks.filter((block) => block.kind === 'user').indexOf(target as Extract<Block, { kind: 'user' }>)
@@ -472,8 +540,26 @@ export function Chat({ conv }: { conv: Conv }) {
       onScroll={(event) => {
         const el = event.currentTarget
         stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+        if (picked) readSelection()
       }}
     >
+      {picked && (
+        <button
+          className="quote-btn"
+          style={{ left: picked.x, top: picked.y }}
+          title={t('把选中的文字引用到输入框。可以接着引用别的段落，在每段下面各写各的回复')}
+          // 按下时不让它抢走选区，不然还没读到选中的文字就没了
+          onMouseDown={(event) => {
+            event.preventDefault()
+            quoteInto(conv.key, picked.text)
+            window.getSelection()?.removeAllRanges()
+            setPicked(undefined)
+          }}
+        >
+          <Icon name="quote" size={13} />
+          {t('引用')}
+        </button>
+      )}
       <div className="chat-column">
         {blocks.length > shown && (
           <button className="load-more" onClick={() => setShown(shown + PAGE)}>
