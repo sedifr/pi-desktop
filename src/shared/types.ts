@@ -53,6 +53,16 @@ export interface SessionMeta {
   usage: Usage
 }
 
+/** 搜索对话时的一条结果 */
+export interface SearchHit {
+  file: string
+  /** 命中的是哪条消息。只在标题或项目名里命中时没有 */
+  entryId?: string
+  role?: 'user' | 'assistant'
+  /** 命中处前后的一小段文字 */
+  snippet?: string
+}
+
 export interface UsageTotals {
   today: Usage
   month: Usage
@@ -174,7 +184,7 @@ export interface TemplateInput {
 }
 
 /** 系统菜单和快捷键触发的动作 */
-export type MenuAction = 'settings' | 'new' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
+export type MenuAction = 'settings' | 'new' | 'search' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
 
 export interface SessionStats {
   userMessages: number
@@ -394,6 +404,10 @@ export interface PiApi {
   listSessions(): Promise<SessionMeta[]>
   readSession(file: string): Promise<SessionData>
   trashSession(file: string): Promise<void>
+  /** 按标题、项目名和对话里的文字找对话。多个词用空格隔开，要全部出现 */
+  searchSessions(query: string): Promise<SearchHit[]>
+  /** 把一个对话整理成只有文字的记录（去掉工具输出和图片），返回这份记录的路径。交给别的对话或别的 AI 读 */
+  sessionTranscript(file: string): Promise<string>
   /** 把一个对话移到另一个项目，返回会话文件的新位置 */
   moveSession(file: string, cwd: string): Promise<string>
   usageTotals(): Promise<UsageTotals>

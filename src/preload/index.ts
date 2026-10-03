@@ -12,6 +12,8 @@ const api: PiApi = {
   readSession: call('readSession'),
   trashSession: call('trashSession'),
   moveSession: call('moveSession'),
+  searchSessions: call('searchSessions'),
+  sessionTranscript: call('sessionTranscript'),
   usageTotals: call('usageTotals'),
   pickFolder: call('pickFolder'),
   openExternal: (url) => ipcRenderer.send('openExternal', url),

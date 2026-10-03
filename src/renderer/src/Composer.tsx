@@ -3,13 +3,13 @@ import { t } from '@shared/i18n'
 import type { CapKind, CapState, ImageAttachment, ModelInfo } from '@shared/types'
 import { CapPanel } from './CapPanel'
 import {
-  type Conv,
   abort,
   addAttachments,
   addProject,
   api,
   changeCaps,
   consumeSignal,
+  type Conv,
   ensureStarted,
   loadCaps,
   newConv,
@@ -17,6 +17,7 @@ import {
   projectDirs,
   recallQueue,
   removeAttachment,
+  removeRef,
   runCommand,
   send,
   setDraft,
@@ -452,7 +453,7 @@ export function Composer({ conv }: { conv: Conv }) {
   const statuses = Object.entries(conv.statuses)
     .filter(([key]) => key !== 'mcp')
     .map(([, text]) => text)
-  const canSend = conv.draft.trim().length > 0 || conv.attachments.length > 0
+  const canSend = conv.draft.trim().length > 0 || conv.attachments.length > 0 || conv.refs.length > 0
   // 发过消息的对话已经绑定在它的项目上，不能再换
   const canSwitchProject = !conv.messages.length && !conv.pending.length && !conv.streaming && !conv.loading
   const busy = conv.streaming || Boolean(conv.shellRunning)
@@ -553,8 +554,17 @@ export function Composer({ conv }: { conv: Conv }) {
           void attach([...event.dataTransfer.files])
         }}
       >
-        {conv.attachments.length > 0 && (
+        {(conv.attachments.length > 0 || conv.refs.length > 0) && (
           <div className="attachments">
+            {conv.refs.map((ref, index) => (
+              <div key={ref.path} className="ref-chip" title={t('这个对话的文字记录会交给 Pi 参考：{path}', { path: ref.path })}>
+                <Icon name="chat" size={13} />
+                <span className="ellipsis">{ref.title}</span>
+                <button className="ref-remove" title={t('移除')} onClick={() => removeRef(conv.key, index)}>
+                  <Icon name="x" size={10} />
+                </button>
+              </div>
+            ))}
             {conv.attachments.map((image, index) => (
               <div key={index} className="attachment" title={image.name}>
                 <img src={`data:${image.mimeType};base64,${image.data}`} alt={image.name} />

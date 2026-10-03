@@ -19,7 +19,9 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **Run a command yourself**: start a message with `!` to run a shell command and show its output in the conversation; the output goes to pi with your next message. Use `!!` to keep it to yourself.
 - **Queue and take back**: messages sent during an answer wait in a queue you can take back into the input box. Stopping an answer returns the queue too.
 - **Context under control**: a switch for automatic compaction, a *Compact now* button, and a hint when the context is nearly full.
-- **Keep conversations in order**: pin the ones you keep coming back to (they stay at the top of the sidebar, and can be dragged into any order), drag a conversation onto another project when it was started in the wrong folder, or right-click it for the same actions. A moved conversation continues in the new project's folder and shows up under that project in the pi CLI too; files it already wrote stay where they are.
+- **Find a conversation**: `⌘K` searches titles, project names and everything said in your conversations; several words narrow it down. Opening a result jumps to the message that matched. With nothing typed it lists recent conversations, so it doubles as a quick switcher.
+- **Keep conversations in order**: pin the ones you keep coming back to (they stay at the top of the sidebar, and can be dragged into any order), drag a conversation onto another project when it was started in the wrong folder, double-click one to rename it, or right-click for all of these. A moved conversation continues in the new project's folder and shows up under that project in the pi CLI too; files it already wrote stay where they are.
+- **Hand a conversation to another one**: drag a conversation from the sidebar into the chat and it becomes a reference pi can read. What pi gets is a text-only transcript (what both sides said, one line per tool call, no tool output dumps or images), so it reads as much as it needs instead of swallowing the raw session file. The right-click menu also copies the path of that transcript, of the session file, or the conversation ID, for handing it to a different AI.
 - **Know when it is done**: a system notification when an answer finishes while the window is in the background, and a dot in the sidebar for conversations that finished out of sight.
 - **MCP servers**: add, edit, and remove servers in *Settings → MCP*, and choose how each server's tools reach the model (found when needed, called from scripts, or all declared up front). Secrets in environment variables and headers are never shown back. If the `pi-mcp-adapter` extension is installed, the same page switches between it and pi's built-in MCP support.
 - **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for. For items that have none yet, a button lets a model draft them.
@@ -72,6 +74,7 @@ pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extens
 | `⌘N` | New conversation |
 | `⌘O` | Add a project folder |
 | `⌘,` | Settings |
+| `⌘K` | Search conversations |
 | `⌘B` | Show or hide the sidebar |
 | `⌥⌘B` | Show or hide the side panel |
 | `⌘/` | Open commands |

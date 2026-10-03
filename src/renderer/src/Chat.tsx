@@ -1,6 +1,6 @@
 import { type ReactNode, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import { type Conv, type ToolRun, activityOf, copyText, forkFrom, openInBrowser, previewImage, useApp } from './store'
+import { type Conv, type ToolRun, activityOf, clearJump, copyText, forkFrom, openInBrowser, previewImage, useApp } from './store'
 import { Icon, ImageContext, Markdown } from './ui'
 import { t } from '@shared/i18n'
 
@@ -8,7 +8,7 @@ type Step = { kind: 'thinking'; text: string } | { kind: 'text'; text: string } 
 
 type Block =
   | { kind: 'user'; id: string; msg: Msg }
-  | { kind: 'turn'; id: string; steps: Step[]; images: GenImage[]; final?: string; error?: string; aborted?: boolean; model?: string }
+  | { kind: 'turn'; id: string; steps: Step[]; images: GenImage[]; final?: string; error?: string; aborted?: boolean; model?: string; members: string[] }
   | { kind: 'note'; id: string; label: string; text: string }
   | { kind: 'shell'; id: string; msg: Msg }
 
@@ -70,7 +70,9 @@ function buildBlocks(messages: Msg[]): Block[] {
       closeTurn()
       blocks.push({ kind: 'user', id, msg })
     } else if (msg.role === 'assistant') {
-      if (!turn) blocks.push((turn = { kind: 'turn', id, steps: [], images: [] }))
+      if (!turn) blocks.push((turn = { kind: 'turn', id, steps: [], images: [], members: [] }))
+      // 一轮回答由好几条消息拼成，记下都有谁，搜索结果才能找到它在哪一块
+      turn.members.push(id)
       lastAssistant = msg
       finalFrom = turn.steps.length
       turn.model = msg.model
@@ -356,9 +358,29 @@ function UserMessage({ msg, onFork }: { msg: Msg; onFork?: () => void }) {
           .map((b, i) => (
             <img key={i} className="user-image" src={`data:${b.mimeType};base64,${b.data}`} alt={t('附带的图片')} />
           ))}
-        {textOf(msg.content)}
+        <WithRefs text={textOf(msg.content)} />
       </div>
     </div>
+  )
+}
+
+/** 消息里引用的别的对话（一长串文字记录的路径）显示成一个带标题的小标签 */
+function WithRefs({ text }: { text: string }) {
+  const parts = text.split(/@(\S+\/transcripts\/\S+?-[0-9a-f]{8}\.md)/g)
+  if (parts.length === 1) return <>{text}</>
+  return (
+    <>
+      {parts.map((part, index) =>
+        index % 2 ? (
+          <span key={index} className="ref-chip inline" title={part}>
+            <Icon name="chat" size={13} />
+            <span className="ellipsis">{(part.split('/').pop() ?? '').replace(/-[0-9a-f]{8}\.md$/, '').replace(/-/g, ' ')}</span>
+          </span>
+        ) : (
+          part
+        )
+      )}
+    </>
   )
 }
 
@@ -421,6 +443,23 @@ export function Chat({ conv }: { conv: Conv }) {
     if (el && stick.current) el.scrollTop = el.scrollHeight
   })
 
+  // 从搜索结果点进来：滚到对上的那条消息，闪一下。它要是在「更早的消息」里，先把它显示出来
+  const jump = useApp((s) => (s.jump?.key === conv.key ? s.jump : undefined))
+  useEffect(() => {
+    if (!jump || !blocks.length) return
+    const index = blocks.findIndex((block) => block.id === jump.entryId || (block.kind === 'turn' && block.members.includes(jump.entryId)))
+    // 不在当前这条分支上（比如是改写前的旧消息）：留在对话末尾就行
+    if (index < 0) return clearJump()
+    stick.current = false
+    if (index < blocks.length - shown) return setShown(blocks.length - index + 2)
+    const el = scroller.current?.querySelector<HTMLElement>(`[data-block="${CSS.escape(blocks[index].id)}"]`)
+    if (!el) return
+    el.scrollIntoView({ block: 'center' })
+    el.classList.add('jump-flash')
+    setTimeout(() => el.classList.remove('jump-flash'), 2200)
+    clearJump()
+  }, [jump, blocks, shown])
+
   const visible = blocks.slice(Math.max(0, blocks.length - shown))
   // 这是第几条用户消息（从 0 数），另开对话时要告诉 Pi
   const userIndexOf = (target: Block) => blocks.filter((block) => block.kind === 'user').indexOf(target as Extract<Block, { kind: 'user' }>)
@@ -441,17 +480,19 @@ export function Chat({ conv }: { conv: Conv }) {
             {t('显示更早的消息（还有 {n} 条）', { n: blocks.length - shown })}
           </button>
         )}
-        {visible.map((block) =>
-          block.kind === 'user' ? (
-            <UserMessage key={block.id} msg={block.msg} onFork={conv.streaming ? undefined : () => void forkFrom(conv.key, userIndexOf(block), textOf(block.msg.content))} />
-          ) : block.kind === 'turn' ? (
-            <Turn key={block.id} block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} />
-          ) : block.kind === 'shell' ? (
-            <ShellBlock key={block.id} msg={block.msg} />
-          ) : (
-            <Note key={block.id} label={block.label} text={block.text} />
-          )
-        )}
+        {visible.map((block) => (
+          <div key={block.id} data-block={block.id}>
+            {block.kind === 'user' ? (
+              <UserMessage msg={block.msg} onFork={conv.streaming ? undefined : () => void forkFrom(conv.key, userIndexOf(block), textOf(block.msg.content))} />
+            ) : block.kind === 'turn' ? (
+              <Turn block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} />
+            ) : block.kind === 'shell' ? (
+              <ShellBlock msg={block.msg} />
+            ) : (
+              <Note label={block.label} text={block.text} />
+            )}
+          </div>
+        ))}
         {conv.pending.map((item, index) => (
           <UserMessage
             key={`pending-${index}`}

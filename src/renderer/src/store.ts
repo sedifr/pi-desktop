@@ -49,6 +49,8 @@ export interface Conv {
   queued: PendingMsg[]
   /** 输入框里还没发出去的图片 */
   attachments: ImageAttachment[]
+  /** 拖进来要给 Pi 参考的别的对话，发送时变成消息里的文件引用 */
+  refs: SessionRef[]
   widgets: Record<string, string[]>
   statuses: Record<string, string>
   /** 扩展在等回答的弹窗。可能同时来好几个，一个个答 */
@@ -106,6 +108,10 @@ export interface AppState {
   /** 正在标题栏里改名的对话 */
   renamingKey?: string
   signal?: UiSignal
+  /** 搜索对话的窗口开着 */
+  searchOpen?: boolean
+  /** 打开对话后要滚到的那条消息（从搜索结果点进来时） */
+  jump?: { key: string; entryId: string }
   /** 桌面端自己的设置（额外技能文件夹、常用模型） */
   config?: DesktopConfig
 }
@@ -238,6 +244,7 @@ function blankConv(key: string, cwd: string): Conv {
     queue: [],
     pending: [],
     attachments: [],
+    refs: [],
     uiRequests: [],
     queued: [],
     widgets: {},
@@ -676,6 +683,8 @@ function handleMenu(action: MenuAction): void {
     }
     case 'addProject':
       return void addProject()
+    case 'search':
+      return setSearchOpen(!state.searchOpen)
     case 'toggleSidebar':
       return setPrefs({ sidebarCollapsed: !state.prefs.sidebarCollapsed })
     case 'togglePane':
@@ -762,6 +771,79 @@ export async function setTrust(cwd: string, decision: boolean | null): Promise<v
     set({ trust: { ...state.trust, [cwd]: status } })
     commandsChanged()
     for (const conv of Object.values(state.convs)) if (conv.cwd === cwd && conv.caps) void loadCaps(conv.key)
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
+}
+
+export function setSearchOpen(open: boolean): void {
+  set({ searchOpen: open })
+}
+
+/** 从搜索结果打开一个对话；知道是哪条消息对上的，就滚到那条 */
+export async function openHit(meta: SessionMeta, entryId?: string): Promise<void> {
+  set({ searchOpen: false })
+  await openSession(meta)
+  const conv = Object.values(state.convs).find((c) => c.key === meta.file || c.sessionFile === meta.file)
+  if (conv && entryId) set({ jump: { key: conv.key, entryId } })
+}
+
+export function clearJump(): void {
+  if (state.jump) set({ jump: undefined })
+}
+
+/**
+ * 在侧栏里给对话改名。对话开着就走它自己的进程；没开着的，悄悄起一个进程改完就关，不用切过去。
+ */
+export async function renameSession(meta: SessionMeta, name: string): Promise<void> {
+  const clean = name.trim()
+  if (!clean || clean === meta.name) return
+  const conv = Object.values(state.convs).find((c) => c.key === meta.file || c.sessionFile === meta.file)
+  // 先让侧栏显示新名字，改名本身要等进程起来
+  set({ sessions: state.sessions.map((item) => (item.file === meta.file ? { ...item, name: clean } : item)) })
+  if (conv) return rename(conv.key, clean)
+  try {
+    await api.convStart(meta.file, meta.cwd, meta.file)
+    await api.convSetName(meta.file, clean)
+    api.convClose(meta.file)
+  } catch (error) {
+    toast(t('改名失败：{error}', { error: errorText(error) }), 'error')
+  }
+  await refreshSessions()
+}
+
+/** 被拖进输入框的另一个对话：标题给人看，路径是它的文字记录 */
+export interface SessionRef {
+  title: string
+  path: string
+}
+
+/**
+ * 把另一个对话交给当前对话参考：整理出一份文字记录，在输入框里挂一个标签；
+ * 发送时它变成消息里的一个文件引用，Pi 自己去读，用到多少读多少。
+ */
+export async function attachSession(key: string, file: string): Promise<void> {
+  const conv = state.convs[key]
+  if (!conv) return
+  if (conv.key === file || conv.sessionFile === file) return toast(t('这就是当前这个对话'), 'warning')
+  try {
+    const transcript = await api.sessionTranscript(file)
+    const meta = state.sessions.find((item) => item.file === file)
+    const title = (meta?.name ?? meta?.firstUserText ?? t('（空对话）')).replace(/\s+/g, ' ').slice(0, 40)
+    updateConv(key, (c) => !c.refs.some((ref) => ref.path === transcript) && (c.refs = [...c.refs, { title, path: transcript }]), true)
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
+}
+
+export function removeRef(key: string, index: number): void {
+  updateConv(key, (c) => (c.refs = c.refs.filter((_, i) => i !== index)))
+}
+
+/** 复制对话的文字版路径：先整理出文字记录，再把路径放进剪贴板 */
+export async function copyTranscriptPath(file: string): Promise<void> {
+  try {
+    await copyText(await api.sessionTranscript(file))
   } catch (error) {
     toast(errorText(error), 'error')
   }
@@ -982,7 +1064,8 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   if (!conv) return
   const text = conv.draft.trim()
   const images = conv.attachments
-  if (!text && !images.length) return
+  const refs = conv.refs
+  if (!text && !images.length && !refs.length) return
 
   const command = /^\/(\S+)\s*([\s\S]*)$/.exec(text)
   if (command && (NATIVE_COMMANDS as readonly string[]).includes(command[1])) {
@@ -995,13 +1078,16 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   const bang = /^(!!?)\s*(\S[\s\S]*)$/.exec(text)
   if (bang && !images.length) return runShell(key, bang[2], bang[1] === '!!')
 
-  const pending: PendingMsg = { text, images }
+  // 引用的对话放在正文后面：开头要留给 / 指令
+  const body = [text, ...refs.map((ref) => `${t('参考这个对话的记录：')}@${ref.path}`)].filter(Boolean).join('\n')
+  const pending: PendingMsg = { text: body, images }
   if (!conv.streaming) markStart(key)
   updateConv(
     key,
     (c) => {
       c.draft = ''
       c.attachments = []
+      c.refs = []
       c.error = undefined
       if (c.streaming) c.queued = [...c.queued, pending]
       else c.pending = [...c.pending, pending]
@@ -1011,7 +1097,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   )
   try {
     await ensureProcess(key)
-    const disposition = await api.convPrompt(key, text, images, behavior)
+    const disposition = await api.convPrompt(key, body, images, behavior)
     // 被扩展命令直接处理掉的消息不会回显，把占位的那条拿掉
     if (disposition === 'handled') updateConv(key, (c) => (c.pending = c.pending.filter((item) => item !== pending)))
     const caps = state.convs[key]?.caps
@@ -1023,6 +1109,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
       // 没发出去的放回输入框；这期间已经开始打的下一条接在后面，不覆盖
       c.draft = [text, c.draft].filter((part) => part.trim()).join('\n\n')
       c.attachments = [...images, ...c.attachments]
+      c.refs = [...refs, ...c.refs]
       c.error = errorText(error)
     })
   }

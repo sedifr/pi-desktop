@@ -5,13 +5,14 @@ import { Composer } from './Composer'
 import { Gallery, ImagePreview } from './Gallery'
 import { Pane } from './Pane'
 import { Settings } from './Settings'
-import { Sidebar } from './Sidebar'
+import { SearchPalette } from './Search'
+import { SESSION_DRAG, Sidebar } from './Sidebar'
 import {
-  type Conv,
-  type UiRequest,
   addProject,
   answerUi,
   api,
+  attachSession,
+  type Conv,
   isSubagent,
   openSession,
   rename,
@@ -21,6 +22,7 @@ import {
   setRenaming,
   setTrust,
   subagentLabel,
+  type UiRequest,
   useApp
 } from './store'
 import { Icon, Popover, baseName, fmtCost, fmtTokens, relTime } from './ui'
@@ -335,12 +337,43 @@ export function App() {
     if (paneOpen) setPaneUsed(true)
   }, [paneOpen])
   const collapsed = useApp((s) => s.prefs.sidebarCollapsed)
+  const searchOpen = useApp((s) => s.searchOpen)
   const empty = conv && !conv.messages.length && !conv.pending.length && !conv.loading
+
+  // 从侧栏把一个对话拖进聊天窗口：交给当前对话参考
+  const [sessionOver, setSessionOver] = useState(false)
+  const takesSession = view === 'chat' && Boolean(conv)
+  useEffect(() => {
+    const off = () => setSessionOver(false)
+    window.addEventListener('dragend', off)
+    window.addEventListener('drop', off)
+    return () => {
+      window.removeEventListener('dragend', off)
+      window.removeEventListener('drop', off)
+    }
+  }, [])
 
   return (
     <div className="app">
       {!collapsed && <Sidebar />}
-      <main className="main">
+      <main
+        className="main"
+        onDragOver={(event) => {
+          if (!takesSession || !event.dataTransfer.types.includes(SESSION_DRAG)) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+          if (!sessionOver) setSessionOver(true)
+        }}
+        onDragLeave={(event) => !event.currentTarget.contains(event.relatedTarget as Node | null) && setSessionOver(false)}
+        onDrop={(event) => {
+          const file = event.dataTransfer.getData(SESSION_DRAG)
+          setSessionOver(false)
+          if (!file || !takesSession || !conv) return
+          event.preventDefault()
+          void attachSession(conv.key, file)
+        }}
+      >
+        {sessionOver && <div className="drop-hint">{t('松开，把这个对话交给 Pi 参考')}</div>}
         {view === 'settings' ? (
           <Settings />
         ) : view === 'images' ? (
@@ -365,6 +398,7 @@ export function App() {
       </main>
       {/* 右侧面板打开过一次之后就一直留着，收起时只是藏起来，里面的网页和终端不会断 */}
       {conv && paneUsed && <Pane conv={conv} visible={paneOpen} />}
+      {searchOpen && <SearchPalette />}
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`}>

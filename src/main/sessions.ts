@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import type { Msg, SessionData, SessionMeta, Usage, UsageTotals } from '@shared/types'
+import type { Msg, SearchHit, SessionData, SessionMeta, Usage, UsageTotals } from '@shared/types'
 import { t } from '@shared/i18n'
-import { AGENT_DIR, readJson, writeJson } from './env'
+import { AGENT_DIR, DESKTOP_DIR, readJson, writeJson } from './env'
 
 const SESSIONS_DIR = path.join(AGENT_DIR, 'sessions')
 
@@ -383,4 +383,171 @@ export function moveSession(file: string, cwd: string): string {
   }
   follow(file, dest)
   return dest
+}
+
+// ---- 搜索 ----
+
+interface TextPart {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  lower: string
+}
+
+/**
+ * 每个对话里双方说过的话，搜索时用。只放在内存里：工具输出和图片不算，量不大；
+ * 第一次搜索时读一遍，之后只重读变过的文件。
+ */
+const textIndex = new Map<string, { size: number; mtime: number; parts: TextPart[] }>()
+let indexing: Promise<void> = Promise.resolve()
+
+function textParts(file: string): TextPart[] {
+  const parts: TextPart[] = []
+  for (const e of parseLines(file)) {
+    const m = e.type === 'message' ? e.message : undefined
+    if (!m || (m.role !== 'user' && m.role !== 'assistant') || !e.id) continue
+    const text = textOf(m.content).trim()
+    if (text) parts.push({ id: e.id, role: m.role, text, lower: text.toLowerCase() })
+  }
+  return parts
+}
+
+async function syncTextIndex(entries: Record<string, CacheEntry>): Promise<void> {
+  for (const file of [...textIndex.keys()]) if (!entries[file]) textIndex.delete(file)
+  let since = Date.now()
+  for (const [file, entry] of Object.entries(entries)) {
+    const hit = textIndex.get(file)
+    if (hit && hit.size === entry.size && hit.mtime === entry.mtime) continue
+    try {
+      textIndex.set(file, { size: entry.size, mtime: entry.mtime, parts: SUBAGENT.test(entry.meta.name ?? '') ? [] : textParts(file) })
+    } catch {
+      textIndex.delete(file)
+    }
+    // 对话很多时别把主进程占住太久，隔一会儿让别的事先做
+    if (Date.now() - since > 30) {
+      await new Promise((resolve) => setImmediate(resolve))
+      since = Date.now()
+    }
+  }
+}
+
+function snippetAround(part: TextPart, at: number, length: number): string {
+  const from = Math.max(0, at - 28)
+  const to = Math.min(part.text.length, at + length + 90)
+  return `${from > 0 ? '…' : ''}${part.text.slice(from, to).replace(/\s+/g, ' ').trim()}${to < part.text.length ? '…' : ''}`
+}
+
+/**
+ * 找对话：标题、项目名、对话里双方说过的话都算。多个词要全部出现（不必在同一处）。
+ * 标题里就能对上的排前面，其余按最近用过的排。
+ */
+export async function searchSessions(query: string, limit = 50): Promise<SearchHit[]> {
+  const terms = [...new Set(query.toLowerCase().split(/\s+/).filter(Boolean))]
+  if (!terms.length) return []
+  const entries = refresh()
+  await (indexing = indexing.then(() => syncTextIndex(entries)))
+  const found: { hit: SearchHit; rank: number; modified: number }[] = []
+  for (const entry of Object.values(entries)) {
+    const meta = entry.meta
+    if (!meta.cwd || SUBAGENT.test(meta.name ?? '')) continue
+    const title = (meta.name ?? meta.firstUserText ?? '').toLowerCase()
+    const project = path.basename(meta.cwd).toLowerCase()
+    const parts = textIndex.get(meta.file)?.parts ?? []
+    const inTitle = terms.filter((term) => title.includes(term)).length
+    if (!terms.every((term) => title.includes(term) || project.includes(term) || parts.some((part) => part.lower.includes(term)))) continue
+    const hit: SearchHit = { file: meta.file }
+    if (inTitle < terms.length) {
+      // 挑对上的词最多的那条消息给人看；一样多就取最早的
+      let best: TextPart | undefined
+      let bestCount = 0
+      for (const part of parts) {
+        const count = terms.filter((term) => part.lower.includes(term)).length
+        if (count > bestCount) [best, bestCount] = [part, count]
+      }
+      if (best) {
+        const term = terms.find((item) => best.lower.includes(item)) ?? terms[0]
+        hit.entryId = best.id
+        hit.role = best.role
+        hit.snippet = snippetAround(best, best.lower.indexOf(term), term.length)
+      }
+    }
+    found.push({ hit, rank: inTitle === terms.length ? 0 : 1, modified: meta.modified })
+  }
+  return found
+    .sort((a, b) => a.rank - b.rank || b.modified - a.modified)
+    .slice(0, limit)
+    .map((item) => item.hit)
+}
+
+// ---- 对话的文字版 ----
+
+const TRANSCRIPT_DIR = path.join(DESKTOP_DIR, 'transcripts')
+const clip = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max)}…` : text)
+
+/** 一次工具调用压成一行：名字加上最要紧的参数 */
+function toolLine(call: Entry): string {
+  const args = call.arguments ?? {}
+  const main = args.command ?? args.path ?? args.file_path ?? args.query ?? args.url ?? args.pattern
+  const detail = typeof main === 'string' ? main : JSON.stringify(args)
+  return `- ${t('调用工具')} \`${call.name}\`：${clip(String(detail ?? '').replace(/\s+/g, ' '), 200)}`
+}
+
+/**
+ * 把一个对话整理成一份给模型读的文字记录：双方的话原样保留，工具调用各留一行，
+ * 工具输出截短，思考过程和图片不要。存成文件，谁要参考这个对话就读它，比读原始会话文件省得多。
+ * 同一个对话每次都写到同一个文件，内容是当时最新的。
+ */
+export function writeTranscript(file: string): string {
+  const data = readSession(file)
+  const first = data.messages.find((message) => message.role === 'user')
+  const title = data.meta.name ?? clip(textOf(first?.content).replace(/\s+/g, ' ').trim(), 60) ?? ''
+  const out: string[] = [
+    `# ${t('对话记录')}：${title || t('（空对话）')}`,
+    '',
+    `- ${t('项目文件夹')}：${data.meta.cwd}`,
+    `- ${t('原始会话文件（Pi 的 JSONL 格式，含完整的工具输出）')}：${file}`,
+    `- ${t('这份记录由 Pi Desktop 整理：双方的话原样保留，工具调用各留一行，工具输出截短，思考过程和图片略去。')}`,
+    ''
+  ]
+  let speaker = ''
+  const say = (who: string): void => {
+    if (who !== speaker) out.push(`## ${who}`, '')
+    speaker = who
+  }
+  for (const message of data.messages) {
+    const blocks: Entry[] = Array.isArray(message.content) ? (message.content as Entry[]) : []
+    if (message.role === 'user') {
+      say(t('用户'))
+      const images = blocks.filter((block) => block.type === 'image').length
+      out.push(textOf(message.content).trim() || t('（没有文字）'), ...(images ? [`（${t('附了 {n} 张图片', { n: images })}）`] : []), '')
+    } else if (message.role === 'assistant') {
+      say('Pi')
+      for (const block of blocks) {
+        if (block.type === 'text' && block.text?.trim()) {
+          // 上面是工具那几行的话，空一行再接正文
+          if (out[out.length - 1] !== '') out.push('')
+          out.push(block.text.trim(), '')
+        } else if (block.type === 'toolCall') out.push(toolLine(block))
+      }
+      if (message.stopReason === 'error' && message.errorMessage) out.push(`（${t('出错了：{error}', { error: message.errorMessage })}）`, '')
+    } else if (message.role === 'toolResult') {
+      const text = textOf(message.content).replace(/\s+/g, ' ').trim()
+      if (text) out.push(`  ${message.isError ? t('出错') : t('结果')}：${clip(text, 300)}`)
+    } else if (message.role === 'bashExecution') {
+      say(t('用户'))
+      out.push(`${t('用户自己运行了命令')}：\`${message.command ?? ''}\``, '', '```', clip(String(message.output ?? '').trim(), 1500), '```', '')
+    } else if (message.role === 'compactionSummary' || message.role === 'branchSummary') {
+      say(t('更早内容的摘要'))
+      out.push(String(message.summary ?? '').trim(), '')
+    }
+  }
+  // 文件名只留文字和数字：带标点或空格的路径，模型读起来容易出岔子
+  const safe = title
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .slice(0, 24)
+    .replace(/^-+|-+$/g, '')
+  fs.mkdirSync(TRANSCRIPT_DIR, { recursive: true })
+  const target = path.join(TRANSCRIPT_DIR, `${safe || 'conversation'}-${String(data.meta.id ?? '').slice(-8) || 'pi'}.md`)
+  fs.writeFileSync(target, `${out.join('\n').replace(/\n{3,}/g, '\n\n')}\n`)
+  return target
 }

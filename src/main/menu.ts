@@ -32,6 +32,7 @@ export function buildMenu(getWindow: () => BrowserWindow | undefined): void {
       submenu: [
         { label: t('新对话'), accelerator: 'Cmd+N', click: send('new') },
         { label: t('添加项目文件夹…'), accelerator: 'Cmd+O', click: send('addProject') },
+        { label: t('搜索对话…'), accelerator: 'Cmd+K', click: send('search') },
         { type: 'separator' },
         { role: 'close' }
       ]

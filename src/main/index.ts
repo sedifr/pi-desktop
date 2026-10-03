@@ -20,7 +20,7 @@ import { listTemplates, saveTemplate, trashTemplate } from './templates'
 import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './terminal'
 import { setTrust, trustStatus } from './trust'
 import { AGENT_DIR, DESKTOP_DIR, HOME, piVersion, readJson, shellEnv, writeJson } from './env'
-import { listSessions, moveSession, readSession, usageTotals } from './sessions'
+import { listSessions, moveSession, readSession, searchSessions, usageTotals, writeTranscript } from './sessions'
 
 let win: BrowserWindow | undefined
 
@@ -286,6 +286,8 @@ function registerIpc(): void {
     await shell.trashItem(sessionFile(file))
     forget(sessionFile(file))
   })
+  handle('searchSessions', (query: string) => searchSessions(String(query ?? '')))
+  handle('sessionTranscript', (file: string) => writeTranscript(sessionFile(file)))
   handle('moveSession', async (file: string, cwd: string) => {
     const from = sessionFile(file)
     await agents.release(from)
