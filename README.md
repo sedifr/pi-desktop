@@ -59,6 +59,18 @@ The complete list is in [docs/features.md](docs/features.md).
 
 <p align="center"><sub>Your own look: the same conversation with a background image, and an accent color and tint taken from it. Text stays readable whatever you pick.</sub></p>
 
+## The ideas behind it
+
+pi's core is four tools and a short prompt; the rest is what you add. A window is where that usually gets lost, so the app keeps to one rule: **it adds nothing to what pi carries, and everything a conversation carries is something you put there, can see, and can take off.**
+
+- **Switches, not bundles.** Skills, MCP servers and tools are flat tiles. A skill is *auto*, *on* or *off*; a choice applies to everything, to a project, or to one conversation; *Leanest* drops it all in one click. On one machine a fully equipped pi opened at about 40,000 tokens, a *Leanest* conversation at about 1,900 — and the app itself added none.
+- **A switch is one of pi's own startup flags.** Nothing is written to pi's `settings.json`, so the CLI is untouched.
+- **You know what each piece is for.** Every tile has one line in your own words.
+- **Context is spent only where it buys something.** Documents become text before pi reads them, a conversation is handed over as a transcript, and optional features are off until you turn them on.
+- **The interface is assembled the same way.** No themes, no default buttons, every part hideable, all of it plain files that pi can edit for you.
+
+The longer version, with the reasoning and the numbers, is in [docs/design.md](docs/design.md).
+
 ## Getting started
 
 ### Download
