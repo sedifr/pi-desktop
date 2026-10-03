@@ -344,6 +344,19 @@ export class AgentManager {
     this.convs.get(key)?.proc?.send({ type: 'extension_ui_response', ...payload })
   }
 
+  /**
+   * 会话文件要被挪走了：放下所有用着它的进程，等它们真正退出再返回。
+   * 不等的话，进程收尾时可能还往老位置写一笔。正忙的不让挪。
+   */
+  async release(sessionFile: string): Promise<void> {
+    const using = [...this.convs.values()].filter((conv) => conv.sessionFile === sessionFile || conv.key === sessionFile)
+    if (using.some((conv) => this.busy(conv))) throw new Error(t('这个对话正在运行，等它停下来再移'))
+    for (const conv of using) {
+      this.convs.delete(conv.key)
+      await this.stop(conv)
+    }
+  }
+
   close(key: string): void {
     const conv = this.convs.get(key)
     if (!conv || this.busy(conv)) return

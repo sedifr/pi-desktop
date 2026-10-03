@@ -11,6 +11,7 @@ const api: PiApi = {
   listSessions: call('listSessions'),
   readSession: call('readSession'),
   trashSession: call('trashSession'),
+  moveSession: call('moveSession'),
   usageTotals: call('usageTotals'),
   pickFolder: call('pickFolder'),
   openExternal: (url) => ipcRenderer.send('openExternal', url),
@@ -102,6 +103,7 @@ const api: PiApi = {
   skillDirAdd: call('config:skillDirAdd'),
   skillDirRemove: call('config:skillDirRemove'),
   favoriteModelsSet: call('config:favoriteModels'),
+  pinnedSet: call('config:pinned'),
 
   providers: call('providers'),
   authLogin: call('auth:login'),

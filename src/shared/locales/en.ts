@@ -560,5 +560,19 @@ export const en: Record<string, string> = {
   'Pi 自带的：工具用到时才去找，平时几乎不占 token。服务对所有对话都一样，不能按对话单独开关。': "pi's built-in support: tools are looked up when needed and cost almost no tokens otherwise. Servers are the same for every conversation and cannot be switched per conversation.",
   'pi-mcp-adapter 扩展：可以在每次对话里单独开关服务，但每次对话都要把工具说明带上，工具多的话很占 token。': 'The pi-mcp-adapter extension: servers can be switched per conversation, but every conversation carries the tool descriptions, which is costly with many tools.',
   'Pi 自带的（省 token）': 'Built-in (fewer tokens)',
-  '扩展（可按对话开关）': 'Extension (per conversation)'
+  '扩展（可按对话开关）': 'Extension (per conversation)',
+  '这个对话正在运行，等它停下来再移': 'This conversation is still running. Move it once it stops.',
+  '这个会话文件的开头读不懂，没有动它': 'The start of this session file could not be read, so it was left untouched',
+  '目标项目里已经有一个同名的会话文件': 'The target project already has a session file with the same name',
+  '项目文件夹不存在：{path}': 'Project folder not found: {path}',
+  '取消置顶': 'Unpin',
+  '置顶': 'Pin',
+  '置顶的对话': 'Pinned',
+  '拖到这里置顶': 'Drop here to pin',
+  '{n} 个对话在上面的置顶里': '{n} pinned above',
+  '移到其他项目': 'Move to another project',
+  '移到哪个项目': 'Move to which project',
+  '选别的文件夹…': 'Choose another folder…',
+  '已移到「{project}」': 'Moved to "{project}"',
+  '移动失败：{error}': 'Could not move: {error}'
 }

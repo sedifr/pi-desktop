@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, memo, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { t } from '@shared/i18n'
@@ -39,6 +39,16 @@ const ICONS: Record<string, ReactNode> = {
     </g>
   ),
   copy: <path d="M5.5 5.5h7v8h-7zM3.5 10.5v-8h7" />,
+  pin: (
+    <g transform="scale(0.6667)" strokeWidth="1.9">
+      <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+    </g>
+  ),
+  unpin: (
+    <g transform="scale(0.6667)" strokeWidth="1.9">
+      <path d="M12 17v5M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89M2 2l20 20M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11" />
+    </g>
+  ),
   branch: <path d="M4.5 3.5v9M4.5 8c0-2.5 7-1 7-4.5M4.5 3.5a1 1 0 1 0 0-.01M4.5 12.5a1 1 0 1 0 0-.01M11.5 3.5a1 1 0 1 0 0-.01" />,
   sidebar: <path d="M2.5 3.5h11v9h-11zM6 3.5v9" />,
   spark: <path d="M7 2.5 8.2 6 11.5 7.2 8.2 8.4 7 12 5.8 8.4 2.5 7.2 5.8 6zM12.2 10.6v2.8M10.8 12h2.8" />,
@@ -140,7 +150,7 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
 })
 
 /** 点到外面或按 Esc 时关闭的浮层 */
-export function Popover({ onClose, className, group, children }: { onClose: () => void; className?: string; group?: string; children: ReactNode }) {
+export function Popover({ onClose, className, group, style, children }: { onClose: () => void; className?: string; group?: string; style?: CSSProperties; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
@@ -164,7 +174,7 @@ export function Popover({ onClose, className, group, children }: { onClose: () =
     }
   }, [onClose])
   return (
-    <div ref={ref} className={`popover ${className ?? ''}`} data-popover-group={group}>
+    <div ref={ref} className={`popover ${className ?? ''}`} data-popover-group={group} style={style}>
       {children}
     </div>
   )

@@ -377,6 +377,8 @@ export interface DesktopConfig {
   extraSkillDirs: string[]
   /** 常用模型，形如「提供商/模型」。在模型菜单里排在最前面 */
   favoriteModels: string[]
+  /** 置顶的对话（会话 id），按侧栏里显示的顺序 */
+  pinned: string[]
   /**
    * MCP 用哪种接法。builtin 是 Pi 自带的（工具用到时才找，省 token，但服务对所有对话都一样）；
    * adapter 是 pi-mcp-adapter 扩展（可以按对话开关服务，但每次对话都要带上全部工具的说明）。
@@ -392,6 +394,8 @@ export interface PiApi {
   listSessions(): Promise<SessionMeta[]>
   readSession(file: string): Promise<SessionData>
   trashSession(file: string): Promise<void>
+  /** 把一个对话移到另一个项目，返回会话文件的新位置 */
+  moveSession(file: string, cwd: string): Promise<string>
   usageTotals(): Promise<UsageTotals>
   pickFolder(): Promise<string | null>
   openExternal(url: string): void
@@ -491,6 +495,7 @@ export interface PiApi {
   skillDirAdd(): Promise<DesktopConfig>
   skillDirRemove(dir: string): Promise<DesktopConfig>
   favoriteModelsSet(models: string[]): Promise<DesktopConfig>
+  pinnedSet(ids: string[]): Promise<DesktopConfig>
 
   providers(): Promise<ProviderInfo[]>
   /** 开始登录；过程中的提示通过 onAuthEvent 送来，结束时这个调用才返回 */

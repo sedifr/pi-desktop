@@ -6,7 +6,7 @@ import { BrowserWindow, app, dialog, ipcMain, nativeTheme, net, protocol, shell 
 import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
-import { cleanRunDir, forget, getGlobal, getItems, resetSession, saveAs, setGlobal, setStates } from './caps'
+import { cleanRunDir, forget, getGlobal, getItems, rekey, resetSession, saveAs, setGlobal, setStates } from './caps'
 import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary } from './catalog'
 import { getConfig, setConfig } from './config'
 import { searchFiles } from './files'
@@ -20,7 +20,7 @@ import { listTemplates, saveTemplate, trashTemplate } from './templates'
 import { createTerminal, killAllTerminals, killTerminal, resizeTerminal, writeTerminal } from './terminal'
 import { setTrust, trustStatus } from './trust'
 import { AGENT_DIR, DESKTOP_DIR, HOME, piVersion, readJson, shellEnv, writeJson } from './env'
-import { listSessions, readSession, usageTotals } from './sessions'
+import { listSessions, moveSession, readSession, usageTotals } from './sessions'
 
 let win: BrowserWindow | undefined
 
@@ -260,6 +260,7 @@ function registerIpc(): void {
     return setConfig({ extraSkillDirs: [...config.extraSkillDirs, result.filePaths[0]] })
   })
   handle('config:favoriteModels', (models: string[]) => setConfig({ favoriteModels: models }))
+  handle('config:pinned', (ids: string[]) => setConfig({ pinned: [...new Set(ids.filter((id) => typeof id === 'string'))] }))
   handle('config:skillDirRemove', (dir: string) => {
     agents.restartIdle()
     return setConfig({ extraSkillDirs: getConfig().extraSkillDirs.filter((item) => item !== dir) })
@@ -284,6 +285,13 @@ function registerIpc(): void {
   handle('trashSession', async (file: string) => {
     await shell.trashItem(sessionFile(file))
     forget(sessionFile(file))
+  })
+  handle('moveSession', async (file: string, cwd: string) => {
+    const from = sessionFile(file)
+    await agents.release(from)
+    const to = moveSession(from, cwd)
+    rekey(from, to)
+    return to
   })
   handle('usageTotals', () => usageTotals())
   handle('pickFolder', async () => {

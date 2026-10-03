@@ -1,17 +1,51 @@
-import { useMemo, useState } from 'react'
+import { type DragEvent, type MouseEvent, useMemo, useRef, useState } from 'react'
 import type { SessionMeta } from '@shared/types'
-import { type Conv, activate, addProject, isSubagent, newConv, openSession, removeProject, setPrefs, setView, trashSession, useApp } from './store'
-import { Icon, baseName, relTime } from './ui'
+import {
+  type Conv,
+  activate,
+  addProject,
+  api,
+  getState,
+  isSubagent,
+  moveSession,
+  newConv,
+  openSession,
+  projectDirs,
+  removeProject,
+  setPinned,
+  setPrefs,
+  setRenaming,
+  setView,
+  togglePin,
+  trashSession,
+  useApp
+} from './store'
+import { Icon, Popover, baseName, relTime } from './ui'
 import { t } from '@shared/i18n'
 
 const VISIBLE = 6
+const NO_PINS: string[] = []
+/** 拖动时能放下的两处「置顶」位置：置顶区本身，和「项目」那一行标题 */
+const PIN_AREA = '\0pinned'
+const PIN_LABEL = '\0label'
 
 interface Project {
   cwd: string
   sessions: SessionMeta[]
   drafts: Conv[]
   latest: number
+  /** 这个项目有几个对话被置顶了（它们显示在上面的置顶区，不在项目下面重复出现） */
+  pinned: number
 }
+
+interface RowMenu {
+  meta: SessionMeta
+  x: number
+  y: number
+  step: 'main' | 'move'
+}
+
+const titleOf = (meta: SessionMeta): string => meta.name ?? meta.firstUserText ?? t('（空对话）')
 
 export function Sidebar() {
   const sessions = useApp((s) => s.sessions)
@@ -19,22 +53,36 @@ export function Sidebar() {
   const activeKey = useApp((s) => s.activeKey)
   const extraProjects = useApp((s) => s.extraProjects)
   const view = useApp((s) => s.view)
+  const pinnedIds = useApp((s) => s.config?.pinned) ?? NO_PINS
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [menu, setMenu] = useState<RowMenu>()
+  // 拖动：正在拖哪个对话、鼠标停在哪个能放下的地方、在置顶区里要插到谁的前面或后面
+  const dragging = useRef<SessionMeta | undefined>(undefined)
+  const [drag, setDrag] = useState<SessionMeta>()
+  const [over, setOver] = useState<string>()
+  const [insert, setInsert] = useState<{ id: string; before: boolean }>()
 
   const active = activeKey ? convs[activeKey] : undefined
 
+  const pinned = useMemo(() => {
+    const byId = new Map(sessions.map((meta) => [meta.id, meta]))
+    return pinnedIds.map((id) => byId.get(id)).filter((meta): meta is SessionMeta => Boolean(meta?.cwd))
+  }, [sessions, pinnedIds])
+
   const projects = useMemo(() => {
+    const pins = new Set(pinnedIds)
     const map = new Map<string, Project>()
     const get = (cwd: string) => {
       let project = map.get(cwd)
-      if (!project) map.set(cwd, (project = { cwd, sessions: [], drafts: [], latest: 0 }))
+      if (!project) map.set(cwd, (project = { cwd, sessions: [], drafts: [], latest: 0, pinned: 0 }))
       return project
     }
     for (const meta of sessions) {
       if (!meta.cwd || isSubagent(meta)) continue
       const project = get(meta.cwd)
-      project.sessions.push(meta)
+      if (pins.has(meta.id)) project.pinned++
+      else project.sessions.push(meta)
       project.latest = Math.max(project.latest, meta.modified)
     }
     for (const cwd of extraProjects) get(cwd)
@@ -45,10 +93,155 @@ export function Sidebar() {
       if (!known.has(conv.sessionFile ?? '') && (conv.messages.length || conv.pending.length)) project.drafts.push(conv)
     }
     return [...map.values()].sort((a, b) => b.latest - a.latest)
-  }, [sessions, convs, extraProjects])
+  }, [sessions, convs, extraProjects, pinnedIds])
 
   const runningFiles = new Set(Object.values(convs).filter((c) => c.streaming).map((c) => c.sessionFile ?? c.key))
   const unreadFiles = new Set(Object.values(convs).filter((c) => c.unread).map((c) => c.sessionFile ?? c.key))
+
+  const confirmTrash = (meta: SessionMeta) => {
+    if (window.confirm(`${t('把这个对话移到废纸篓？')}\n\n${meta.name ?? meta.firstUserText ?? ''}`)) void trashSession(meta)
+  }
+
+  // ---- 拖动 ----
+
+  const endDrag = () => {
+    dragging.current = undefined
+    setDrag(undefined)
+    setOver(undefined)
+    setInsert(undefined)
+  }
+  const startDrag = (meta: SessionMeta) => (event: DragEvent) => {
+    dragging.current = meta
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', titleOf(meta))
+    // 等拖动真正开始了再改界面：在这一下里就动页面，浏览器会把拖动取消掉
+    setTimeout(() => dragging.current === meta && setDrag(meta))
+  }
+  const accept = (event: DragEvent, zone: string) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    if (over !== zone) setOver(zone)
+  }
+  const leave = (zone: string) => (event: DragEvent) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setOver((current) => (current === zone ? undefined : current))
+    if (zone === PIN_AREA) setInsert(undefined)
+  }
+  /** 拖到一个项目上：把对话移进这个项目 */
+  const projectZone = (cwd: string) => ({
+    onDragOver: (event: DragEvent) => {
+      const meta = dragging.current
+      if (meta && meta.cwd !== cwd) accept(event, cwd)
+    },
+    onDragLeave: leave(cwd),
+    onDrop: (event: DragEvent) => {
+      event.preventDefault()
+      const meta = dragging.current
+      endDrag()
+      if (meta && meta.cwd !== cwd) void moveSession(meta, cwd)
+    }
+  })
+  /** 拖到置顶区：置顶，或者给已经置顶的排顺序 */
+  const pinZone = (zone: string) => ({
+    onDragOver: (event: DragEvent) => {
+      if (!dragging.current) return
+      accept(event, zone)
+      if (!(event.target as Element).closest?.('.session-row')) setInsert(undefined)
+    },
+    onDragLeave: leave(zone),
+    onDrop: (event: DragEvent) => {
+      event.preventDefault()
+      const meta = dragging.current
+      const at = zone === PIN_AREA ? insert : undefined
+      endDrag()
+      if (!meta) return
+      const rest = pinnedIds.filter((id) => id !== meta.id)
+      const index = at && at.id !== meta.id ? rest.indexOf(at.id) : -1
+      if (index >= 0) rest.splice(at!.before ? index : index + 1, 0, meta.id)
+      else if (pinnedIds.includes(meta.id)) return
+      else rest.push(meta.id)
+      void setPinned(rest)
+    }
+  })
+  const overRow = (meta: SessionMeta) => (event: DragEvent) => {
+    if (!dragging.current) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const before = event.clientY < rect.top + rect.height / 2
+    if (insert?.id !== meta.id || insert.before !== before) setInsert({ id: meta.id, before })
+  }
+
+  // ---- 一行对话 ----
+
+  const openMenu = (meta: SessionMeta) => (event: MouseEvent) => {
+    event.preventDefault()
+    setMenu({ meta, x: event.clientX, y: event.clientY, step: 'main' })
+  }
+
+  const row = (meta: SessionMeta, inPinned: boolean) => {
+    const isActive = active && (active.key === meta.file || active.sessionFile === meta.file)
+    const mark = inPinned && insert?.id === meta.id && drag?.id !== meta.id ? (insert.before ? 'insert-before' : 'insert-after') : ''
+    return (
+      <div
+        key={meta.file}
+        className={`session-row ${inPinned ? 'pinned' : ''} ${isActive ? 'active' : ''} ${drag?.id === meta.id ? 'dragging' : ''} ${menu?.meta.id === meta.id ? 'menu-open' : ''} ${mark}`}
+        draggable
+        onDragStart={startDrag(meta)}
+        onDragEnd={endDrag}
+        onDragOver={inPinned ? overRow(meta) : undefined}
+        onContextMenu={openMenu(meta)}
+        onClick={() => void openSession(meta)}
+      >
+        {inPinned && <Icon name="pin" size={12} />}
+        <span className="grow ellipsis">{titleOf(meta)}</span>
+        {inPinned && (
+          <span className="session-tag" title={meta.cwd}>
+            {baseName(meta.cwd)}
+          </span>
+        )}
+        {runningFiles.has(meta.file) ? (
+          <span className="dot-running" />
+        ) : unreadFiles.has(meta.file) ? (
+          <span className="dot-unread" title={t('有新结果')} />
+        ) : (
+          !inPinned && <span className="session-time">{relTime(meta.modified)}</span>
+        )}
+        <button
+          className="icon-btn hover-only"
+          title={inPinned ? t('取消置顶') : t('置顶')}
+          onClick={(event) => {
+            event.stopPropagation()
+            void togglePin(meta)
+          }}
+        >
+          <Icon name={inPinned ? 'unpin' : 'pin'} size={14} />
+        </button>
+        <button
+          className="icon-btn hover-only"
+          title={t('移到废纸篓')}
+          onClick={(event) => {
+            event.stopPropagation()
+            confirmTrash(meta)
+          }}
+        >
+          <Icon name="trash" size={14} />
+        </button>
+      </div>
+    )
+  }
+
+  const renameFromMenu = async (meta: SessionMeta) => {
+    await openSession(meta)
+    const conv = Object.values(getState().convs).find((c) => c.key === meta.file || c.sessionFile === meta.file)
+    if (conv) setRenaming(conv.key)
+  }
+  const moveToPicked = async (meta: SessionMeta) => {
+    const dir = await api.pickFolder()
+    if (dir) void moveSession(meta, dir)
+  }
+
+  const menuTargets = menu?.step === 'move' ? projectDirs({ sessions, extraProjects, convs }).filter((cwd) => cwd !== menu.meta.cwd) : []
+  const menuHeight = menu?.step === 'move' ? Math.min(420, 92 + menuTargets.length * 32) : 170
+  const labelIsZone = Boolean(drag && !pinnedIds.includes(drag.id))
 
   return (
     <aside className="sidebar">
@@ -65,19 +258,27 @@ export function Sidebar() {
         <Icon name="image" />
         {t('图片')}
       </button>
-      <div className="sidebar-label">
-        <span className="grow">{t('项目')}</span>
-        <button className="icon-btn" title={t('添加项目文件夹，并在里面开始新对话')} onClick={() => void addProject()}>
-          <Icon name="plus" size={14} />
-        </button>
-      </div>
       <div className="sidebar-scroll">
+        {pinned.length > 0 && (
+          <div className={`pin-area ${over === PIN_AREA && drag && !pinnedIds.includes(drag.id) ? 'drop' : ''}`} {...pinZone(PIN_AREA)}>
+            <div className="sidebar-label">{t('置顶的对话')}</div>
+            {pinned.map((meta) => row(meta, true))}
+          </div>
+        )}
+        <div className={`sidebar-label sticky ${labelIsZone ? 'pin-zone' : ''} ${labelIsZone && over === PIN_LABEL ? 'drop' : ''}`} {...(labelIsZone ? pinZone(PIN_LABEL) : {})}>
+          <span className="grow">{labelIsZone ? t('拖到这里置顶') : t('项目')}</span>
+          {!labelIsZone && (
+            <button className="icon-btn" title={t('添加项目文件夹，并在里面开始新对话')} onClick={() => void addProject()}>
+              <Icon name="plus" size={14} />
+            </button>
+          )}
+        </div>
         {projects.map((project) => {
           const isCollapsed = collapsed[project.cwd]
           const showAll = expanded[project.cwd]
           const list = showAll ? project.sessions : project.sessions.slice(0, VISIBLE)
           return (
-            <div key={project.cwd} className="project">
+            <div key={project.cwd} className={`project ${over === project.cwd ? 'drop' : ''}`} {...projectZone(project.cwd)}>
               <div className="project-row" title={project.cwd} onClick={() => setCollapsed({ ...collapsed, [project.cwd]: !isCollapsed })}>
                 <Icon name={isCollapsed ? 'right' : 'down'} size={12} />
                 <span className="grow ellipsis">{baseName(project.cwd)}</span>
@@ -100,37 +301,16 @@ export function Sidebar() {
                       {conv.streaming ? <span className="dot-running" /> : conv.unread && <span className="dot-unread" title={t('有新结果')} />}
                     </div>
                   ))}
-                  {list.map((meta) => {
-                    const isActive = active && (active.key === meta.file || active.sessionFile === meta.file)
-                    return (
-                      <div key={meta.file} className={`session-row ${isActive ? 'active' : ''}`} onClick={() => void openSession(meta)}>
-                        <span className="grow ellipsis">{meta.name ?? meta.firstUserText ?? t('（空对话）')}</span>
-                        {runningFiles.has(meta.file) ? (
-                          <span className="dot-running" />
-                        ) : unreadFiles.has(meta.file) ? (
-                          <span className="dot-unread" title={t('有新结果')} />
-                        ) : (
-                          <span className="session-time">{relTime(meta.modified)}</span>
-                        )}
-                        <button
-                          className="icon-btn hover-only"
-                          title={t('移到废纸篓')}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            if (window.confirm(`${t('把这个对话移到废纸篓？')}\n\n${meta.name ?? meta.firstUserText ?? ''}`)) void trashSession(meta)
-                          }}
-                        >
-                          <Icon name="trash" size={14} />
-                        </button>
-                      </div>
-                    )
-                  })}
+                  {list.map((meta) => row(meta, false))}
                   {project.sessions.length > VISIBLE && (
                     <div className="session-row muted" onClick={() => setExpanded({ ...expanded, [project.cwd]: !showAll })}>
                       {showAll ? t('收起') : t('显示全部 {n} 个', { n: project.sessions.length })}
                     </div>
                   )}
-                  {!project.sessions.length && !project.drafts.length && (
+                  {!project.sessions.length && !project.drafts.length && project.pinned > 0 && (
+                    <div className="session-row muted">{t('{n} 个对话在上面的置顶里', { n: project.pinned })}</div>
+                  )}
+                  {!project.sessions.length && !project.drafts.length && !project.pinned && (
                     <div className="session-row muted">
                       <span className="grow">{t('还没有对话')}</span>
                       <button
@@ -155,6 +335,88 @@ export function Sidebar() {
         <Icon name="gear" />
         {t('设置')}
       </button>
+      {menu && (
+        <Popover
+          className="menu row-menu"
+          style={{ left: Math.min(menu.x, window.innerWidth - 236), top: Math.max(8, Math.min(menu.y, window.innerHeight - menuHeight - 8)) }}
+          onClose={() => setMenu(undefined)}
+        >
+          <>
+            {menu.step === 'main' ? (
+              <>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenu(undefined)
+                    void togglePin(menu.meta)
+                  }}
+                >
+                  <Icon name={pinnedIds.includes(menu.meta.id) ? 'unpin' : 'pin'} size={14} />
+                  {pinnedIds.includes(menu.meta.id) ? t('取消置顶') : t('置顶')}
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenu(undefined)
+                    void renameFromMenu(menu.meta)
+                  }}
+                >
+                  <Icon name="edit" size={14} />
+                  {t('改名')}
+                </button>
+                <button className="menu-item" onClick={() => setMenu({ ...menu, step: 'move' })}>
+                  <Icon name="folder" size={14} />
+                  <span className="grow">{t('移到其他项目')}</span>
+                  <Icon name="right" size={12} />
+                </button>
+                <div className="menu-sep" />
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenu(undefined)
+                    confirmTrash(menu.meta)
+                  }}
+                >
+                  <Icon name="trash" size={14} />
+                  {t('移到废纸篓')}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="menu-item muted" onClick={() => setMenu({ ...menu, step: 'main' })}>
+                  <Icon name="left" size={12} />
+                  {t('移到哪个项目')}
+                </button>
+                {menuTargets.map((cwd) => (
+                  <button
+                    key={cwd}
+                    className="menu-item"
+                    title={cwd}
+                    onClick={() => {
+                      setMenu(undefined)
+                      void moveSession(menu.meta, cwd)
+                    }}
+                  >
+                    <Icon name="folder" size={14} />
+                    <span className="grow ellipsis">{baseName(cwd)}</span>
+                  </button>
+                ))}
+                <div className="menu-sep" />
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setMenu(undefined)
+                    void moveToPicked(menu.meta)
+                  }}
+                >
+                  <Icon name="plus" size={14} />
+                  {t('选别的文件夹…')}
+                </button>
+              </>
+            )}
+          </>
+        </Popover>
+      )}
     </aside>
   )
 }

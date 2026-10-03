@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import type { Msg, SessionData, SessionMeta, Usage, UsageTotals } from '@shared/types'
+import { t } from '@shared/i18n'
 import { AGENT_DIR, readJson, writeJson } from './env'
 
 const SESSIONS_DIR = path.join(AGENT_DIR, 'sessions')
@@ -303,4 +304,83 @@ export function readSession(file: string): SessionData {
     }
   }
   return data
+}
+
+/** 子代理自己的会话：名字形如 Explore#d0c8da8a */
+const SUBAGENT = /#[0-9a-f]{8}$/
+
+/**
+ * 一个项目的会话存在哪个文件夹。Pi 按项目路径给文件夹起名，这里用的是和内核一样的算法。
+ * 算出来的文件夹不存在、而这个项目明明已经有对话时，说明内核换了起名办法，就跟着已有的对话放。
+ */
+function sessionDirFor(cwd: string, known: SessionMeta[]): string {
+  const dir = path.join(SESSIONS_DIR, `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`)
+  if (fs.existsSync(dir)) return dir
+  const sibling = known.find((meta) => meta.cwd && path.resolve(meta.cwd) === cwd && !SUBAGENT.test(meta.name ?? ''))
+  return sibling ? path.dirname(sibling.file) : dir
+}
+
+/**
+ * 改会话文件开头那一行（它属于哪个项目、从哪个对话来），需要的话把文件挪到新项目的文件夹里。
+ * 后面的对话内容一个字节都不动。先挪后改，中途出错也只会有一份，不会多出来或者丢掉。
+ */
+function relocate(file: string, patch: { cwd?: string; parentSession?: string }, dir?: string): string {
+  const stat = fs.statSync(file)
+  const raw = fs.readFileSync(file)
+  const end = raw.indexOf(0x0a)
+  let header: Entry | undefined
+  try {
+    header = JSON.parse(raw.subarray(0, end < 0 ? raw.length : end).toString('utf8'))
+  } catch {
+    // 下面一并报错
+  }
+  if (!header || header.type !== 'session') throw new Error(t('这个会话文件的开头读不懂，没有动它'))
+  const dest = dir ? path.join(dir, path.basename(file)) : file
+  if (dest !== file) {
+    if (fs.existsSync(dest)) throw new Error(t('目标项目里已经有一个同名的会话文件'))
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.renameSync(file, dest)
+  }
+  const temp = `${dest}.moving`
+  try {
+    fs.writeFileSync(temp, Buffer.concat([Buffer.from(JSON.stringify({ ...header, ...patch }), 'utf8'), end < 0 ? Buffer.from('\n') : raw.subarray(end)]), { mode: stat.mode })
+    // 保留原来的修改时间：侧栏按它排序，挪一下不该让对话跳到最前面
+    fs.utimesSync(temp, stat.atime, stat.mtime)
+    fs.renameSync(temp, dest)
+  } catch (error) {
+    fs.rmSync(temp, { force: true })
+    if (dest !== file) fs.renameSync(dest, file)
+    throw error
+  }
+  return dest
+}
+
+/**
+ * 把一个对话移到另一个项目：以后在那个项目的文件夹里接着做，命令行里也归到那个项目下。
+ * 它开过的子代理记录跟着走。对话里已经写好、改过的文件不动。
+ */
+export function moveSession(file: string, cwd: string): string {
+  const target = path.resolve(cwd)
+  let isDir = false
+  try {
+    isDir = fs.statSync(target).isDirectory()
+  } catch {
+    // 不存在
+  }
+  if (!isDir) throw new Error(t('项目文件夹不存在：{path}', { path: target }))
+  const known = listSessions()
+  const dir = sessionDirFor(target, known)
+  const dest = relocate(file, { cwd: target }, dir)
+  const follow = (from: string, to: string): void => {
+    for (const child of known) {
+      if (child.parentSession !== from || !SUBAGENT.test(child.name ?? '')) continue
+      try {
+        follow(child.file, relocate(child.file, { cwd: target, parentSession: to }, dir))
+      } catch {
+        // 跟不过去的留在原处，不影响主对话
+      }
+    }
+  }
+  follow(file, dest)
+  return dest
 }

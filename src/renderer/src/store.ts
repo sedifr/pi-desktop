@@ -767,6 +767,23 @@ export async function setTrust(cwd: string, decision: boolean | null): Promise<v
   }
 }
 
+/** 把一个对话置顶，或者取消置顶 */
+export async function togglePin(meta: SessionMeta): Promise<void> {
+  const current = state.config?.pinned ?? []
+  await setPinned(current.includes(meta.id) ? current.filter((id) => id !== meta.id) : [...current, meta.id])
+}
+
+/** 存下置顶的对话和它们的顺序 */
+export async function setPinned(ids: string[]): Promise<void> {
+  // 先改界面再存，拖动排序才不会顿一下
+  if (state.config) set({ config: { ...state.config, pinned: ids } })
+  try {
+    set({ config: await api.pinnedSet(ids) })
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
+}
+
 /** 所有项目目录：有过对话的，加上用户手动添加的。最近用过的排前面 */
 export function projectDirs(s: Pick<AppState, 'sessions' | 'extraProjects' | 'convs'>): string[] {
   const latest = new Map<string, number>()
@@ -1225,6 +1242,40 @@ export async function resetCaps(key: string): Promise<void> {
   updateConv(key, (c) => (c.caps = caps))
 }
 
+/**
+ * 把一个对话移到另一个项目。以后它在那个项目的文件夹里接着做；已经写好、改过的文件不动。
+ */
+export async function moveSession(meta: SessionMeta, cwd: string): Promise<void> {
+  if (meta.cwd === cwd) return
+  const conv = Object.values(state.convs).find((c) => c.key === meta.file || c.sessionFile === meta.file)
+  if (conv && (conv.streaming || conv.shellRunning)) return toast(t('这个对话正在运行，等它停下来再移'), 'warning')
+  try {
+    const file = await api.moveSession(meta.file, cwd)
+    // 原来的项目要是只有这一个对话，移走后它会从侧栏消失。留着它，不想要可以自己点「移除」
+    if (!state.extraProjects.includes(meta.cwd)) {
+      const extraProjects = [...state.extraProjects, meta.cwd]
+      localStorage.setItem('extraProjects', JSON.stringify(extraProjects))
+      set({ extraProjects })
+    }
+    const wasActive = conv && state.activeKey === conv.key
+    if (conv) {
+      const convs = { ...state.convs }
+      delete convs[conv.key]
+      set({ convs, activeKey: wasActive ? undefined : state.activeKey })
+    }
+    await refreshSessions()
+    const moved = state.sessions.find((item) => item.file === file)
+    if (wasActive && moved) {
+      await openSession(moved)
+      // 输入框里没发出去的字带过去
+      if (conv.draft) setDraft(file, conv.draft)
+    }
+    toast(t('已移到「{project}」', { project: cwd.split('/').filter(Boolean).pop() ?? cwd }))
+  } catch (error) {
+    toast(t('移动失败：{error}', { error: errorText(error) }), 'error')
+  }
+}
+
 export async function trashSession(meta: SessionMeta): Promise<void> {
   const conv = Object.values(state.convs).find((c) => c.key === meta.file || c.sessionFile === meta.file)
   if (conv?.streaming) return toast(t('这个对话正在运行，先停下来再删'), 'warning')
@@ -1237,6 +1288,7 @@ export async function trashSession(meta: SessionMeta): Promise<void> {
       set({ convs, activeKey: state.activeKey === conv.key ? undefined : state.activeKey })
       if (!state.activeKey) newConv(meta.cwd)
     }
+    if (state.config?.pinned.includes(meta.id)) void setPinned(state.config.pinned.filter((id) => id !== meta.id))
     await refreshSessions()
   } catch (error) {
     toast(t('删除失败：{error}', { error: errorText(error) }), 'error')
