@@ -15,6 +15,7 @@ import { suggestTitle } from './titles'
 import { checkUpdate } from './update'
 import { listSkins, newSkin, readCustomCss, revealCustomCss, revealSkins } from './skins'
 import { clearWallpaper, dominantColor, pickWallpaper, useWallpaper } from './wallpaper'
+import { customizeGuide, openTarget, readButtons, revealButtons, watchDesktopFiles, writeButtons } from './buttons'
 import type { Palette } from '@shared/skins'
 import { listDir, searchFiles } from './files'
 import { fileDiff, listChanges, openFile, revealFile } from './changes'
@@ -446,6 +447,11 @@ function registerIpc(): void {
   handle('wallpaper:use', (file: string) => useWallpaper(String(file)))
   handle('wallpaper:clear', () => clearWallpaper())
   handle('wallpaper:color', (file: string) => (IMAGE_EXT.test(String(file)) ? dominantColor(String(file)) : undefined))
+  handle('buttons:get', () => readButtons())
+  handle('buttons:set', (buttons: unknown) => writeButtons(buttons))
+  ipcMain.on('buttons:reveal', () => revealButtons())
+  handle('open:target', (target: string) => openTarget(String(target)))
+  handle('customize:guide', () => customizeGuide())
   handle('customCss:read', () => readCustomCss())
   ipcMain.on('customCss:reveal', () => revealCustomCss())
   handle('skins:list', () => listSkins())
@@ -480,6 +486,8 @@ void app.whenReady().then(() => {
   // 调试实例可能和正常的实例共用同一个 Pi 配置目录，不去动那边的临时文件
   if (!DEBUG_RENDER) cleanRunDir()
   registerIpc()
+  // 按钮、自己写的样式、配色文件被改了（不管是谁改的），所有窗口马上重新读
+  watchDesktopFiles((what) => broadcast('desktop:file', what))
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

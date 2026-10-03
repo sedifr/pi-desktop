@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CapKind } from '@shared/types'
 import { t } from '@shared/i18n'
+import { Slot } from './Buttons'
 import { CapPanel } from './CapPanel'
 import { type Conv, openSettings } from './store'
 import { Icon } from './ui'
@@ -19,6 +20,7 @@ export function Rail({ conv }: { conv: Conv }) {
   const [open, setOpen] = useState<CapKind>()
   return (
     <nav className="rail" data-part="rail">
+      <Slot name="rail" />
       {ITEMS.map((item) => (
         <button
           key={item.kind}

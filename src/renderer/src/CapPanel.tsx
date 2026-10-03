@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CapItem, CapKind, CapState } from '@shared/types'
-import { type Conv, api, changeCaps, errorText, loadCaps, openSettings, resetCaps, saveCapsAs, toast } from './store'
+import { type Conv, api, changeCaps, errorText, leanCaps, loadCaps, openSettings, resetCaps, saveCapsAs, toast } from './store'
 import { Icon, Popover } from './ui'
 import { t } from '@shared/i18n'
 
@@ -125,14 +125,7 @@ export function CapPanel({ conv, kind, onKind, onClose, rail }: { conv: Conv; ki
       () => loadCaps(conv.key),
       (error) => toast(errorText(error), 'error')
     )
-  // 把能关的全关掉，只留 Pi 自带的读、改、写、运行四个工具。这样开场带的东西最少，需要什么再单独打开
-  const leanest = () => {
-    const changes: Record<string, CapState> = {}
-    for (const item of all ?? []) if (!item.locked && !FIXED.has(item.id) && item.state !== 'off') changes[item.id] = 'off'
-    if (!Object.keys(changes).length) return toast(t('已经是最精简的了'))
-    void changeCaps(conv.key, changes)
-    toast(t('技能、MCP 和扩展都关掉了，从下一条消息起生效。想以后每次都这样开场，点「设为全局默认」'))
-  }
+  const leanest = () => void leanCaps(conv.key).catch((error) => toast(errorText(error), 'error'))
   const setAllSkills = (target: 'auto' | 'off') => {
     const changes: Record<string, CapState> = {}
     for (const item of all ?? []) if (item.kind === 'skill') changes[item.id] = target

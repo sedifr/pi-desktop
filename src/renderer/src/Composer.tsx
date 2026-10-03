@@ -1,13 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { t } from '@shared/i18n'
-import type { CapState, ImageAttachment, ModelInfo } from '@shared/types'
+import type { AccessLevel } from '@shared/buttons'
+import type { ImageAttachment, ModelInfo } from '@shared/types'
 import {
+  ACCESS_ON,
+  ACCESS_TOOLS,
   abort,
   addAttachments,
+  addButton,
   addProject,
   api,
   attachDoc,
-  changeCaps,
   consumeSignal,
   type Conv,
   ensureStarted,
@@ -23,6 +26,7 @@ import {
   removeRef,
   runCommand,
   send,
+  setAccess,
   setDraft,
   setModel,
   setQuoteReply,
@@ -31,6 +35,7 @@ import {
   toggleFavoriteModel,
   useApp
 } from './store'
+import { Slot } from './Buttons'
 import { TrustBanner } from './Trust'
 import { Icon, Popover, StatusDot, baseName } from './ui'
 import { contextPercent, usageOf } from './usage'
@@ -200,12 +205,11 @@ function ProjectMenu({ conv, onClose }: { conv: Conv; onClose: () => void }) {
 
 // ---- 权限档位 ----
 
-type Access = 'read' | 'edit' | 'full' | 'custom'
-const ACCESS_TOOLS = ['read', 'bash', 'edit', 'write']
-const ACCESS_PRESETS: { id: Exclude<Access, 'custom'>; label: string; hint: string; on: string[] }[] = [
-  { id: 'read', label: t('只读'), hint: t('只能读文件，不能改文件，也不能运行命令'), on: ['read'] },
-  { id: 'edit', label: t('可改文件'), hint: t('能读、改、写文件，不能运行命令'), on: ['read', 'edit', 'write'] },
-  { id: 'full', label: t('完全访问'), hint: t('能读写文件，也能运行命令'), on: ['read', 'bash', 'edit', 'write'] }
+type Access = AccessLevel | 'custom'
+const ACCESS_PRESETS: { id: AccessLevel; label: string; hint: string; on: string[] }[] = [
+  { id: 'read', label: t('只读'), hint: t('只能读文件，不能改文件，也不能运行命令'), on: ACCESS_ON.read },
+  { id: 'edit', label: t('可改文件'), hint: t('能读、改、写文件，不能运行命令'), on: ACCESS_ON.edit },
+  { id: 'full', label: t('完全访问'), hint: t('能读写文件，也能运行命令'), on: ACCESS_ON.full }
 ]
 
 /** 从四个内置工具的开关看出现在是哪一档 */
@@ -224,9 +228,7 @@ function AccessMenu({ conv, current, onClose }: { conv: Conv; current: Access | 
           key={preset.id}
           className="menu-item two-line"
           onClick={() => {
-            const changes: Record<string, CapState> = {}
-            for (const name of ACCESS_TOOLS) changes[`tool:${name}`] = preset.on.includes(name) ? 'on' : 'off'
-            void changeCaps(conv.key, changes)
+            void setAccess(conv.key, preset.id)
             onClose()
           }}
         >
@@ -606,6 +608,7 @@ export function Composer({ conv }: { conv: Conv }) {
           {lines.join('\n')}
         </pre>
       ))}
+      <Slot name="composer.above" />
       {/* 输入框里只留写消息要用的：加号、模型、推理、发送。技能、MCP、工具在聊天区左边那列图标里 */}
       <div
         className={`composer ${shellMode ? 'shell-mode' : ''}`}
@@ -745,6 +748,18 @@ export function Composer({ conv }: { conv: Conv }) {
                   <span className="grow">{t('快捷指令')}</span>
                   <span className="menu-key">/</span>
                 </button>
+                <div className="menu-sep" />
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    close()
+                    // 输入框里正写着的话，直接拿来当这个按钮要说的话
+                    addButton(conv.draft.trim() ? { action: { type: 'prompt', text: conv.draft.trim(), send: true } } : {})
+                  }}
+                >
+                  <Icon name="bolt" size={14} />
+                  <span className="grow">{conv.draft.trim() ? t('把输入框里的话做成按钮…') : t('添加一个按钮…')}</span>
+                </button>
               </Popover>
             )}
           </div>
@@ -758,6 +773,7 @@ export function Composer({ conv }: { conv: Conv }) {
               event.target.value = ''
             }}
           />
+          <Slot name="composer.bar" />
           <span className="grow" />
           <div className="anchor">
             <button className="chip" data-popover-trigger="composer" onClick={() => toggle('model')}>

@@ -3305,3 +3305,195 @@ body.dragging .pane-body {
 .terminal-host .xterm-viewport {
   background: transparent !important;
 }
+
+/*
+ * 自己加的按钮。界面上有几个位置（挂载位）可以放；没放东西的位置不占地方。
+ * 按钮有自己的不透明底色，铺了背景图也认得清。
+ */
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ubtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 12.5px;
+  max-width: 240px;
+  white-space: nowrap;
+  flex: none;
+}
+.ubtn:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.ubtn-glyph {
+  min-width: 1em;
+  font-size: 13px;
+  line-height: 1;
+  text-align: center;
+}
+.slot-composer-above {
+  flex-wrap: wrap;
+  padding: 0 2px 8px;
+}
+.slot-composer-bar {
+  margin-left: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.slot-composer-bar .ubtn {
+  height: 26px;
+  padding: 0 9px;
+  border-color: transparent;
+  background: var(--bg-soft);
+}
+.slot-composer-bar .ubtn:hover {
+  background: var(--bg-active);
+}
+/* 图标列里：和自带的图标排成一列，下面跟一条分隔线 */
+.slot-rail {
+  display: contents;
+}
+.slot-rail .ubtn-glyph,
+.slot-header .ubtn-glyph {
+  font-size: 15px;
+}
+.slot-header {
+  gap: 8px;
+}
+.slot-header .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+.slot-sidebar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.slot-sidebar .ubtn-glyph {
+  width: 16px;
+  font-size: 14px;
+}
+.slot-welcome {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 640px;
+  margin-top: 14px;
+}
+.slot-welcome .ubtn {
+  height: 34px;
+  padding: 0 15px;
+  font-size: 13.5px;
+}
+
+/* 按钮的编辑框 */
+.button-dialog {
+  width: 520px;
+  max-height: calc(100% - 60px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.button-dialog label,
+.form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-2);
+}
+.button-dialog .dialog-title {
+  margin-bottom: 0;
+}
+.button-dialog .dialog-actions {
+  margin-top: 6px;
+}
+.button-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-soft);
+}
+.button-preview .ubtn,
+.button-preview .rail-btn {
+  pointer-events: none;
+}
+.button-preview .rail-btn {
+  color: var(--text-2);
+}
+.icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+.icon-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+}
+.icon-choice:hover {
+  background: var(--bg-hover);
+}
+.icon-choice.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.field.icon-text {
+  width: 176px;
+  height: 28px;
+  margin-left: 4px;
+  padding: 3px 10px;
+}
+.segmented.wrap {
+  flex-wrap: wrap;
+}
+.button-dialog .segmented {
+  align-self: flex-start;
+}
+.btn.danger {
+  color: var(--danger);
+}
+
+/* 设置页里的按钮清单 */
+.set-hint {
+  margin: 2px 0 8px;
+}
+.slot-label {
+  margin: 14px 0 2px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.button-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--r-sm);
+  background: var(--bg-soft);
+  color: var(--text-2);
+}
+.icon-btn.flip svg {
+  transform: rotate(180deg);
+}
+.icon-btn:disabled {
+  opacity: 0.3;
+}

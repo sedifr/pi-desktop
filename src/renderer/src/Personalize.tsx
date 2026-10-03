@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { t } from '@shared/i18n'
 import { DEFAULT_DARK, DEFAULT_LIGHT } from '@shared/skins'
+import { ButtonsSettings } from './Buttons'
 import { DEFAULT_LOOK, wallShown } from './skins'
 import { api, errorText, loadCustomCss, loadSkins, resetLook, setLook, setPrefs, toast, togglePart, useApp } from './store'
 import { Icon, imgUrl } from './ui'
@@ -93,7 +94,7 @@ export function Personalize() {
     try {
       const file = userSkins.find((skin) => skin.id === look.skin)
       await api.skinNew({ ...DEFAULT_LIGHT, ...file?.light }, { ...DEFAULT_DARK, ...file?.dark })
-      toast(t('已经建好并在访达里指出来了。改完回到这里点「重新读取」'))
+      toast(t('已经建好并在访达里指出来了。改完存盘就会出现在这里的列表里'))
     } catch (error) {
       toast(errorText(error), 'error')
     }
@@ -107,7 +108,9 @@ export function Personalize() {
         {t('这些改动只影响外观：部件只是藏起来或换了位置，功能都还在。调乱了，点最下面的「全部恢复默认」，或者菜单栏「显示 → 恢复默认外观」。')}
       </div>
 
-      <div className="cap-section">{t('背景图片')}</div>
+      <ButtonsSettings />
+
+      <div className="cap-section spaced">{t('背景图片')}</div>
       <div className="set-row">
         <div className="set-label grow">
           {look.wallpaper ? (

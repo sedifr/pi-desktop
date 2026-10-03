@@ -1,3 +1,4 @@
+import { Slot } from './Buttons'
 import { type DragEvent, type MouseEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SessionMeta } from '@shared/types'
 import {
@@ -337,6 +338,7 @@ export function Sidebar() {
         <Icon name="image" />
         {t('图片')}
       </button>
+      <Slot name="sidebar" />
       <div className="sidebar-scroll">
         {pinned.length > 0 && (
           <div className={`pin-area ${over === PIN_AREA && drag && !pinnedIds.includes(drag.id) ? 'drop' : ''}`} data-part="side-pinned" {...pinZone(PIN_AREA)}>

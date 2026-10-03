@@ -47,6 +47,16 @@ const api: PiApi = {
   docText: call('doc:text'),
   marketSearch: call('market:search'),
   updateCheck: call('update:check'),
+  buttonsGet: call('buttons:get'),
+  buttonsSet: call('buttons:set'),
+  buttonsReveal: () => ipcRenderer.send('buttons:reveal'),
+  openTarget: call('open:target'),
+  customizeGuide: call('customize:guide'),
+  onDesktopFile: (cb) => {
+    const listener = (_event: unknown, what: 'buttons' | 'css' | 'skins') => cb(what)
+    ipcRenderer.on('desktop:file', listener)
+    return () => ipcRenderer.removeListener('desktop:file', listener)
+  },
   wallpaperPick: call('wallpaper:pick'),
   wallpaperUse: call('wallpaper:use'),
   wallpaperClear: call('wallpaper:clear'),

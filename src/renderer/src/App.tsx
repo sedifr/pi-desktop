@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { UsageTotals } from '@shared/types'
+import { ButtonEditor, Slot } from './Buttons'
 import { Chat } from './Chat'
 import { Composer } from './Composer'
 import { Gallery, ImagePreview } from './Gallery'
@@ -241,6 +242,7 @@ function Header({ conv }: { conv: Conv }) {
         </div>
       )}
       <span className="grow" />
+      <Slot name="header" />
       {!paneOpen && (
         <button className="icon-btn no-drag" data-part="head-pane" title={t('打开右侧面板：改动的文件、浏览器、终端（⌥⌘B）')} onClick={() => setPrefs({ paneOpen: true })}>
           <Icon name="panel" size={15} />
@@ -324,6 +326,7 @@ function Welcome({ conv }: { conv: Conv }) {
       <div className="welcome-mark">π</div>
       <div className="welcome-title">{t('在 {project} 里做点什么？', { project: baseName(conv.cwd) })}</div>
       <div className="muted small">{conv.cwd}</div>
+      <Slot name="welcome" />
       {/* 对话还是空的时候，出错的原因只能显示在这里 */}
       {conv.error && <div className="banner error">{conv.error}</div>}
     </div>
@@ -424,6 +427,7 @@ export function App() {
       {/* 右侧面板打开过一次之后就一直留着，收起时只是藏起来，里面的网页和终端不会断 */}
       {conv && paneUsed && <Pane conv={conv} visible={paneOpen} />}
       {searchOpen && <SearchPalette />}
+      <ButtonEditor />
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`}>

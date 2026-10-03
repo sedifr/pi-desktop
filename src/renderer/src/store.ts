@@ -1,3 +1,4 @@
+import type { AccessLevel, AppAction, UserButton } from '@shared/buttons'
 import type { Skin } from '@shared/skins'
 import { DEFAULT_LOOK, type Look, applyLook } from './skins'
 import { titleFrom } from '@shared/title'
@@ -119,6 +120,12 @@ export interface AppState {
   userSkins: Skin[]
   /** custom.css 的内容 */
   customCss: string
+  /** 自己加的按钮（buttons.json），和读这个文件时发现的问题 */
+  buttons: UserButton[]
+  buttonsProblem?: string
+  buttonsFile?: string
+  /** 正在编辑的按钮。isNew 表示还没存进去 */
+  buttonEdit?: { button: UserButton; isNew: boolean }
   /** 搜索对话的窗口开着 */
   searchOpen?: boolean
   /** 在当前对话里查找的那一栏开着。findFocus 每按一次 ⌘F 加一，让输入框重新拿到光标 */
@@ -187,6 +194,7 @@ let state: AppState = {
   view: 'chat',
   userSkins: [],
   customCss: '',
+  buttons: [],
   imagesVersion: 0,
   settingsTab: 'look',
   authStatus: stored<Record<string, AuthStatus>>('authStatus', {}, isRecord),
@@ -780,6 +788,9 @@ export async function init(): Promise<void> {
   listeners.add(saveDraftsSoon)
   void loadSkins()
   void loadCustomCss()
+  void loadButtons()
+  // 这几个文件不管是谁改的（设置页、编辑器、Pi），改完马上跟上
+  api.onDesktopFile((what) => void (what === 'buttons' ? loadButtons() : what === 'css' ? loadCustomCss() : loadSkins()))
   const cwd = localStorage.getItem('lastCwd') ?? sessions[0]?.cwd
   if (cwd) newConv(cwd)
 }
@@ -911,7 +922,8 @@ const styleTag = (id: string): HTMLElement => {
  */
 function applyParts(prefs: Prefs): void {
   const hidden = new Set((prefs.hidden ?? []).filter((id) => /^[\w-]+$/.test(id)))
-  if (RAIL_PARTS.every((id) => hidden.has(id))) hidden.add('rail')
+  // 那一列里还放着自己加的按钮的话，列本身得留着
+  if (RAIL_PARTS.every((id) => hidden.has(id)) && !state.buttons.some((button) => button.slot === 'rail')) hidden.add('rail')
   styleTag('pi-parts').textContent = [...hidden].map((id) => `[data-part="${id}"]{display:none !important}`).join('')
   const root = document.documentElement
   root.dataset.rail = prefs.railSide === 'right' ? 'right' : 'left'
@@ -958,6 +970,188 @@ export async function loadSkins(): Promise<void> {
     set({ userSkins: [] })
   }
   applyPrefs(state.prefs)
+}
+
+// ---- 自己加的按钮 ----
+
+/** 重新读 buttons.json */
+export async function loadButtons(): Promise<void> {
+  try {
+    const file = await api.buttonsGet()
+    set({ buttons: file.buttons, buttonsProblem: file.problem, buttonsFile: file.file })
+  } catch (error) {
+    set({ buttons: [], buttonsProblem: errorText(error) })
+  }
+  applyParts(state.prefs)
+}
+
+/** 把整份按钮存回去。存不了（比如文件被手改坏了）就说明原因，界面上的不动 */
+export async function saveButtons(buttons: UserButton[]): Promise<boolean> {
+  try {
+    const file = await api.buttonsSet(buttons)
+    set({ buttons: file.buttons, buttonsProblem: file.problem, buttonsFile: file.file })
+    applyParts(state.prefs)
+    return true
+  } catch (error) {
+    toast(errorText(error), 'error')
+    return false
+  }
+}
+
+/** 打开按钮的编辑框。不传就是关掉 */
+export function editButton(button?: UserButton, isNew = false): void {
+  set({ buttonEdit: button ? { button, isNew } : undefined })
+}
+
+/** 新加一个按钮：先打开编辑框，存了才算数 */
+export function addButton(preset: Partial<UserButton> = {}): void {
+  editButton({ id: `b-${Date.now().toString(36)}`, label: '', slot: 'composer.above', action: { type: 'prompt', text: '', send: true }, ...preset }, true)
+}
+
+/** 把一个按钮在它那个位置里往前或往后挪一格 */
+export function moveButton(id: string, step: -1 | 1): void {
+  const list = state.buttons.slice()
+  const from = list.findIndex((button) => button.id === id)
+  if (from < 0) return
+  // 只和同一个位置里的邻居换；别的位置的按钮夹在中间不算
+  let to = from + step
+  while (to >= 0 && to < list.length && list[to].slot !== list[from].slot) to += step
+  if (to < 0 || to >= list.length) return
+  ;[list[from], list[to]] = [list[to], list[from]]
+  void saveButtons(list)
+}
+
+export function removeButton(id: string): void {
+  void saveButtons(state.buttons.filter((button) => button.id !== id))
+}
+
+/** 四个内置工具（读、改、写、运行）各档权限开哪几个 */
+export const ACCESS_TOOLS = ['read', 'bash', 'edit', 'write']
+export const ACCESS_ON: Record<AccessLevel, string[]> = { read: ['read'], edit: ['read', 'edit', 'write'], full: ['read', 'bash', 'edit', 'write'] }
+
+/** 把这次对话切到某一档权限 */
+export async function setAccess(key: string, level: AccessLevel): Promise<void> {
+  if (!state.convs[key]?.caps) await loadCaps(key)
+  const changes: Record<string, CapState> = {}
+  for (const name of ACCESS_TOOLS) changes[`tool:${name}`] = ACCESS_ON[level].includes(name) ? 'on' : 'off'
+  await changeCaps(key, changes)
+}
+
+/** 这几项是 Pi 自带的读、改、写、运行，「最精简」也留着 */
+const CORE_TOOLS = new Set(ACCESS_TOOLS.map((name) => `tool:${name}`))
+
+/** 把能关的技能、MCP、扩展全关掉，只留 Pi 自带的四个工具。这样开场带的东西最少，需要什么再单独打开 */
+export async function leanCaps(key: string): Promise<void> {
+  if (!state.convs[key]?.caps) await loadCaps(key)
+  const changes: Record<string, CapState> = {}
+  for (const item of state.convs[key]?.caps?.items ?? []) if (!item.locked && !CORE_TOOLS.has(item.id) && item.state !== 'off') changes[item.id] = 'off'
+  if (!Object.keys(changes).length) return toast(t('已经是最精简的了'))
+  await changeCaps(key, changes)
+  toast(t('技能、MCP 和扩展都关掉了，从下一条消息起生效。想以后每次都这样开场，点「设为全局默认」'))
+}
+
+/** 界面上现成的功能，按钮可以直接搬来用 */
+function runAppAction(action: AppAction): void {
+  const key = state.activeKey
+  switch (action) {
+    case 'newWindow':
+      return api.newWindow()
+    case 'minimal':
+      if (key) void leanCaps(key).catch((error) => toast(errorText(error), 'error'))
+      return
+    case 'pane:files':
+    case 'pane:changes':
+    case 'pane:browser':
+    case 'pane:terminal':
+      setPrefs({ paneOpen: true, paneTab: action.slice(5) as PaneTab })
+      return set({ view: 'chat' })
+    case 'images':
+      return setView('images')
+    case 'market':
+      return openSettings('market')
+    default:
+      return handleMenu(action)
+  }
+}
+
+/** 按下一个自己加的按钮 */
+export async function runButton(button: UserButton): Promise<void> {
+  const action = button.action
+  const key = state.activeKey
+  const conv = key ? state.convs[key] : undefined
+  try {
+    switch (action.type) {
+      case 'app':
+        return runAppAction(action.do)
+      case 'open':
+        if (/^https?:\/\//i.test(action.target)) return openInBrowser(action.target)
+        return await api.openTarget(action.target)
+    }
+    // 下面这几种都是对着当前这个对话做的
+    if (!key || !conv) return toast(t('先打开一个对话，再点这个按钮'), 'warning')
+    if (state.view !== 'chat') set({ view: 'chat' })
+    switch (action.type) {
+      case 'prompt': {
+        const draft = conv.draft.trim()
+        if (!action.send) {
+          // 放进输入框等人补完。已经写了的字留着，接在后面
+          setDraft(key, draft ? `${conv.draft.replace(/\s+$/, '')}\n${action.text}` : action.text)
+          return signal('focus')
+        }
+        // 直接发。输入框里已经写了字，就当成对这段话的补充一起发出去：指令后面跟参数，普通的话另起一段
+        setDraft(key, !draft ? action.text : action.text.startsWith('/') ? `${action.text.trim()} ${draft}` : `${action.text.trim()}\n\n${draft}`)
+        return await send(key)
+      }
+      case 'shell': {
+        // 运行命令会清空输入框；按钮触发的不该把写到一半的话弄丢
+        const draft = conv.draft
+        const running = runShell(key, action.command, action.quiet === true)
+        if (draft) setDraft(key, draft)
+        return await running
+      }
+      case 'set': {
+        if (action.model) {
+          await ensureProcess(key)
+          const model = state.convs[key]?.info.models?.find((item) => `${item.provider}/${item.id}` === action.model) ?? state.models[action.model]
+          if (model) await setModel(key, model)
+          else toast(t('没有找到模型 {model}。它要写成「提供商/模型」，并且已经连接好', { model: action.model }), 'warning')
+        }
+        if (action.thinking) {
+          await ensureProcess(key)
+          // 每个模型有的档位不一样；没有这一档就说一声，不要悄悄变成别的
+          const levels = state.convs[key]?.info.thinkingLevels
+          if (levels && !levels.includes(action.thinking)) toast(t('现在这个模型没有「{level}」这一档推理', { level: action.thinking }), 'warning')
+          else await setThinking(key, action.thinking)
+        }
+        if (action.access) await setAccess(key, action.access)
+        return
+      }
+    }
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
+}
+
+/**
+ * 让 Pi 来改界面：开一个新对话，把「怎么改」的说明文件交给它，剩下的话由人自己说。
+ * 按钮、样式、配色都是桌面端文件夹里的文件，Pi 改完这边马上生效。
+ */
+export async function askPiToCustomize(): Promise<void> {
+  try {
+    const guide = await api.customizeGuide()
+    // 它多半要改样式文件，开关先打开，不然改了也看不到
+    if (!state.prefs.customCss) setPrefs({ customCss: true })
+    await loadCustomCss()
+    const cwd = (state.activeKey ? state.convs[state.activeKey]?.cwd : undefined) ?? projectDirs(state)[0]
+    if (!cwd) return toast(t('先添加一个项目文件夹，才能开对话'), 'warning')
+    newConv(cwd)
+    const key = state.activeKey
+    if (!key) return
+    setDraft(key, `${t('先读这份说明，再按我说的改 Pi Desktop 的界面：{path}', { path: guide })}\n\n${t('我想要：')}`)
+    signal('focus')
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
 }
 
 export async function setAutoTitle(value: string): Promise<void> {

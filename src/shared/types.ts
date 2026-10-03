@@ -1,3 +1,4 @@
+import type { UserButton } from './buttons'
 import type { Palette, Skin } from './skins'
 // 主进程和界面共用的类型
 
@@ -244,6 +245,13 @@ export interface TemplateInput {
 }
 
 /** 系统菜单和快捷键触发的动作 */
+/** 自己加的按钮，连同读这个文件时发现的问题（读不懂、有几个写得不对） */
+export interface ButtonsFile {
+  buttons: UserButton[]
+  file: string
+  problem?: string
+}
+
 export type MenuAction = 'settings' | 'new' | 'search' | 'find' | 'resetLook' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
 
 export interface SessionStats {
@@ -527,6 +535,16 @@ export interface PiApi {
   templateTrash(file: string, cwd?: string): Promise<void>
   filesSearch(cwd: string, query: string): Promise<string[]>
   /** 弹出选文件的窗口挑一张背景图。返回拷进来之后的路径，和从图里取出的代表色。取消了就什么都不返回 */
+  /** 自己加的按钮（桌面端文件夹里的 buttons.json） */
+  buttonsGet(): Promise<ButtonsFile>
+  buttonsSet(buttons: UserButton[]): Promise<ButtonsFile>
+  buttonsReveal(): void
+  /** 打开一个文件或文件夹（完整路径，或 ~/ 开头） */
+  openTarget(target: string): Promise<void>
+  /** 给 Pi 看的「怎么改这个界面」的说明文件在哪 */
+  customizeGuide(): Promise<string>
+  /** 桌面端文件夹里决定界面长相的文件被改了：按钮、自己写的样式、配色文件 */
+  onDesktopFile(cb: (what: 'buttons' | 'css' | 'skins') => void): () => void
   wallpaperPick(): Promise<{ path: string; color?: string; tone?: [number, number] } | undefined>
   /** 把拖进来的一张图片当背景 */
   wallpaperUse(file: string): Promise<{ path: string; color?: string; tone?: [number, number] }>

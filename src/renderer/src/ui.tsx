@@ -58,6 +58,21 @@ const ICONS: Record<string, ReactNode> = {
   sidebar: <path d="M2.5 3.5h11v9h-11zM6 3.5v9" />,
   spark: <path d="M7 2.5 8.2 6 11.5 7.2 8.2 8.4 7 12 5.8 8.4 2.5 7.2 5.8 6zM12.2 10.6v2.8M10.8 12h2.8" />,
   plug: <path d="M6 2.5v3M10 2.5v3M4.5 5.5h7V8a3.5 3.5 0 0 1-7 0zM8 11.5v2" />,
+  bolt: <path d="M9 2 4 9h3.5L7 14l5-7H8.5z" />,
+  play: <path d="M5 3.5v9l7.5-4.5z" />,
+  book: <path d="M3 3h4.2A1.3 1.3 0 0 1 8 4.3 1.3 1.3 0 0 1 9.3 3H13v9.5H9.3a1.3 1.3 0 0 0-1.3 1 1.3 1.3 0 0 0-1.3-1H3zM8 4.3v9.2" />,
+  mail: <path d="M2.5 4h11v8h-11zM2.5 4.5 8 9l5.5-4.5" />,
+  calendar: <path d="M2.5 4h11v9.5h-11zM2.5 7h11M5.5 2.5v3M10.5 2.5v3" />,
+  code: <path d="M6 4.5 2.5 8 6 11.5M10 4.5 13.5 8 10 11.5" />,
+  clock: <path d="M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 5v3.2l2 1.3" />,
+  list: <path d="M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.8 4.5h.01M2.8 8h.01M2.8 11.5h.01" />,
+  flag: <path d="M4 13.5v-11M4 3h7.5L10 5.5 11.5 8H4" />,
+  heart: <path d="M8 13S2.5 9.8 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 9.8 8 13 8 13z" />,
+  home: <path d="M2.5 7.5 8 3l5.5 4.5V13h-4V9.5h-3V13h-4z" />,
+  send: <path d="M13.5 2.5 7 9M13.5 2.5 9.5 13.5 7 9 2.5 6.5z" />,
+  eye: <path d="M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8zM8 6.2a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6z" />,
+  download: <path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10" />,
+  link: <path d="M6.8 9.2a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-.8.8M9.2 6.8a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l.8-.8" />,
   gear: (
     <g transform="scale(0.6667)" strokeWidth="1.9">
       <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -65,6 +80,15 @@ const ICONS: Record<string, ReactNode> = {
     </g>
   )
 }
+
+/** 自带的图标有没有叫这个名字的 */
+export const hasIcon = (name: string | undefined): boolean => Boolean(name && Object.hasOwn(ICONS, name))
+/** 给自己加的按钮挑图标时列出来的那些 */
+export const ICON_CHOICES = [
+  'spark', 'bolt', 'play', 'send', 'chat', 'quote', 'edit', 'file', 'folder', 'search', 'terminal', 'code', 'diff', 'branch', 'globe', 'link', 'external', 'download',
+  'image', 'eye', 'book', 'list', 'mail', 'calendar', 'clock', 'flag', 'star', 'heart', 'home', 'pin', 'hash', 'brain', 'tool', 'plug', 'store', 'shield', 'chart',
+  'refresh', 'copy', 'check', 'trash', 'stop', 'sliders', 'gear', 'panel', 'sidebar', 'plus', 'slash'
+]
 
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   return (
