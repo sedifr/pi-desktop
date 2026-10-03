@@ -11,10 +11,11 @@ import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary }
 import { getConfig, setConfig } from './config'
 import { extractDoc, pdfBytes } from './docs'
 import { searchMarket } from './market'
+import { suggestTitle } from './titles'
 import { listDir, searchFiles } from './files'
 import { fileDiff, listChanges, openFile, revealFile } from './changes'
 import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
-import { mcpOverview, preferDeferred, removeMcp, saveMcp } from './mcp'
+import { mcpLogin, mcpLogout, mcpOverview, mcpStatus, preferDeferred, removeMcp, saveMcp } from './mcp'
 import { installPackage, listPackages, removePackage } from './packages'
 import { generateSummaries, itemsWithoutSummary } from './summarize'
 import { buildMenu } from './menu'
@@ -308,6 +309,15 @@ function registerIpc(): void {
     agents.restartIdle()
     return mcpOverview()
   })
+  handle('mcp:status', () => mcpStatus())
+  handle('mcp:login', async (name: string) => {
+    await mcpLogin(String(name), (line) => send('mcp:line', line))
+    agents.restartIdle()
+  })
+  handle('mcp:logout', async (name: string) => {
+    await mcpLogout(String(name))
+    agents.restartIdle()
+  })
   handle('mcp:save', (input: McpServerInput) => {
     saveMcp(input)
     agents.restartIdle()
@@ -390,6 +400,9 @@ function registerIpc(): void {
     return file
   })
   handle('conv:fork', (key: string, userIndex: number, text: string) => agents.fork(key, userIndex, text))
+  handle('conv:rewind', (key: string, userIndex: number, text: string) => agents.rewind(key, userIndex, text))
+  handle('title:suggest', (model: string, question: string, answer: string) => suggestTitle(String(model), String(question), String(answer)))
+  handle('config:autoTitle', (value: string) => setConfig({ autoTitle: String(value) }))
   handle('conv:sync', (key: string) => agents.sync(key))
 
   // 快捷指令变了以后，闲着的 Pi 进程下次用时重启，新的指令才认得

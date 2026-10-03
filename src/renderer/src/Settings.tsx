@@ -6,7 +6,7 @@ import { Mcp } from './Mcp'
 import { Tile, nextState } from './CapPanel'
 import { installing } from './installing'
 import { Market } from './Market'
-import { type ChatWidth, type SettingsTab, api, commandsChanged, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
+import { type ChatWidth, type SettingsTab, setAutoTitle, api, commandsChanged, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
 import { t } from '@shared/i18n'
 
@@ -42,6 +42,11 @@ const LANGUAGES: { id: 'system' | 'zh' | 'en'; label: string }[] = [
 
 function Look() {
   const prefs = useApp((s) => s.prefs)
+  const autoTitle = useApp((s) => s.config?.autoTitle) ?? 'off'
+  const models = useApp((s) => s.models)
+  const favorites = useApp((s) => s.config?.favoriteModels)
+  // 起标题可以固定用一个便宜的模型：常用的排前面，再加上用过的；现在选着的那个一定在列表里
+  const titleModels = [...new Set([...(favorites ?? []), ...Object.keys(models), ...(autoTitle !== 'off' && autoTitle !== 'same' ? [autoTitle] : [])])]
   return (
     <>
       <div className="set-row">
@@ -88,6 +93,23 @@ function Look() {
               {width.label}
             </button>
           ))}
+        </div>
+      </div>
+      <div className="set-row">
+        <div className="set-label">
+          {t('自动起标题')}
+          <div className="muted small">{t('新对话聊完第一轮后，让模型概括成一个短标题（每次花一两百个 token）。关着时标题就是你的第一句话')}</div>
+        </div>
+        <div className="set-control">
+          <select className="field" value={autoTitle} onChange={(event) => void setAutoTitle(event.target.value)}>
+            <option value="off">{t('关')}</option>
+            <option value="same">{t('用对话自己的模型')}</option>
+            {titleModels.map((id) => (
+              <option key={id} value={id}>
+                {t('固定用 {model}', { model: id })}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <div className="set-row">

@@ -1,8 +1,10 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import path from 'node:path'
 import { t } from '@shared/i18n'
-import type { McpExposure, McpOverview, McpServerInfo, McpServerInput } from '@shared/types'
+import type { McpExposure, McpOverview, McpServerInfo, McpServerInput, McpStatus } from '@shared/types'
 import { MCP_CONFIG, adapterInstalled, mcpEngine } from './catalog'
-import { readJsonForEdit, writeJson } from './env'
+import { AGENT_DIR, HOME, cleanEnvPath, nodeExecPath, piCliPath, readJson, readJsonForEdit, shellEnv, writeJson } from './env'
 
 type Entry = Record<string, unknown>
 interface McpFile {
@@ -111,4 +113,73 @@ export function removeMcp(name: string): void {
   const servers = { ...config.mcpServers }
   delete servers[name]
   write({ ...config, mcpServers: servers })
+}
+
+// ---- 连接状态和登录（用 Pi 自己的 `pi mcp` 命令） ----
+
+/** 跑一条 `pi mcp …` 命令。输出一行行送回去，最后把全部输出交回来 */
+async function piMcp(args: string[], timeoutMs: number, onLine?: (line: string) => void): Promise<{ code: number | null; out: string }> {
+  const env = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1' }
+  return new Promise((resolve, reject) => {
+    const child = spawn(nodeExecPath(), ['-r', cleanEnvPath(), piCliPath(), 'mcp', ...args], { cwd: HOME, env, stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = ''
+    const timer = setTimeout(() => child.kill(), timeoutMs)
+    const feed = (chunk: Buffer): void => {
+      const text = chunk.toString('utf8').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+      out += text
+      for (const line of text.split(/\r?\n/)) if (line.trim()) onLine?.(line.trimEnd())
+    }
+    child.stdout.on('data', feed)
+    child.stderr.on('data', feed)
+    child.on('error', reject)
+    child.on('exit', (code) => {
+      clearTimeout(timer)
+      resolve({ code, out })
+    })
+  })
+}
+
+const serverName = (name: string): string => {
+  if (!/^[\w.@-]{1,80}$/.test(name)) throw new Error(t('服务的名字不对'))
+  return name
+}
+
+/**
+ * 挨个连一遍所有服务，看连不连得上、要不要登录。这会真的启动本机的服务程序、访问远程地址，要几秒。
+ * 凭证文件只看里面有哪些服务的名字，不读内容。
+ */
+export async function mcpStatus(): Promise<McpStatus[]> {
+  const { out } = await piMcp(['list', '--json'], 90_000)
+  const start = out.indexOf('{')
+  let report: { servers?: Record<string, unknown>[] }
+  try {
+    report = JSON.parse(out.slice(start, out.lastIndexOf('}') + 1))
+  } catch {
+    throw new Error(t('没能读到服务的状态：{error}', { error: out.trim().slice(-300) || '?' }))
+  }
+  // 凭证按「mcp__名字|网址」存。这里只看有哪些名字，不读里面的内容
+  const saved = Object.keys(readJson<Record<string, unknown>>(path.join(AGENT_DIR, 'mcp-auth.json'), {}))
+  return (report.servers ?? []).map((server) => {
+    const name = String(server.name ?? '')
+    const enabled = server.enabled !== false
+    const state = !enabled ? 'disabled' : server.state === 'connected' ? 'connected' : server.state === 'needs-auth' ? 'needs-auth' : 'error'
+    return {
+      name,
+      state,
+      tools: Array.isArray(server.tools) ? server.tools.length : 0,
+      error: state === 'error' ? String(server.error ?? server.state ?? '') : undefined,
+      signedIn: Boolean(name) && saved.some((key) => key.startsWith(`mcp__${name.replace(/-/g, '_')}|`))
+    }
+  })
+}
+
+/** 登录一个要授权的远程服务。Pi 会打开浏览器，这里等它回来（最多五分钟） */
+export async function mcpLogin(name: string, onLine: (line: string) => void): Promise<void> {
+  const { code, out } = await piMcp(['login', serverName(name), '--timeout', '300'], 320_000, onLine)
+  if (code !== 0) throw new Error(out.trim().split('\n').pop() || t('登录没有完成'))
+}
+
+export async function mcpLogout(name: string): Promise<void> {
+  const { code, out } = await piMcp(['logout', serverName(name)], 30_000)
+  if (code !== 0) throw new Error(out.trim().split('\n').pop() || t('退出登录失败'))
 }

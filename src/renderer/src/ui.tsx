@@ -241,4 +241,15 @@ export function relTime(ms: number): string {
   return t('{n} 个月前', { n: Math.floor(days / 30) })
 }
 
+/** 一条消息是什么时候的：今天的只写几点几分，更早的带上日期 */
+export function clockTime(ms: number | undefined): string {
+  if (!ms) return ''
+  const at = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const time = `${pad(at.getHours())}:${pad(at.getMinutes())}`
+  const today = new Date()
+  if (at.toDateString() === today.toDateString()) return time
+  return `${at.getFullYear() === today.getFullYear() ? '' : `${at.getFullYear()}/`}${at.getMonth() + 1}/${at.getDate()} ${time}`
+}
+
 export const baseName = (p: string): string => p.split('/').filter(Boolean).pop() ?? p

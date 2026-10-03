@@ -552,3 +552,40 @@ export function writeTranscript(file: string): string {
   fs.writeFileSync(target, `${out.join('\n').replace(/\n{3,}/g, '\n\n')}\n`)
   return target
 }
+
+// ---- 回到某条消息重新来 ----
+
+/**
+ * 把对话的「当前位置」退回到第 userIndex 条用户消息之前，这样接下来发的消息就从那里另起一条分支。
+ * 修改已发的消息、重新生成回答都靠它。
+ *
+ * Pi 的会话是一棵只增不改的树，重新打开时以文件里最后一条记录为当前位置。所以这里只在末尾添一条
+ * 不带内容的标记，把它挂在目标消息的前一条下面；原来那条分支一个字不动，还留在文件里
+ * （命令行的 /tree 能回去）。调用前要先让用着这个文件的 Pi 进程退出。
+ */
+export function rewindSession(file: string, userIndex: number, expect: string): void {
+  const entries = parseLines(file)
+  const byId = new Map<string, Entry>()
+  for (const e of entries) if (e.id) byId.set(e.id, e)
+  // 和 readSession 一样，从最后一条往上走，得到当前这条分支
+  const branch: Entry[] = []
+  const seen = new Set<string>()
+  let cursor: Entry | undefined = entries.length > 1 ? entries[entries.length - 1] : undefined
+  while (cursor && cursor.id && !seen.has(cursor.id)) {
+    seen.add(cursor.id)
+    branch.push(cursor)
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined
+  }
+  branch.reverse()
+  const users = branch.filter((e) => e.type === 'message' && e.message?.role === 'user')
+  const same = (e: Entry | undefined): boolean => Boolean(e) && textOf(e!.message.content).trim() === expect.trim()
+  // 优先按位置找；位置对不上就按文字找最后一条一样的
+  const target = same(users[userIndex]) ? users[userIndex] : [...users].reverse().find(same)
+  if (!target) throw new Error(t('在对话记录里找不到这条消息，重新打开这个对话再试'))
+  let id = ''
+  do id = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0')
+  while (byId.has(id))
+  const mark = { type: 'custom', customType: 'pi-desktop.rewind', data: { before: target.id, from: entries[entries.length - 1].id }, id, parentId: target.parentId ?? null, timestamp: new Date().toISOString() }
+  const raw = fs.readFileSync(file)
+  fs.appendFileSync(file, `${raw.length && raw[raw.length - 1] !== 0x0a ? '\n' : ''}${JSON.stringify(mark)}\n`)
+}

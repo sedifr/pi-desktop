@@ -2,6 +2,7 @@ import { t } from '@shared/i18n'
 import fs from 'node:fs'
 import type { BashResult, ConvEvent, ConvInfo, ImageAttachment, ModelInfo } from '@shared/types'
 import { copySession, launchArgs, rekey } from './caps'
+import { rewindSession } from './sessions'
 import { PiProcess } from './rpc'
 
 interface Conv {
@@ -257,6 +258,18 @@ export class AgentManager {
     conv.sessionFile = state.sessionFile
     this.convs.set(nextKey, conv)
     return { key: nextKey, text: result.text ?? text }
+  }
+
+  /**
+   * 回到第 userIndex 条用户消息之前，准备从那里重新来（修改消息、重新生成）。
+   * 进程要先停掉：它在内存里记着原来的位置，下次启动才会按文件里新的位置接着走。
+   */
+  async rewind(key: string, userIndex: number, text: string): Promise<void> {
+    const conv = this.conv(key)
+    if (this.busy(conv)) throw new Error(t('正在回答时不能改，先停下来'))
+    if (!conv.sessionFile || !fs.existsSync(conv.sessionFile)) throw new Error(t('这个对话还没有存下来，没法从中间重新来'))
+    await this.stop(conv)
+    rewindSession(conv.sessionFile, userIndex, text)
   }
 
   /** 界面在分叉后调用：新对话的记录建好了，把当前状态发过去 */

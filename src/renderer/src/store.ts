@@ -99,6 +99,8 @@ export interface AppState {
   browserRequest?: { url: string; n: number }
   /** 正在放大看的那张图 */
   preview?: string
+  /** 正在放大看的、对话里直接带着的图（自己发的图片）。和 preview 不同，它没有文件可以另存或在访达里显示 */
+  lightbox?: string
   /** 图片有增减时加一，让开着的图库重新读 */
   imagesVersion: number
   settingsTab: SettingsTab
@@ -401,6 +403,7 @@ function handleEvent(key: string, event: ConvEvent): void {
         c.queued = []
       })
       void refreshSessions()
+      void maybeAutoTitle(key)
       break
     case 'message_start':
     case 'message_end': {
@@ -762,6 +765,97 @@ export function openInBrowser(url: string): void {
 /** 放大看一张图；传空是关掉。changed 为真表示图片有增减，开着的图库要刷新 */
 export function previewImage(path: string | undefined, changed = false): void {
   set(changed ? { preview: path, imagesVersion: state.imagesVersion + 1 } : { preview: path })
+}
+
+export function setLightbox(src: string | undefined): void {
+  set({ lightbox: src })
+}
+
+const textBlocks = (message: Msg | undefined): string =>
+  Array.isArray(message?.content)
+    ? message.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text ?? '')
+        .join('\n')
+    : typeof message?.content === 'string'
+      ? message.content
+      : ''
+
+/**
+ * 回到第 userIndex 条用户消息那里重新来：把它换成 text 再发一次（text 不变就是重新生成）。
+ * 这条之后的内容会从当前对话里拿掉，但还留在对话记录里。原来带的图片会一起带上。
+ */
+export async function resendFrom(key: string, userIndex: number, text: string): Promise<void> {
+  const conv = state.convs[key]
+  if (!conv) return
+  if (conv.streaming || conv.pending.length) return toast(t('正在回答时不能改，先停下来'), 'warning')
+  const users = conv.messages.filter((message) => message.role === 'user')
+  const original = users[userIndex]
+  const clean = text.trim()
+  if (!original || !clean) return
+  const images: ImageAttachment[] = (Array.isArray(original.content) ? original.content : [])
+    .filter((block) => block.type === 'image' && block.data)
+    .map((block, index) => ({ name: `image-${index + 1}`, mimeType: block.mimeType ?? 'image/png', data: block.data ?? '' }))
+  try {
+    await api.convRewind(key, userIndex, textBlocks(original))
+    // 画面上也退回到那条消息之前；以文件为准，顺便拿到每条消息在记录里的编号
+    const file = state.convs[key]?.sessionFile
+    if (file) {
+      const data = await api.readSession(file)
+      updateConv(key, (c) => {
+        c.messages = data.messages
+        c.liveIndex = -1
+        c.error = undefined
+      })
+    }
+  } catch (error) {
+    return toast(errorText(error), 'error')
+  }
+  // 借输入框把它发出去；输入框里正在写的东西先收起来，发完放回去
+  const now = state.convs[key]
+  if (!now) return
+  const stash = { draft: now.draft, attachments: now.attachments, refs: now.refs, quotes: now.quotes }
+  updateConv(key, (c) => Object.assign(c, { draft: clean, attachments: images, refs: [], quotes: [] }), true)
+  const sending = send(key)
+  updateConv(key, (c) => Object.assign(c, { draft: stash.draft, attachments: stash.attachments, refs: stash.refs, quotes: stash.quotes }), true)
+  await sending
+}
+
+// ---- 自动起标题 ----
+
+const titled = new Set<string>()
+/**
+ * 新对话聊完第一轮后让模型起个短标题。只在设置里打开了才做；对话已经有名字、
+ * 第一轮出错或被停掉、或者是子代理的对话，都不起。
+ */
+async function maybeAutoTitle(key: string): Promise<void> {
+  const mode = state.config?.autoTitle ?? 'off'
+  const conv = state.convs[key]
+  if (mode === 'off' || !conv || titled.has(key) || conv.info.sessionName) return
+  const users = conv.messages.filter((message) => message.role === 'user')
+  const answer = [...conv.messages].reverse().find((message) => message.role === 'assistant')
+  if (users.length !== 1 || !answer || answer.stopReason === 'error' || answer.stopReason === 'aborted') return
+  const model = mode === 'same' ? (conv.info.model ? `${conv.info.model.provider}/${conv.info.model.id}` : undefined) : mode
+  const question = titleFrom(textBlocks(users[0]))
+  if (!model || !question) return
+  titled.add(key)
+  try {
+    const title = await api.titleSuggest(model, question, textBlocks(answer))
+    // 这期间用户自己改了名，或者对话又在回答了（改名要等它停），就不动
+    const latest = state.convs[key]
+    if (!latest || latest.info.sessionName || latest.streaming) return
+    await rename(key, title)
+  } catch {
+    // 起不出来就算了，标题还是第一句话
+  }
+}
+
+export async function setAutoTitle(value: string): Promise<void> {
+  try {
+    set({ config: await api.autoTitleSet(value) })
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
 }
 
 /** 把一个模型加进常用，或者拿出来 */

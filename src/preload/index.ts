@@ -33,6 +33,9 @@ const api: PiApi = {
   convSetName: call('conv:setName'),
   convExport: call('conv:export'),
   convFork: call('conv:fork'),
+  convRewind: call('conv:rewind'),
+  titleSuggest: call('title:suggest'),
+  autoTitleSet: call('config:autoTitle'),
   convSync: call('conv:sync'),
 
   templatesList: call('templates:list'),
@@ -94,6 +97,11 @@ const api: PiApi = {
     ipcRenderer.on('pkg:line', listener)
     return () => ipcRenderer.removeListener('pkg:line', listener)
   },
+  onMcpLine: (cb) => {
+    const listener = (_event: unknown, line: string) => cb(line)
+    ipcRenderer.on('mcp:line', listener)
+    return () => ipcRenderer.removeListener('mcp:line', listener)
+  },
   summariesMissing: call('summaries:missing'),
   summariesGenerate: call('summaries:generate'),
   onSummaryProgress: (cb) => {
@@ -103,6 +111,9 @@ const api: PiApi = {
   },
   mcpList: call('mcp:list'),
   mcpEngineSet: call('mcp:engine'),
+  mcpStatus: call('mcp:status'),
+  mcpLogin: call('mcp:login'),
+  mcpLogout: call('mcp:logout'),
   mcpSave: call('mcp:save'),
   mcpRemove: call('mcp:remove'),
   summarySet: call('summary:set'),

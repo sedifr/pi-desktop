@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { t } from '@shared/i18n'
-import type { McpExposure, McpOverview, McpServerInfo } from '@shared/types'
+import type { McpExposure, McpOverview, McpServerInfo, McpStatus } from '@shared/types'
 import { api, commandsChanged, errorText, getState, loadCaps, toast } from './store'
 import { Icon } from './ui'
 
@@ -172,6 +172,50 @@ export function Mcp() {
   const [editing, setEditing] = useState<Draft>()
   const list = overview?.servers
   const builtin = overview?.engine === 'builtin'
+  // 每个服务连不连得上。打开这一页时查一次，要几秒
+  const [status, setStatus] = useState<Record<string, McpStatus>>()
+  const [checking, setChecking] = useState(false)
+  // 正在登录哪个服务，和登录过程里 Pi 说的话
+  const [signing, setSigning] = useState<string>()
+  const [lines, setLines] = useState<string[]>([])
+  const check = useCallback(() => {
+    setChecking(true)
+    api.mcpStatus().then(
+      (all) => {
+        setStatus(Object.fromEntries(all.map((item) => [item.name, item])))
+        setChecking(false)
+      },
+      (error) => {
+        setChecking(false)
+        toast(errorText(error), 'error')
+      }
+    )
+  }, [])
+  useEffect(() => {
+    if (builtin) check()
+  }, [builtin, check])
+  useEffect(() => api.onMcpLine((line) => setLines((current) => [...current.slice(-4), line])), [])
+  const login = async (name: string) => {
+    setSigning(name)
+    setLines([])
+    try {
+      await api.mcpLogin(name)
+      toast(t('「{name}」登录好了，从下一条消息起可以用', { name }))
+    } catch (error) {
+      toast(t('「{name}」没登录成：{error}', { name, error: errorText(error) }), 'error')
+    }
+    setSigning(undefined)
+    check()
+  }
+  const logout = async (name: string) => {
+    if (!window.confirm(t('退出「{name}」的登录？存着的授权会删掉，再用要重新登录。', { name }))) return
+    try {
+      await api.mcpLogout(name)
+    } catch (error) {
+      toast(errorText(error), 'error')
+    }
+    check()
+  }
 
   const reload = useCallback(() => {
     api.mcpList().then(
@@ -259,6 +303,11 @@ export function Mcp() {
       <div className="cap-section">
         {t('已添加的服务')}
         <span className="grow" />
+        {builtin && (
+          <button className="btn" disabled={checking} title={t('挨个连一遍，看每个服务连不连得上')} onClick={check}>
+            <Icon name="refresh" size={13} /> {checking ? t('正在检查…') : t('检查连接')}
+          </button>
+        )}
         <button className="btn" onClick={() => setEditing({ ...BLANK })}>
           <Icon name="plus" size={13} /> {t('添加服务')}
         </button>
@@ -267,12 +316,39 @@ export function Mcp() {
       {!list && <div className="cap-empty">{t('正在读取…')}</div>}
       {failed && <div className="banner error">{failed}</div>}
       {list && !list.length && !editing && !failed && <div className="cap-empty">{t('还没有 MCP 服务。点「添加服务」接上第一个。')}</div>}
+      {signing && (
+        <div className="install-log">
+          <div>
+            <span className="dot-running" /> {t('正在登录「{name}」：浏览器里会打开授权页面，在那边同意之后回到这里', { name: signing })}
+          </div>
+          {lines.map((line, index) => (
+            <div key={index} className="muted small mono ellipsis" title={line}>
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
       {list?.map((server) => {
         const secrets = server.kind === 'http' ? server.headerKeys : server.envKeys
+        const now = builtin ? status?.[server.name] : undefined
+        // 只有不带 Authorization 请求头的远程服务才走登录授权
+        const oauth = builtin && server.kind === 'http' && !server.headerKeys.some((key) => key.toLowerCase() === 'authorization')
         return (
           <div key={server.name} className="set-row">
             <div className="set-label grow">
               <span className="mono">{server.name}</span>
+              {now && (
+                <span className={`mcp-state ${now.state}`} title={now.error}>
+                  {now.state === 'connected'
+                    ? t('已连接 · {n} 个工具', { n: now.tools })
+                    : now.state === 'needs-auth'
+                      ? t('要先登录')
+                      : now.state === 'disabled'
+                        ? t('没启用')
+                        : t('连不上')}
+                </span>
+              )}
+              {!now && builtin && checking && <span className="mcp-state">{t('正在检查…')}</span>}
               {!server.enabled && <span className="muted">　{t('默认不连接')}</span>}
               <div className="muted small ellipsis">{server.kind === 'http' ? server.url : joinCommand([server.command ?? '', ...server.args])}</div>
               {(server.description || secrets.length > 0 || builtin) && (
@@ -288,6 +364,16 @@ export function Mcp() {
               )}
             </div>
             <div className="set-control">
+              {oauth && now?.state === 'needs-auth' && (
+                <button className="btn primary" disabled={Boolean(signing)} onClick={() => void login(server.name)}>
+                  {t('登录')}
+                </button>
+              )}
+              {oauth && now?.signedIn && now.state !== 'needs-auth' && (
+                <button className="btn" disabled={Boolean(signing)} onClick={() => void logout(server.name)}>
+                  {t('退出登录')}
+                </button>
+              )}
               <button className="btn" onClick={() => edit(server)}>
                 {t('修改')}
               </button>
@@ -301,7 +387,7 @@ export function Mcp() {
       <div className="set-row">
         <div className="set-label grow">
           {t('配置文件')}
-          <div className="muted small">{t('更细的选项（超时、工具暴露方式、OAuth 登录）直接改这个文件。第一次从这里改动前会自动留一份备份')}</div>
+          <div className="muted small">{t('更细的选项（超时、预先注册的登录客户端等）直接改这个文件。第一次从这里改动前会自动留一份备份')}</div>
         </div>
         <button className="btn" onClick={() => api.openPath('mcp')}>
           {t('在访达中显示')}

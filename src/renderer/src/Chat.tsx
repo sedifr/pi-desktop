@@ -1,14 +1,14 @@
 import { type ReactNode, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import { type Conv, type ToolRun, activityOf, clearJump, copyText, forkFrom, openInBrowser, previewImage, quoteInto, retryLast, setFindOpen, useApp } from './store'
-import { Icon, ImageContext, Markdown } from './ui'
+import { type Conv, type ToolRun, activityOf, clearJump, copyText, forkFrom, openInBrowser, previewImage, quoteInto, resendFrom, retryLast, setFindOpen, setLightbox, useApp } from './store'
+import { Icon, ImageContext, Markdown, clockTime } from './ui'
 import { t } from '@shared/i18n'
 
 type Step = { kind: 'thinking'; text: string } | { kind: 'text'; text: string } | { kind: 'tool'; call: ContentBlock; result?: Msg }
 
 type Block =
   | { kind: 'user'; id: string; msg: Msg }
-  | { kind: 'turn'; id: string; steps: Step[]; images: GenImage[]; final?: string; error?: string; aborted?: boolean; model?: string; members: string[] }
+  | { kind: 'turn'; id: string; steps: Step[]; images: GenImage[]; final?: string; error?: string; aborted?: boolean; model?: string; members: string[]; time?: number }
   | { kind: 'note'; id: string; label: string; text: string }
   | { kind: 'shell'; id: string; msg: Msg }
 
@@ -91,6 +91,7 @@ function buildBlocks(messages: Msg[]): Block[] {
       lastAssistant = msg
       finalFrom = turn.steps.length
       turn.model = msg.model
+      turn.time = msg.timestamp
       // 用户自己按了停止，有的提供商会把它报成一条「被中止」的错误，这不算出错
       const stopped = msg.stopReason === 'aborted' || (msg.stopReason === 'error' && ABORTED.test(msg.errorMessage ?? ''))
       turn.error = msg.stopReason === 'error' && !stopped ? explain(msg.errorMessage ?? t('请求出错')) : undefined
@@ -293,7 +294,7 @@ function LiveStatus({ conv, turn }: { conv: Conv; turn?: Extract<Block, { kind: 
   )
 }
 
-const Turn = memo(function Turn({ block, live, toolRuns, cwd, onRetry }: { block: Extract<Block, { kind: 'turn' }>; live: boolean; toolRuns: Record<string, ToolRun>; cwd: string; onRetry?: () => void }) {
+const Turn = memo(function Turn({ block, live, toolRuns, cwd, onRetry, onRegenerate }: { block: Extract<Block, { kind: 'turn' }>; live: boolean; toolRuns: Record<string, ToolRun>; cwd: string; onRetry?: () => void; onRegenerate?: () => void }) {
   const [open, setOpen] = useState<boolean | undefined>(undefined)
   const tools = block.steps.filter((s) => s.kind === 'tool').length
   // 进行中默认展开让人看到在做什么，结束后默认收起只留答案
@@ -343,6 +344,12 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd, onRetry }: { block
           <button className="icon-btn" title={t('复制这条回答')} onClick={() => void copyText(block.final!)}>
             <Icon name="copy" size={14} />
           </button>
+          {onRegenerate && (
+            <button className="icon-btn" title={t('重新生成：把上一条消息再发一次，换一个回答。现在这个回答还留在对话记录里')} onClick={onRegenerate}>
+              <Icon name="refresh" size={14} />
+            </button>
+          )}
+          <span className="msg-time">{clockTime(block.time)}</span>
         </div>
       )}
       {block.error && (
@@ -361,12 +368,56 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd, onRetry }: { block
   )
 })
 
-function UserMessage({ msg, onFork }: { msg: Msg; onFork?: () => void }) {
+function UserMessage({ msg, onFork, onEdit }: { msg: Msg; onFork?: () => void; onEdit?: (text: string) => void }) {
   const blocks = blocksOf(msg.content)
   const text = textOf(msg.content)
+  // 就地修改：气泡变成一个可以改的框，发送后从这条消息重新来
+  const [editing, setEditing] = useState<string>()
+  if (editing !== undefined && onEdit) {
+    const submit = () => {
+      if (editing.trim()) onEdit(editing)
+      setEditing(undefined)
+    }
+    return (
+      <div className="user-row">
+        <div className="user-edit">
+          <textarea
+            autoFocus
+            value={editing}
+            rows={Math.min(12, Math.max(2, editing.split('\n').length))}
+            onChange={(event) => setEditing(event.target.value)}
+            onFocus={(event) => event.target.setSelectionRange(event.target.value.length, event.target.value.length)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return
+              if (event.key === 'Escape') setEditing(undefined)
+              else if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                submit()
+              }
+            }}
+          />
+          <div className="user-edit-foot">
+            <span className="muted small grow">{t('发送后，这条之后的内容会从对话里拿掉，从这里重新来')}</span>
+            <button className="btn" onClick={() => setEditing(undefined)}>
+              {t('取消')}
+            </button>
+            <button className="btn primary" disabled={!editing.trim()} onClick={submit}>
+              {t('发送')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="user-row">
       <div className="msg-actions">
+        <span className="msg-time">{clockTime(msg.timestamp)}</span>
+        {onEdit && (
+          <button className="icon-btn" title={t('修改这条消息再发一次')} onClick={() => setEditing(text)}>
+            <Icon name="edit" size={14} />
+          </button>
+        )}
         {onFork && (
           <button className="icon-btn" title={t('从这里另开一个对话：保留这条之前的内容，这条消息可以改了再发')} onClick={onFork}>
             <Icon name="branch" size={14} />
@@ -380,7 +431,7 @@ function UserMessage({ msg, onFork }: { msg: Msg; onFork?: () => void }) {
         {blocks
           .filter((b) => b.type === 'image' && b.data)
           .map((b, i) => (
-            <img key={i} className="user-image" src={`data:${b.mimeType};base64,${b.data}`} alt={t('附带的图片')} />
+            <img key={i} className="user-image clickable" src={`data:${b.mimeType};base64,${b.data}`} alt={t('附带的图片')} onClick={() => setLightbox(`data:${b.mimeType};base64,${b.data}`)} />
           ))}
         <UserText text={textOf(msg.content)} />
       </div>
@@ -576,6 +627,12 @@ export function Chat({ conv }: { conv: Conv }) {
   // 最后一轮出错、又没在回答时，可以点一下把上一条再发一次
   const retryKey = !conv.streaming && !conv.pending.length ? conv.key : undefined
   const retry = useCallback(() => void retryLast(conv.key), [conv.key])
+  // 修改已发的消息、重新生成：对话得已经存下来，而且这会儿没在回答
+  const canRewind = Boolean(retryKey && conv.sessionFile)
+  const regenerate = useCallback(() => {
+    const users = conv.messages.filter((message) => message.role === 'user')
+    if (users.length) void resendFrom(conv.key, users.length - 1, textOf(users[users.length - 1].content))
+  }, [conv.key, conv.messages])
 
   // ---- 在这个对话里查找（⌘F） ----
   const findOpen = useApp((s) => s.findOpen)
@@ -708,9 +765,13 @@ export function Chat({ conv }: { conv: Conv }) {
         {visible.map((block) => (
           <div key={block.id} data-block={block.id}>
             {block.kind === 'user' ? (
-              <UserMessage msg={block.msg} onFork={conv.streaming ? undefined : () => void forkFrom(conv.key, userIndexOf(block), textOf(block.msg.content))} />
+              <UserMessage
+                msg={block.msg}
+                onFork={conv.streaming ? undefined : () => void forkFrom(conv.key, userIndexOf(block), textOf(block.msg.content))}
+                onEdit={canRewind ? (text) => void resendFrom(conv.key, userIndexOf(block), text) : undefined}
+              />
             ) : block.kind === 'turn' ? (
-              <Turn block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} onRetry={retryKey && block === blocks[blocks.length - 1] ? retry : undefined} />
+              <Turn block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} onRetry={retryKey && block === blocks[blocks.length - 1] ? retry : undefined} onRegenerate={canRewind && block === blocks[blocks.length - 1] && !block.error ? regenerate : undefined} />
             ) : block.kind === 'shell' ? (
               <ShellBlock msg={block.msg} />
             ) : (

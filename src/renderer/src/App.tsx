@@ -21,6 +21,7 @@ import {
   rename,
   runCommand,
   setAutoCompaction,
+  setLightbox,
   setPrefs,
   setRenaming,
   setTrust,
@@ -334,6 +335,13 @@ export function App() {
   const toasts = useApp((s) => s.toasts)
   const view = useApp((s) => s.view)
   const preview = useApp((s) => s.preview)
+  const lightbox = useApp((s) => s.lightbox)
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setLightbox(undefined)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [lightbox])
   const paneOpen = useApp((s) => s.prefs.paneOpen && s.view === 'chat')
   const [paneUsed, setPaneUsed] = useState(false)
   useEffect(() => {
@@ -407,6 +415,11 @@ export function App() {
           </div>
         )}
         {preview && <ImagePreview key={preview} path={preview} />}
+        {lightbox && (
+          <div className="overlay preview" onClick={() => setLightbox(undefined)}>
+            <img className="lightbox" src={lightbox} alt="" />
+          </div>
+        )}
       </main>
       {/* 右侧面板打开过一次之后就一直留着，收起时只是藏起来，里面的网页和终端不会断 */}
       {conv && paneUsed && <Pane conv={conv} visible={paneOpen} />}

@@ -393,6 +393,17 @@ export interface PackageInfo {
 export type McpExposure = 'codemode' | 'deferred' | 'direct'
 
 /** 设置里「MCP」页需要知道的整体情况 */
+/** 一个 MCP 服务现在连不连得上 */
+export interface McpStatus {
+  name: string
+  /** connected 连上了；needs-auth 要先登录授权；disabled 没启用；error 连不上 */
+  state: 'connected' | 'needs-auth' | 'disabled' | 'error'
+  tools: number
+  error?: string
+  /** 存着这个服务的登录凭证 */
+  signedIn: boolean
+}
+
 export interface McpOverview {
   servers: McpServerInfo[]
   /** 有没有装 pi-mcp-adapter 扩展。没装就只有自带的一种接法，不用选 */
@@ -437,6 +448,11 @@ export interface DesktopConfig {
   extraSkillDirs: string[]
   /** 常用模型，形如「提供商/模型」。在模型菜单里排在最前面 */
   favoriteModels: string[]
+  /**
+   * 新对话聊完第一轮后，让模型起个短标题。off 是不起（标题就是第一句话）；same 是用对话自己的模型；
+   * 也可以写成「提供商/模型」，固定用一个便宜的模型来起。
+   */
+  autoTitle?: string
   /** 置顶的对话（会话 id），按侧栏里显示的顺序 */
   pinned: string[]
   /**
@@ -487,6 +503,11 @@ export interface PiApi {
   convExport(key: string): Promise<string>
   /** 从第几条用户消息另开对话。返回新对话的 key 和那条消息的文字；被扩展取消时返回 undefined */
   convFork(key: string, userIndex: number, text: string): Promise<{ key: string; text: string } | undefined>
+  /** 把对话退回到第 userIndex 条用户消息之前，接下来发的消息从那里另起一条分支 */
+  convRewind(key: string, userIndex: number, text: string): Promise<void>
+  /** 让模型给对话起个短标题 */
+  titleSuggest(model: string, question: string, answer: string): Promise<string>
+  autoTitleSet(value: string): Promise<DesktopConfig>
   convSync(key: string): Promise<void>
 
   templatesList(cwd?: string): Promise<TemplateInfo[]>
@@ -558,6 +579,12 @@ export interface PiApi {
   mcpList(): Promise<McpOverview>
   /** 换 MCP 的接法 */
   mcpEngineSet(engine: 'builtin' | 'adapter'): Promise<McpOverview>
+  /** 挨个连一遍，看每个服务连不连得上、要不要登录。要几秒 */
+  mcpStatus(): Promise<McpStatus[]>
+  /** 登录一个要授权的远程服务：会打开浏览器，等你在网页上同意。过程里的提示通过 onMcpLine 送来 */
+  mcpLogin(name: string): Promise<void>
+  mcpLogout(name: string): Promise<void>
+  onMcpLine(cb: (line: string) => void): () => void
   mcpSave(input: McpServerInput): Promise<void>
   mcpRemove(name: string): Promise<void>
 
