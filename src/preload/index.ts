@@ -17,6 +17,7 @@ const api: PiApi = {
   usageTotals: call('usageTotals'),
   pickFolder: call('pickFolder'),
   openExternal: (url) => ipcRenderer.send('openExternal', url),
+  clipboardText: (text) => ipcRenderer.send('clipboard:text', text),
 
   convStart: call('conv:start'),
   convPrompt: call('conv:prompt'),
@@ -39,6 +40,9 @@ const api: PiApi = {
   templateTrash: call('templates:trash'),
   filesSearch: call('files:search'),
   filesList: call('files:list'),
+  docText: call('doc:text'),
+  marketSearch: call('market:search'),
+  pdfBytes: call('doc:pdfBytes'),
   trustGet: call('trust:get'),
   trustSet: call('trust:set'),
   pathForFile: (file) => webUtils.getPathForFile(file),

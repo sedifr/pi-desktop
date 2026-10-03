@@ -49,8 +49,8 @@ export interface Conv {
   queued: PendingMsg[]
   /** 输入框里还没发出去的图片 */
   attachments: ImageAttachment[]
-  /** 拖进来要给 Pi 参考的别的对话，发送时变成消息里的文件引用 */
-  refs: SessionRef[]
+  /** 要给 Pi 参考的别的对话和文档（PDF 这类），发送时变成消息里的文件引用 */
+  refs: AttachedRef[]
   /** 从回答里引用的段落，每段下面有自己的回复。发送时拼成「> 原文 + 回复」 */
   quotes: QuoteReply[]
   widgets: Record<string, string[]>
@@ -118,7 +118,7 @@ export interface AppState {
   config?: DesktopConfig
 }
 
-export type SettingsTab = 'look' | 'caps' | 'sources' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
+export type SettingsTab = 'look' | 'caps' | 'market' | 'sources' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
 
 export interface Prefs {
   /** 界面语言。system 表示跟随系统 */
@@ -815,10 +815,76 @@ export async function renameSession(meta: SessionMeta, name: string): Promise<vo
   await refreshSessions()
 }
 
-/** 被拖进输入框的另一个对话：标题给人看，路径是它的文字记录 */
-export interface SessionRef {
+/**
+ * 挂在输入框上的一个参考：另一个对话，或者一份文档（PDF、Word、PPT、Excel）。
+ * 标题给人看；path 是交给 Pi 读的那份文字（对话的文字记录，或者从文档里提取出来的文本）。
+ */
+export interface AttachedRef {
+  kind: 'session' | 'doc'
   title: string
   path: string
+  /** 文档的原文件 */
+  source?: string
+  /** 「3 页」这样的补充说明 */
+  detail?: string
+  /** 还在提取文字 */
+  busy?: boolean
+  /** 扫描件，提取不出字 */
+  scanned?: boolean
+  /** 扫描件有几页已经作为图片附上了 */
+  pagesShown?: number
+}
+
+/** 模型的读文件工具读不了、要先提取文字的格式 */
+const DOC_FILE = /\.(pdf|docx?|rtfd?|odt|webarchive|pptx|xlsx)$/i
+export const isDocFile = (file: string): boolean => DOC_FILE.test(file)
+
+/**
+ * 附上一份文档：先在输入框上挂一个标签，同时在后台把文字提取出来。
+ * 提取不了（比如有密码）就退回成普通的文件引用，让 Pi 自己想办法。
+ */
+export async function attachDoc(key: string, file: string): Promise<void> {
+  const conv = state.convs[key]
+  if (!conv || conv.refs.some((ref) => ref.source === file)) return
+  const title = file.split('/').pop() ?? file
+  updateConv(key, (c) => (c.refs = [...c.refs, { kind: 'doc', title, path: '', source: file, busy: true }]), true)
+  const patch = (fn: (refs: AttachedRef[]) => AttachedRef[]) => updateConv(key, (c) => (c.refs = fn(c.refs)), true)
+  try {
+    const doc = await api.docText(file)
+    const unit = doc.kind === 'sheets' ? t('{n} 张表', { n: doc.pages ?? 0 }) : t('{n} 页', { n: doc.pages ?? 0 })
+    if (!doc.scanned) return patch((refs) => refs.map((ref) => (ref.source === file ? { ...ref, path: doc.path, busy: false, detail: doc.pages ? unit : undefined } : ref)))
+    // 扫描件：没有文字可提取，把前几页画成图片附上，让会看图的模型直接看
+    let shown = 0
+    try {
+      const { renderPdfPages } = await import('./pdfPages')
+      const pages = await renderPdfPages(file)
+      shown = pages.images.length
+      addAttachments(key, pages.images)
+      const model = state.convs[key]?.info.model
+      toast(
+        model?.input && !model.input.includes('image')
+          ? t('「{name}」是扫描件，没有能提取的文字。已把前 {n} 页作为图片附上，但当前模型不会看图，换一个能看图的模型再发', { name: title, n: shown })
+          : t('「{name}」是扫描件，没有能提取的文字。已把前 {n} 页作为图片附上，让模型直接看', { name: title, n: shown }),
+        'warning'
+      )
+    } catch {
+      toast(t('「{name}」是扫描件，里面没有能提取的文字。Pi 只能拿到原文件，要靠看图或文字识别才读得了', { name: title }), 'warning')
+    }
+    patch((refs) => refs.map((ref) => (ref.source === file ? { ...ref, path: doc.path, busy: false, scanned: true, pagesShown: shown, detail: t('扫描件') } : ref)))
+  } catch (error) {
+    patch((refs) => refs.filter((ref) => ref.source !== file))
+    const draft = state.convs[key]?.draft ?? ''
+    setDraft(key, `${draft}${draft && !/\s$/.test(draft) ? ' ' : ''}@${file} `)
+    toast(t('没能提取「{name}」里的文字：{error}', { name: title, error: errorText(error) }), 'warning')
+  }
+}
+
+/** 一个参考在发出去的消息里写成什么 */
+function refLine(ref: AttachedRef): string {
+  if (ref.kind === 'session') return `${t('参考这个对话的记录：')}@${ref.path}`
+  if (ref.scanned && ref.pagesShown) return t('文件「{name}」是扫描件，没有能提取的文字，前 {n} 页已经作为图片附在这条消息里。原文件：{source}', { name: ref.title, n: ref.pagesShown, source: ref.source ?? '' })
+  if (ref.scanned) return t('文件「{name}」是扫描件，没有能提取的文字。原文件：{source}', { name: ref.title, source: ref.source ?? '' })
+  return t('文件「{name}」的文字内容已经提取出来，读这个：{path}（原文件：{source}）', { name: ref.title, path: `@${ref.path}`, source: ref.source ?? '' })
 }
 
 /**
@@ -833,7 +899,7 @@ export async function attachSession(key: string, file: string): Promise<void> {
     const transcript = await api.sessionTranscript(file)
     const meta = state.sessions.find((item) => item.file === file)
     const title = (meta?.name ?? meta?.firstUserText ?? t('（空对话）')).replace(/\s+/g, ' ').slice(0, 40)
-    updateConv(key, (c) => !c.refs.some((ref) => ref.path === transcript) && (c.refs = [...c.refs, { title, path: transcript }]), true)
+    updateConv(key, (c) => !c.refs.some((ref) => ref.path === transcript) && (c.refs = [...c.refs, { kind: 'session', title, path: transcript }]), true)
   } catch (error) {
     toast(errorText(error), 'error')
   }
@@ -871,6 +937,8 @@ export function removeQuote(key: string, id: number): void {
 export function mentionFile(key: string, file: string): void {
   const conv = state.convs[key]
   if (!conv || !file) return
+  // PDF 这类文档直接 @ 过去模型读不了，先提取文字
+  if (isDocFile(file)) return void attachDoc(key, file.startsWith('/') ? file : `${conv.cwd}/${file}`)
   const draft = conv.draft
   setDraft(key, `${draft}${draft && !/\s$/.test(draft) ? ' ' : ''}@${file} `)
   signal('focus')
@@ -1029,7 +1097,8 @@ function lastAnswer(conv: Conv): string {
 
 export async function copyText(text: string): Promise<void> {
   if (!text) return
-  await navigator.clipboard.writeText(text)
+  // 交给主进程去放：窗口不在前台时，网页自己的剪贴板接口会拒绝
+  api.clipboardText(text)
   toast(t('已复制'))
 }
 
@@ -1107,6 +1176,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   const refs = conv.refs
   const quotes = conv.quotes
   if (!text && !images.length && !refs.length && !quotes.length) return
+  if (refs.some((ref) => ref.busy)) return toast(t('文件里的文字还在提取，稍等一下再发'), 'warning')
 
   const command = /^\/(\S+)\s*([\s\S]*)$/.exec(text)
   if (command && (NATIVE_COMMANDS as readonly string[]).includes(command[1])) {
@@ -1134,7 +1204,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   // 正文以 / 开头是指令，得留在最前面；否则先逐段回复，再说别的
   const main = (text.startsWith('/') ? [text, ...quoted] : [...quoted, text]).filter(Boolean).join('\n\n')
   // 引用的对话放在最后
-  const body = [main, ...refs.map((ref) => `${t('参考这个对话的记录：')}@${ref.path}`)].filter(Boolean).join('\n')
+  const body = [main, ...refs.map(refLine)].filter(Boolean).join('\n')
   const pending: PendingMsg = { text: body, images }
   if (!conv.streaming) markStart(key)
   updateConv(

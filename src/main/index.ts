@@ -2,13 +2,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
 import { pathToFileURL } from 'node:url'
-import { BrowserWindow, app, dialog, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
+import { BrowserWindow, app, clipboard, dialog, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
 import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
 import { cleanRunDir, forget, getGlobal, getItems, rekey, resetSession, saveAs, setGlobal, setStates } from './caps'
 import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary } from './catalog'
 import { getConfig, setConfig } from './config'
+import { extractDoc, pdfBytes } from './docs'
+import { searchMarket } from './market'
 import { listDir, searchFiles } from './files'
 import { fileDiff, listChanges, openFile, revealFile } from './changes'
 import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
@@ -300,6 +302,7 @@ function registerIpc(): void {
     const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'] })
     return result.canceled ? null : result.filePaths[0]
   })
+  ipcMain.on('clipboard:text', (_event, text: string) => clipboard.writeText(String(text ?? '')))
   ipcMain.on('openExternal', (_event, url: string) => {
     if (/^https?:/.test(url)) void shell.openExternal(url)
   })
@@ -342,6 +345,9 @@ function registerIpc(): void {
     return status
   })
   handle('files:search', (cwd: string, query: string) => searchFiles(cwd, query))
+  handle('market:search', (query: string, topic: string, from: number) => searchMarket(String(query ?? ''), String(topic ?? ''), Number(from) || 0))
+  handle('doc:text', (file: string) => extractDoc(String(file)))
+  handle('doc:pdfBytes', (file: string) => pdfBytes(String(file)))
   handle('files:list', (cwd: string, rel: string) => listDir(cwd, String(rel ?? '')))
   ipcMain.on('conv:uiResponse', (_event, key: string, payload: Record<string, unknown>) => agents.uiResponse(key, payload))
   ipcMain.on('conv:close', (_event, key: string) => agents.close(key))

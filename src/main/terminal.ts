@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import type { IPty } from 'node-pty'
-import { HOME, shellEnv } from './env'
+import { HOME, loginShell, shellEnv } from './env'
 
 const terminals = new Map<string, IPty>()
 const require_ = createRequire(__filename)
@@ -36,7 +36,7 @@ export async function createTerminal(id: string, cwd: string, cols: number, rows
   // 这个变量只是桌面端启动自己的子进程用的，留在终端里会让 Electron 应用起不来
   delete env.ELECTRON_RUN_AS_NODE
   env.TERM_PROGRAM = 'PiDesktop'
-  const shell = env.SHELL || '/bin/zsh'
+  const shell = loginShell()
   const term = pty.spawn(shell, ['-l'], {
     name: 'xterm-256color',
     cols: Math.max(cols, 20),

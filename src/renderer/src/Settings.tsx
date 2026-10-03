@@ -4,6 +4,8 @@ import { Accounts } from './Accounts'
 import { Commands, Shortcuts } from './Commands'
 import { Mcp } from './Mcp'
 import { Tile, nextState } from './CapPanel'
+import { installing } from './installing'
+import { Market } from './Market'
 import { type SettingsTab, api, commandsChanged, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
 import { t } from '@shared/i18n'
@@ -11,6 +13,7 @@ import { t } from '@shared/i18n'
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'look', label: t('外观') },
   { id: 'caps', label: t('技能与工具') },
+  { id: 'market', label: t('插件市场') },
   { id: 'sources', label: t('安装技能') },
   { id: 'commands', label: t('快捷指令') },
   { id: 'mcp', label: 'MCP' },
@@ -85,21 +88,6 @@ function Look() {
     </>
   )
 }
-
-/** 正在进行的安装或移除。放在组件外面，这样离开这一页它也不会丢 */
-const installing = {
-  label: undefined as string | undefined,
-  lines: [] as string[],
-  listeners: new Set<() => void>(),
-  set(label: string | undefined, lines: string[]) {
-    this.label = label
-    this.lines = lines
-    for (const listener of this.listeners) listener()
-  }
-}
-api.onPackageLine((line) => {
-  if (installing.label) installing.set(installing.label, [...installing.lines.slice(-5), line])
-})
 
 const PACKAGE_KIND: Record<PackageInfo['kind'], string> = { npm: 'npm', git: 'git', local: t('本机文件夹') }
 
@@ -440,9 +428,10 @@ export function Settings() {
           ))}
         </nav>
         <div className="settings-content">
-          <div className={`settings-column ${tab === 'caps' ? 'wide' : ''}`}>
+          <div className={`settings-column ${tab === 'caps' || tab === 'market' ? 'wide' : ''}`}>
             {tab === 'look' && <Look />}
             {tab === 'caps' && <Caps />}
+            {tab === 'market' && <Market />}
             {tab === 'sources' && (
               <>
                 <Packages onChanged={() => {}} />

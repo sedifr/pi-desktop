@@ -7,10 +7,12 @@ import {
   addAttachments,
   addProject,
   api,
+  attachDoc,
   changeCaps,
   consumeSignal,
   type Conv,
   ensureStarted,
+  isDocFile,
   loadCaps,
   newConv,
   openSettings,
@@ -465,6 +467,14 @@ export function Composer({ conv }: { conv: Conv }) {
   const pickFile = (file: string) => {
     if (fileQuery === undefined) return
     const start = cursor - fileQuery.length - 1
+    // 选中的是 PDF 这类文档：把刚才打的 @ 去掉，换成一个提取好文字的标签
+    if (isDocFile(file)) {
+      nextCursor.current = start
+      setDraft(conv.key, conv.draft.slice(0, start) + conv.draft.slice(cursor))
+      void attachDoc(conv.key, `${conv.cwd}/${file}`)
+      input.current?.focus()
+      return
+    }
     const inserted = `@${file} `
     nextCursor.current = start + inserted.length
     setDraft(conv.key, conv.draft.slice(0, start) + inserted + conv.draft.slice(cursor))
@@ -488,6 +498,9 @@ export function Composer({ conv }: { conv: Conv }) {
       .filter((file) => !file.type.startsWith('image/'))
       .map((file) => api.pathForFile(file))
       .filter(Boolean)
+    // PDF、Word 这类文档模型直接读不了：提取出文字，挂成一个标签
+    for (const file of paths.filter(isDocFile)) void attachDoc(conv.key, file)
+    paths.splice(0, paths.length, ...paths.filter((file) => !isDocFile(file)))
     if (paths.length) {
       const text = paths.map((filePath) => `@${filePath.startsWith(`${conv.cwd}/`) ? filePath.slice(conv.cwd.length + 1) : filePath}`).join(' ')
       setDraft(conv.key, `${conv.draft}${conv.draft && !conv.draft.endsWith(' ') ? ' ' : ''}${text} `)
@@ -504,7 +517,7 @@ export function Composer({ conv }: { conv: Conv }) {
   const statuses = Object.entries(conv.statuses)
     .filter(([key]) => key !== 'mcp')
     .map(([, text]) => text)
-  const canSend = conv.draft.trim().length > 0 || conv.attachments.length > 0 || conv.refs.length > 0 || conv.quotes.length > 0
+  const canSend = (conv.draft.trim().length > 0 || conv.attachments.length > 0 || conv.refs.length > 0 || conv.quotes.length > 0) && !conv.refs.some((ref) => ref.busy)
   // 发过消息的对话已经绑定在它的项目上，不能再换
   const canSwitchProject = !conv.messages.length && !conv.pending.length && !conv.streaming && !conv.loading
   const busy = conv.streaming || Boolean(conv.shellRunning)
@@ -615,9 +628,22 @@ export function Composer({ conv }: { conv: Conv }) {
         {(conv.attachments.length > 0 || conv.refs.length > 0) && (
           <div className="attachments">
             {conv.refs.map((ref, index) => (
-              <div key={ref.path} className="ref-chip" title={t('这个对话的文字记录会交给 Pi 参考：{path}', { path: ref.path })}>
-                <Icon name="chat" size={13} />
+              <div
+                key={ref.source ?? ref.path}
+                className={`ref-chip ${ref.busy ? 'busy' : ''} ${ref.scanned ? 'warn' : ''}`}
+                title={
+                  ref.kind === 'session'
+                    ? t('这个对话的文字记录会交给 Pi 参考：{path}', { path: ref.path })
+                    : ref.busy
+                      ? t('正在提取里面的文字…')
+                      : ref.scanned
+                        ? t('扫描件：没有能提取的文字，Pi 只能拿到原文件')
+                        : t('里面的文字已经提取出来，Pi 读的是这份文本：{path}', { path: ref.path })
+                }
+              >
+                <Icon name={ref.kind === 'session' ? 'chat' : 'file'} size={13} />
                 <span className="ellipsis">{ref.title}</span>
+                {(ref.busy || ref.detail) && <span className="ref-detail">{ref.busy ? t('提取中…') : ref.detail}</span>}
                 <button className="ref-remove" title={t('移除')} onClick={() => removeRef(conv.key, index)}>
                   <Icon name="x" size={10} />
                 </button>

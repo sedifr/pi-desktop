@@ -53,6 +53,42 @@ export interface SessionMeta {
   usage: Usage
 }
 
+/** 插件市场里的一个包 */
+export interface MarketItem {
+  name: string
+  version: string
+  description: string
+  keywords: string[]
+  /** 最近一周的下载次数 */
+  weekly: number
+  updated: string
+  publisher?: string
+  npm: string
+  repo?: string
+}
+
+export interface MarketPage {
+  items: MarketItem[]
+  total: number
+  /** 后面还有 */
+  more: boolean
+}
+
+/** 从一份文档里提取出来的文字 */
+export interface DocText {
+  /** 提取出来的文本文件在哪 */
+  path: string
+  /** 原文件 */
+  source: string
+  name: string
+  kind: 'pdf' | 'doc' | 'slides' | 'sheets'
+  /** PDF 和 PPT 是页数，Excel 是表的张数 */
+  pages?: number
+  chars: number
+  /** 扫描件：没有文字层，提取不出字 */
+  scanned: boolean
+}
+
 /** 项目文件夹里的一项 */
 export interface DirEntry {
   name: string
@@ -427,6 +463,8 @@ export interface PiApi {
   usageTotals(): Promise<UsageTotals>
   pickFolder(): Promise<string | null>
   openExternal(url: string): void
+  /** 把一段文字放进剪贴板 */
+  clipboardText(text: string): void
 
   convStart(key: string, cwd: string, sessionFile?: string): Promise<ConvInfo>
   /** 返回 Pi 对这条消息的处理方式：started、queued 或 handled */
@@ -455,6 +493,12 @@ export interface PiApi {
   templateSave(input: TemplateInput): Promise<void>
   templateTrash(file: string, cwd?: string): Promise<void>
   filesSearch(cwd: string, query: string): Promise<string[]>
+  /** 在 Pi 的包目录里找包。topic 是只看带某个关键词的，from 是从第几个开始 */
+  marketSearch(query: string, topic: string, from: number): Promise<MarketPage>
+  /** 读出一份 PDF 的内容，给界面把扫描件按页画成图片用 */
+  pdfBytes(file: string): Promise<Uint8Array>
+  /** 把 PDF、Word、PPT、Excel 里的文字提取成文本文件。模型的读文件工具读不了这些格式 */
+  docText(file: string): Promise<DocText>
   /** 列出项目里一个文件夹的内容。rel 是相对项目文件夹的路径，空字符串是项目文件夹本身 */
   filesList(cwd: string, rel: string): Promise<DirListing>
   trustGet(cwd: string): Promise<TrustStatus>

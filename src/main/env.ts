@@ -43,9 +43,20 @@ let cached: Promise<NodeJS.ProcessEnv> | undefined
  * 从 Dock 启动的应用拿不到终端里的 PATH，Pi 的 bash 工具和 MCP 服务会找不到命令。
  * 这里跑一次登录 shell 把环境变量取回来。
  */
+/** 用户的登录 shell。以系统里这个账号的设置为准；环境变量里的 SHELL 可能是启动应用的那个程序带来的 */
+export function loginShell(): string {
+  try {
+    const shell = os.userInfo().shell
+    if (shell && fs.existsSync(shell)) return shell
+  } catch {
+    // 拿不到就看环境变量
+  }
+  return process.env.SHELL || '/bin/zsh'
+}
+
 export function shellEnv(): Promise<NodeJS.ProcessEnv> {
   cached ??= new Promise((resolve) => {
-    const shell = process.env.SHELL || '/bin/zsh'
+    const shell = loginShell()
     const mark = '__PI_DESKTOP_ENV__'
     execFile(
       shell,

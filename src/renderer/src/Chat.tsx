@@ -397,24 +397,43 @@ function UserText({ text }: { text: string }) {
   )
 }
 
-/** 消息里引用的别的对话（一长串文字记录的路径）显示成一个带标题的小标签 */
+/** 一行里交给 Pi 读的参考（别的对话的文字记录、从文档里提取的文本）在哪 */
+const REF = /@(\S+\/(?:transcripts|attachments)\/\S+?-[0-9a-f]{8}\.md)/
+
+/**
+ * 消息里带参考的那几行是写给模型看的（一长串路径加说明），给人看时每行只留一个带名字的小标签。
+ */
 function WithRefs({ text }: { text: string }) {
-  const parts = text.split(/@(\S+\/transcripts\/\S+?-[0-9a-f]{8}\.md)/g)
-  if (parts.length === 1) return <>{text}</>
-  return (
-    <>
-      {parts.map((part, index) =>
-        index % 2 ? (
-          <span key={index} className="ref-chip inline" title={part}>
-            <Icon name="chat" size={13} />
-            <span className="ellipsis">{(part.split('/').pop() ?? '').replace(/-[0-9a-f]{8}\.md$/, '').replace(/-/g, ' ')}</span>
-          </span>
-        ) : (
-          part
-        )
-      )}
-    </>
-  )
+  if (!REF.test(text)) return <>{text}</>
+  const out: ReactNode[] = []
+  let plain: string[] = []
+  let chips: ReactNode[] = []
+  const flush = () => {
+    if (plain.length) out.push(plain.join('\n'))
+    if (chips.length) out.push(<span key={out.length} className="ref-row">{chips}</span>)
+    plain = []
+    chips = []
+  }
+  for (const line of text.split('\n')) {
+    const file = REF.exec(line)?.[1]
+    if (!file) {
+      if (chips.length) flush()
+      plain.push(line)
+      continue
+    }
+    if (plain.length) flush()
+    const doc = file.includes('/attachments/')
+    // 文档用说明里引号中的原文件名；对话用文字记录的文件名
+    const label = (doc && /[「"]([^」"]+)[」"]/.exec(line)?.[1]) || (file.split('/').pop() ?? '').replace(/-[0-9a-f]{8}\.md$/, '').replace(/-/g, ' ')
+    chips.push(
+      <span key={chips.length} className="ref-chip inline" title={line}>
+        <Icon name={doc ? 'file' : 'chat'} size={13} />
+        <span className="ellipsis">{label}</span>
+      </span>
+    )
+  }
+  flush()
+  return <>{out}</>
 }
 
 /** 用户用 ! 直接运行的命令和它的输出 */

@@ -198,6 +198,18 @@ export function CapPanel({ conv, kind, onKind, onClose }: { conv: Conv; kind: Ca
         <button className="link-btn" title={t('这次对话把技能、MCP 和扩展全部关掉，只留读写文件和运行命令。开场带的东西最少，需要什么再单独打开')} onClick={leanest}>
           {t('最精简')}
         </button>
+        {kind !== 'mcp' && (
+          <button
+            className="link-btn"
+            title={t('在 Pi 的包目录里找别人做好的技能和扩展')}
+            onClick={() => {
+              onClose()
+              openSettings('market')
+            }}
+          >
+            {t('插件市场…')}
+          </button>
+        )}
         {kind === 'mcp' && (
           <button
             className="link-btn"
