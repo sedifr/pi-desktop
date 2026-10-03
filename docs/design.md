@@ -4,6 +4,14 @@
 
 A feature list says what an app does. This page says why it does it that way: the handful of decisions that everything else follows from.
 
+**In short**
+
+- The app adds nothing to what pi carries. What a conversation carries, you put there.
+- Skills, MCP servers and tools are switches: visible, per conversation, backed by pi's own startup flags.
+- Context is spent only where it buys something.
+- The interface is yours in the same way: no themes, no default buttons, plain files that pi can edit.
+- Nothing is locked in. It is all pi's own files.
+
 ## Start from what pi is
 
 pi is small on purpose. Its core is four tools — read, write, edit, run a command — and a short prompt. Everything else is something you add: skills, extensions, MCP servers, prompt templates. You assemble the agent you need, and nothing you did not ask for is in the way.
