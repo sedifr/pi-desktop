@@ -10,7 +10,9 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
-    "i18n:check": "node scripts/check-i18n.mjs"
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "pack": "electron-vite build && electron-builder --mac --dir",
+    "dist": "electron-vite build && electron-builder --mac"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "1.0.0",
@@ -27,6 +29,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -35,5 +38,59 @@
     "typescript": "^5.9.0",
     "vite": "^7.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sedifr/pi-desktop.git"
+  },
+  "build": {
+    "appId": "io.github.sedifr.pi-desktop",
+    "productName": "Pi Desktop",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**",
+      "resources/**",
+      "package.json",
+      "!**/*.map",
+      "!**/*.d.ts",
+      "!**/*.d.mts",
+      "!**/*.d.cts",
+      "!**/node_modules/@esbuild/!(darwin-arm64)/**",
+      "!**/node_modules/@napi-rs/canvas*/**",
+      "!**/node_modules/pdfjs-dist/{build,web,image_decoders,types,wasm,iccs}/**",
+      "!**/node_modules/pdfjs-dist/legacy/{web,image_decoders}/**",
+      "!**/node_modules/pdfjs-dist/legacy/build/*.min.mjs",
+      "!**/node_modules/pdfjs-dist/legacy/build/pdf.sandbox*"
+    ],
+    "asar": false,
+    "npmRebuild": false,
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "Pi Desktop"
+    }
+  },
+  "author": "sedifr"
 }

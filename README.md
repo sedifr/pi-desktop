@@ -64,6 +64,18 @@ For development with hot reload:
 npm run dev
 ```
 
+## Build the app
+
+```bash
+npm run pack
+```
+
+puts `Pi Desktop.app` in `release/mac-arm64/`. `npm run dist` also makes a `.dmg` and a `.zip`.
+
+- The app is signed only for local use (there is no Apple developer certificate behind it). On your own Mac it just runs; on someone else's, right-click it and choose *Open* the first time.
+- For the same reason it cannot update itself. *Settings → About → Check for updates* tells you when a newer release exists and takes you to the download page.
+- If the project sits in a folder synced by iCloud Drive (Desktop and Documents often are), signing fails on the attributes the sync adds. Build somewhere else: `npm run pack -- -c.directories.output=/tmp/pi-desktop-release`.
+
 ## First steps
 
 1. **Add a project folder.** Click the `+` next to *Projects* in the sidebar and choose the folder you want pi to work in.
@@ -128,10 +140,10 @@ The interface is available in English and Simplified Chinese (*Settings → Appe
 ## Limitations
 
 - macOS only. Windows and Linux are untested.
-- No installer yet.
+- The packaged app is not notarized, so it cannot update itself and other people's Macs ask for confirmation on first launch.
 - Switching MCP servers per conversation relies on the `pi-mcp-adapter` extension, which declares every tool up front and so costs tokens in every conversation. pi's built-in MCP support finds tools on demand and costs almost nothing, but its servers apply to every conversation.
 - Turning an extension off for a conversation restarts pi with the extensions the app knows about. Packages declared only in a project's `.pi/settings.json` are not carried over in that case.
-- OAuth sign-in for remote MCP servers is not in the app yet; do it once from the pi CLI.
+- Sign-in for remote MCP servers works with pi's built-in MCP support. Servers that need a pre-registered OAuth client are configured in `mcp.json` by hand.
 
 ## License
 

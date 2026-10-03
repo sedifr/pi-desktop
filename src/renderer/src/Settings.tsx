@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { CapItem, DesktopConfig, PackageInfo, Theme } from '@shared/types'
+import type { CapItem, DesktopConfig, PackageInfo, Theme, UpdateInfo } from '@shared/types'
 import { Accounts } from './Accounts'
 import { Commands, Shortcuts } from './Commands'
 import { Mcp } from './Mcp'
@@ -406,11 +406,41 @@ function Caps() {
 
 function About() {
   const defaults = useApp((s) => s.defaults)
+  const [update, setUpdate] = useState<UpdateInfo | 'checking'>()
+  const check = () => {
+    setUpdate('checking')
+    api.updateCheck().then(setUpdate, (error) => {
+      setUpdate(undefined)
+      toast(errorText(error), 'error')
+    })
+  }
   return (
     <>
       <div className="set-row">
-        <div className="set-label">{t('桌面端版本')}</div>
-        <span className="muted">{defaults?.appVersion}</span>
+        <div className="set-label">
+          {t('桌面端版本')}
+          {update && update !== 'checking' && (
+            <div className="muted small">
+              {update.newer
+                ? t('有新版本 {version}。应用没有 Apple 的开发者签名，不能自己更新，要去下载页装一下', { version: update.latest ?? '' })
+                : update.latest
+                  ? t('已经是最新的了')
+                  : t('还没有发布过版本，查不到更新')}
+            </div>
+          )}
+        </div>
+        <div className="set-control">
+          <span className="muted">{defaults?.appVersion}</span>
+          {update && update !== 'checking' && update.newer && update.url ? (
+            <button className="btn primary" onClick={() => api.openExternal(update.url!)}>
+              {t('去下载')}
+            </button>
+          ) : (
+            <button className="btn" disabled={update === 'checking'} onClick={check}>
+              {update === 'checking' ? t('正在检查…') : t('检查更新')}
+            </button>
+          )}
+        </div>
       </div>
       <div className="set-row">
         <div className="set-label">{t('Pi 内核版本')}</div>

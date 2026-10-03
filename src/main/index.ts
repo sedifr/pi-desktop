@@ -12,6 +12,7 @@ import { getConfig, setConfig } from './config'
 import { extractDoc, pdfBytes } from './docs'
 import { searchMarket } from './market'
 import { suggestTitle } from './titles'
+import { checkUpdate } from './update'
 import { listDir, searchFiles } from './files'
 import { fileDiff, listChanges, openFile, revealFile } from './changes'
 import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
@@ -437,6 +438,7 @@ function registerIpc(): void {
     return status
   })
   handle('files:search', (cwd: string, query: string) => searchFiles(cwd, query))
+  handle('update:check', () => checkUpdate())
   handle('market:search', (query: string, topic: string, from: number) => searchMarket(String(query ?? ''), String(topic ?? ''), Number(from) || 0))
   handle('doc:text', (file: string) => extractDoc(String(file)))
   handle('doc:pdfBytes', (file: string) => pdfBytes(String(file)))
@@ -483,7 +485,7 @@ app.on('before-quit', (event) => {
   if (busy > 0 && !quitConfirmed) {
     const choice = dialog.showMessageBoxSync({
       type: 'question',
-      buttons: [t('先不退出'), t('退出')],
+      buttons: [t('先不退出'), t('退出应用')],
       defaultId: 0,
       cancelId: 0,
       message: t('还有 {n} 个对话正在进行', { n: busy }),

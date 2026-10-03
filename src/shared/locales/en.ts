@@ -725,5 +725,12 @@ export const en: Record<string, string> = {
   '退出登录': 'Sign out',
   '更细的选项（超时、预先注册的登录客户端等）直接改这个文件。第一次从这里改动前会自动留一份备份': 'For finer options (timeouts, a pre-registered sign-in client and so on) edit this file directly. A backup is kept before the first change made from here',
   '新窗口': 'New Window',
-  '新开一个窗口': 'Open another window'
+  '新开一个窗口': 'Open another window',
+  '没能查到：{error}': 'Could not check: {error}',
+  '有新版本 {version}。应用没有 Apple 的开发者签名，不能自己更新，要去下载页装一下': 'Version {version} is available. The app has no Apple developer signature, so it cannot update itself; install it from the download page',
+  '已经是最新的了': 'You are up to date',
+  '还没有发布过版本，查不到更新': 'No release has been published yet, so there is nothing to compare with',
+  '去下载': 'Download',
+  '检查更新': 'Check for updates',
+  '退出应用': 'Quit'
 }

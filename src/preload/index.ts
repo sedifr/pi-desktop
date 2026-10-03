@@ -46,6 +46,7 @@ const api: PiApi = {
   filesList: call('files:list'),
   docText: call('doc:text'),
   marketSearch: call('market:search'),
+  updateCheck: call('update:check'),
   pdfBytes: call('doc:pdfBytes'),
   trustGet: call('trust:get'),
   trustSet: call('trust:set'),

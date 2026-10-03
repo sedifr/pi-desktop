@@ -53,6 +53,15 @@ export interface SessionMeta {
   usage: Usage
 }
 
+/** 检查更新的结果 */
+export interface UpdateInfo {
+  current: string
+  /** 最新发布的版本。还没发布过就没有 */
+  latest?: string
+  url?: string
+  newer?: boolean
+}
+
 /** 插件市场里的一个包 */
 export interface MarketItem {
   name: string
@@ -516,6 +525,8 @@ export interface PiApi {
   templateSave(input: TemplateInput): Promise<void>
   templateTrash(file: string, cwd?: string): Promise<void>
   filesSearch(cwd: string, query: string): Promise<string[]>
+  /** 看有没有更新的版本。只在用户点了之后才去问 */
+  updateCheck(): Promise<UpdateInfo>
   /** 在 Pi 的包目录里找包。topic 是只看带某个关键词的，from 是从第几个开始 */
   marketSearch(query: string, topic: string, from: number): Promise<MarketPage>
   /** 读出一份 PDF 的内容，给界面把扫描件按页画成图片用 */
