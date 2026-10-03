@@ -6,7 +6,7 @@ import { Mcp } from './Mcp'
 import { Tile, nextState } from './CapPanel'
 import { installing } from './installing'
 import { Market } from './Market'
-import { type SettingsTab, api, commandsChanged, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
+import { type ChatWidth, type SettingsTab, api, commandsChanged, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
 import { t } from '@shared/i18n'
 
@@ -26,6 +26,12 @@ const THEMES: { id: Theme; label: string }[] = [
   { id: 'system', label: t('跟随系统') },
   { id: 'light', label: t('浅色') },
   { id: 'dark', label: t('深色') }
+]
+
+const WIDTHS: { id: ChatWidth; label: string }[] = [
+  { id: 'normal', label: t('标准') },
+  { id: 'wide', label: t('宽') },
+  { id: 'full', label: t('铺满') }
 ]
 
 const LANGUAGES: { id: 'system' | 'zh' | 'en'; label: string }[] = [
@@ -70,6 +76,19 @@ function Look() {
       </div>
       <div className="set-preview" style={{ fontSize: prefs.fontSize }}>
         {t('这是对话正文的预览。The quick brown fox jumps over the lazy dog.')}
+      </div>
+      <div className="set-row">
+        <div className="set-label">
+          {t('对话区宽度')}
+          <div className="muted small">{t('对话正文和输入框最宽占多少。窗口本身不够宽时，哪一档都会铺满')}</div>
+        </div>
+        <div className="segmented">
+          {WIDTHS.map((width) => (
+            <button key={width.id} className={prefs.chatWidth === width.id ? 'on' : ''} onClick={() => setPrefs({ chatWidth: width.id })}>
+              {width.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="set-row">
         <div className="set-label">

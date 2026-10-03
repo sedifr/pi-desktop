@@ -153,6 +153,7 @@ const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: '⌘N', label: t('新对话') },
   { keys: '⌘O', label: t('添加项目文件夹') },
   { keys: '⌘K', label: t('搜索对话') },
+  { keys: '⌘F', label: t('在当前对话里查找') },
   { keys: '⌘,', label: t('打开设置') },
   { keys: '⌘B', label: t('显示或隐藏侧栏') },
   { keys: '⌥⌘B', label: t('显示或隐藏右侧面板') },

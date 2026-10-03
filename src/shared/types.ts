@@ -234,7 +234,7 @@ export interface TemplateInput {
 }
 
 /** 系统菜单和快捷键触发的动作 */
-export type MenuAction = 'settings' | 'new' | 'search' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
+export type MenuAction = 'settings' | 'new' | 'search' | 'find' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
 
 export interface SessionStats {
   userMessages: number

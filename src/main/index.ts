@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
 import { pathToFileURL } from 'node:url'
-import { BrowserWindow, app, clipboard, dialog, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
+import { BrowserWindow, Menu, type MenuItemConstructorOptions, type WebContents, app, clipboard, dialog, ipcMain, nativeTheme, net, protocol, screen, shell } from 'electron'
 import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
@@ -55,10 +55,58 @@ const agents = new AgentManager((key: string, event: ConvEvent) => {
   if (win && !win.isDestroyed()) win.webContents.send('conv:event', key, event)
 })
 
+/**
+ * 右键菜单。Electron 默认什么都不弹：输入框里不能右键粘贴，选中的字不能右键复制。
+ * 这里按点到的东西给出该有的那几项；界面自己做了右键菜单的地方（比如侧栏的对话）不会走到这里。
+ */
+function attachContextMenu(contents: WebContents): void {
+  contents.on('context-menu', (_event, params) => {
+    const items: MenuItemConstructorOptions[] = []
+    if (params.isEditable) {
+      items.push(
+        { role: 'cut', label: t('剪切'), enabled: params.editFlags.canCut },
+        { role: 'copy', label: t('复制'), enabled: params.editFlags.canCopy },
+        { role: 'paste', label: t('粘贴'), enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { role: 'selectAll', label: t('全选') }
+      )
+    } else if (params.selectionText.trim()) {
+      items.push({ role: 'copy', label: t('复制') })
+    }
+    if (/^https?:/i.test(params.linkURL)) {
+      if (items.length) items.push({ type: 'separator' })
+      items.push(
+        { label: t('复制链接'), click: () => clipboard.writeText(params.linkURL) },
+        { label: t('用系统浏览器打开'), click: () => void shell.openExternal(params.linkURL) }
+      )
+    }
+    if (params.mediaType === 'image') {
+      if (items.length) items.push({ type: 'separator' })
+      items.push({ label: t('复制图片'), click: () => contents.copyImageAt(params.x, params.y) })
+    }
+    if (process.env.PI_DESKTOP_DEBUG === '1') console.log('[pi-desktop] context menu:', items.map((item) => item.label ?? item.type).join(' | '))
+    if (items.length) Menu.buildFromTemplate(items).popup()
+  })
+}
+
+/** 窗口上次的位置和大小 */
+const windowStateFile = (): string => path.join(app.getPath('userData'), 'window.json')
+
+function savedBounds(): { x?: number; y?: number; width: number; height: number } {
+  const fallback = { width: 1240, height: 820 }
+  const saved = readJson<{ x?: number; y?: number; width?: number; height?: number }>(windowStateFile(), {})
+  if (typeof saved.width !== 'number' || typeof saved.height !== 'number' || typeof saved.x !== 'number' || typeof saved.y !== 'number') return fallback
+  // 上次那块屏幕可能已经拔掉了：窗口要是大半不在任何一块屏幕里，就回到默认位置
+  const area = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height }).workArea
+  const visibleWidth = Math.min(saved.x + saved.width, area.x + area.width) - Math.max(saved.x, area.x)
+  const visibleHeight = Math.min(saved.y + saved.height, area.y + area.height) - Math.max(saved.y, area.y)
+  if (visibleWidth < 200 || visibleHeight < 120) return fallback
+  return { x: saved.x, y: saved.y, width: Math.max(760, saved.width), height: Math.max(520, saved.height) }
+}
+
 function createWindow(): void {
   win = new BrowserWindow({
-    width: 1240,
-    height: 820,
+    ...savedBounds(),
     minWidth: 760,
     minHeight: 520,
     titleBarStyle: 'hiddenInset',
@@ -75,6 +123,22 @@ function createWindow(): void {
     }
   })
   win.once('ready-to-show', () => win?.show())
+  attachContextMenu(win.webContents)
+  // 记住窗口的位置和大小，下次打开还在原处。全屏和最大化时的尺寸不记
+  let saving: ReturnType<typeof setTimeout> | undefined
+  const remember = (): void => {
+    clearTimeout(saving)
+    saving = setTimeout(() => {
+      if (!win || win.isDestroyed() || win.isFullScreen() || win.isMaximized() || win.isMinimized()) return
+      try {
+        writeJson(windowStateFile(), win.getBounds())
+      } catch {
+        // 记不下来不影响使用
+      }
+    }, 400)
+  }
+  win.on('resize', remember)
+  win.on('move', remember)
   // 内置浏览器里的网页是外人写的：不给它任何本机能力，也只让它打开普通网址
   win.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     delete webPreferences.preload
@@ -84,6 +148,7 @@ function createWindow(): void {
     if (!/^(https?:|about:blank)/i.test(params.src)) event.preventDefault()
   })
   win.webContents.on('did-attach-webview', (_event, guest) => {
+    attachContextMenu(guest)
     // 网页想开新窗口时，就在原地打开；不是普通网址的一律不理
     guest.setWindowOpenHandler(({ url }) => {
       if (/^https?:/i.test(url)) setImmediate(() => void guest.loadURL(url).catch(() => {}))
@@ -384,7 +449,22 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+let quitConfirmed = false
+app.on('before-quit', (event) => {
+  // 有对话还在回答时退出会把它打断，先问一句
+  const busy = agents.busyCount()
+  if (busy > 0 && !quitConfirmed) {
+    const choice = dialog.showMessageBoxSync({
+      type: 'question',
+      buttons: [t('先不退出'), t('退出')],
+      defaultId: 0,
+      cancelId: 0,
+      message: t('还有 {n} 个对话正在进行', { n: busy }),
+      detail: t('现在退出会把它们打断。已经写进对话记录的内容不会丢，下次打开可以接着说。')
+    })
+    if (choice === 0) return event.preventDefault()
+    quitConfirmed = true
+  }
   agents.closeAll()
   killAllTerminals()
   if (PRIMARY && !DEBUG_RENDER) cleanRunDir()

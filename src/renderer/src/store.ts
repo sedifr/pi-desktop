@@ -1,3 +1,4 @@
+import { titleFrom } from '@shared/title'
 import { useSyncExternalStore } from 'react'
 import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, DesktopConfig, ImageAttachment, MenuAction, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, TrustStatus, Usage } from '@shared/types'
 import { type Lang, getLang, resolveLang, t } from '@shared/i18n'
@@ -112,6 +113,9 @@ export interface AppState {
   signal?: UiSignal
   /** 搜索对话的窗口开着 */
   searchOpen?: boolean
+  /** 在当前对话里查找的那一栏开着。findFocus 每按一次 ⌘F 加一，让输入框重新拿到光标 */
+  findOpen?: boolean
+  findFocus?: number
   /** 打开对话后要滚到的那条消息（从搜索结果点进来时） */
   jump?: { key: string; entryId: string }
   /** 桌面端自己的设置（额外技能文件夹、常用模型） */
@@ -120,12 +124,18 @@ export interface AppState {
 
 export type SettingsTab = 'look' | 'caps' | 'market' | 'sources' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
 
+export type ChatWidth = 'normal' | 'wide' | 'full'
+/** 每一档对话区最宽到多少。窗口不够宽时都会自动铺满 */
+const CHAT_WIDTH: Record<ChatWidth, string> = { normal: '760px', wide: '980px', full: 'none' }
+
 export interface Prefs {
   /** 界面语言。system 表示跟随系统 */
   language: 'system' | Lang
   theme: Theme
   /** 对话正文的字号（像素） */
   fontSize: number
+  /** 对话正文和输入框占多宽：标准、宽、铺满整个窗口 */
+  chatWidth: ChatWidth
   sidebarCollapsed: boolean
   /** 窗口不在前台时，回答做完了用系统通知提醒 */
   notify: boolean
@@ -137,7 +147,7 @@ export interface Prefs {
 
 export type PaneTab = 'files' | 'changes' | 'browser' | 'terminal'
 
-const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false, notify: true, paneOpen: false, paneTab: 'changes', paneWidth: 460 }
+const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, chatWidth: 'wide', sidebarCollapsed: false, notify: true, paneOpen: false, paneTab: 'changes', paneWidth: 460 }
 
 /** 读一项存在本地的界面设置。坏了或者形状不对就用默认值，不能让它把整个界面拖垮 */
 function stored<T>(key: string, fallback: T, ok: (value: unknown) => boolean): T {
@@ -585,6 +595,7 @@ function applyPrefs(prefs: Prefs): void {
   api.setLang(getLang())
   api.setTheme(prefs.theme)
   document.documentElement.style.setProperty('--chat-size', `${prefs.fontSize}px`)
+  document.documentElement.style.setProperty('--chat-max', CHAT_WIDTH[prefs.chatWidth] ?? CHAT_WIDTH.wide)
 }
 
 export function setPrefs(patch: Partial<Prefs>): void {
@@ -688,6 +699,8 @@ function handleMenu(action: MenuAction): void {
       return void addProject()
     case 'search':
       return setSearchOpen(!state.searchOpen)
+    case 'find':
+      return set({ view: 'chat', findOpen: true, findFocus: (state.findFocus ?? 0) + 1 })
     case 'toggleSidebar':
       return setPrefs({ sidebarCollapsed: !state.prefs.sidebarCollapsed })
     case 'togglePane':
@@ -719,6 +732,9 @@ export async function init(): Promise<void> {
   applyPrefs(state.prefs)
   const [defaults, sessions, config] = await Promise.all([api.defaults(), api.listSessions(), api.configGet()])
   set({ defaults, sessions, config })
+  // 在命令行或别处开的对话，回到这个窗口时要看得到
+  window.addEventListener('focus', refreshSessionsSoon)
+  listeners.add(saveDraftsSoon)
   const cwd = localStorage.getItem('lastCwd') ?? sessions[0]?.cwd
   if (cwd) newConv(cwd)
 }
@@ -777,6 +793,63 @@ export async function setTrust(cwd: string, decision: boolean | null): Promise<v
   } catch (error) {
     toast(errorText(error), 'error')
   }
+}
+
+export function setFindOpen(open: boolean): void {
+  set({ findOpen: open })
+}
+
+// ---- 没发出去的草稿 ----
+
+/** 每个对话输入框里没发出去的字，按会话文件记着。重启应用、关掉再打开对话都还在 */
+const savedDrafts: Record<string, string> = stored<Record<string, string>>('drafts', {}, isRecord)
+let draftTimer: ReturnType<typeof setTimeout> | undefined
+function saveDraftsSoon(): void {
+  draftTimer ??= setTimeout(() => {
+    draftTimer = undefined
+    let changed = false
+    for (const conv of Object.values(state.convs)) {
+      if (!conv.sessionFile || conv.loading) continue
+      const draft = conv.draft.trim() ? conv.draft : undefined
+      if (savedDrafts[conv.sessionFile] === draft) continue
+      if (draft) savedDrafts[conv.sessionFile] = draft
+      else delete savedDrafts[conv.sessionFile]
+      changed = true
+    }
+    if (!changed) return
+    // 只留最近的几十条，别让它一直涨
+    const keys = Object.keys(savedDrafts)
+    for (const key of keys.slice(0, Math.max(0, keys.length - 60))) delete savedDrafts[key]
+    try {
+      localStorage.setItem('drafts', JSON.stringify(savedDrafts))
+    } catch {
+      // 存不下就算了，不影响使用
+    }
+  }, 800)
+}
+
+/**
+ * 最后一轮回答出错了：把上一条消息原样再发一次。输入框里正在写的东西先收起来，发完放回去。
+ */
+export async function retryLast(key: string): Promise<void> {
+  const conv = state.convs[key]
+  if (!conv || conv.streaming) return
+  const last = [...conv.messages].reverse().find((message) => message.role === 'user')
+  const text = Array.isArray(last?.content)
+    ? last.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text ?? '')
+        .join('\n')
+    : typeof last?.content === 'string'
+      ? last.content
+      : ''
+  if (!text.trim()) return toast(t('没找到上一条消息，直接在输入框里再说一遍吧'), 'warning')
+  const stash = { draft: conv.draft, attachments: conv.attachments, refs: conv.refs, quotes: conv.quotes }
+  updateConv(key, (c) => Object.assign(c, { draft: text, attachments: [], refs: [], quotes: [] }), true)
+  const sending = send(key)
+  // send 一开始就把输入框清空了，这时把刚才收起来的放回去
+  updateConv(key, (c) => Object.assign(c, { draft: stash.draft, attachments: stash.attachments, refs: stash.refs, quotes: stash.quotes }), true)
+  await sending
 }
 
 export function setSearchOpen(open: boolean): void {
@@ -1036,6 +1109,8 @@ export async function openSession(meta: SessionMeta): Promise<void> {
   if (existing) return activate(existing.key)
   const conv = blankConv(meta.file, meta.cwd)
   conv.sessionFile = meta.file
+  // 上次在这个对话里没发出去的字
+  conv.draft = savedDrafts[meta.file] ?? ''
   conv.title = meta.name ?? meta.firstUserText
   conv.loading = true
   state = { ...state, convs: { ...state.convs, [conv.key]: conv } }
@@ -1217,7 +1292,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
       c.error = undefined
       if (c.streaming) c.queued = [...c.queued, pending]
       else c.pending = [...c.pending, pending]
-      if (!c.title && text) c.title = text.slice(0, 60)
+      if (!c.title && body) c.title = titleFrom(body).slice(0, 60)
     },
     true
   )

@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { StringDecoder } from 'node:string_decoder'
@@ -38,6 +39,8 @@ export class PiProcess extends EventEmitter {
     else delete env.PI_DESKTOP_IMAGE_DIR
     // 取环境变量要一会儿；这期间如果已经被要求结束，就不用起了
     if (this.killed) return this.finish()
+    // 项目文件夹被删了或者挪走了：不查的话，系统只会报一句看不懂的「找不到程序」
+    if (!fs.existsSync(this.cwd)) return this.finish(t('这个对话的项目文件夹不在了：{path}。在侧栏里右键这个对话，可以把它移到别的项目', { path: this.cwd }))
     // 调试时把启动参数打出来：Pi 启动后会把自己的进程名改成 pi，从进程列表里看不到参数
     if (process.env.PI_DESKTOP_DEBUG === '1') console.log('[pi-desktop] pi args:', this.args.join(' '))
     const child = spawn(nodeExecPath(), ['-r', cleanEnvPath(), piCliPath(), '--mode', 'rpc', ...this.args], {

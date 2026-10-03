@@ -698,6 +698,17 @@ export function Composer({ conv }: { conv: Conv }) {
               abort(conv.key)
               return
             }
+            // 输入框空着时按 ↑：把上一条发出去的消息拿回来改
+            if (event.key === 'ArrowUp' && !conv.draft) {
+              const last = [...conv.messages].reverse().find((message) => message.role === 'user')
+              const text = Array.isArray(last?.content) ? last.content.filter((block) => block.type === 'text').map((block) => block.text ?? '').join('\n') : ''
+              if (text) {
+                event.preventDefault()
+                nextCursor.current = text.length
+                setDraft(conv.key, text)
+              }
+              return
+            }
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
               // 正在回答时：回车是插到当前这一步之后，Option+回车是等全部做完再说

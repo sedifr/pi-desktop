@@ -407,6 +407,11 @@ export class AgentManager {
     }
   }
 
+  /** 有几个对话正在回答或者在跑命令。退出前用它来提醒 */
+  busyCount(): number {
+    return [...this.convs.values()].filter((conv) => conv.proc && !conv.proc.exited && (conv.streaming || conv.working > 0)).length
+  }
+
   closeAll(): void {
     for (const conv of this.convs.values()) conv.proc?.kill()
   }

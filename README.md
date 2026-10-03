@@ -19,6 +19,8 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **Run a command yourself**: start a message with `!` to run a shell command and show its output in the conversation; the output goes to pi with your next message. Use `!!` to keep it to yourself.
 - **Queue and take back**: messages sent during an answer wait in a queue you can take back into the input box. Stopping an answer returns the queue too.
 - **Context under control**: a switch for automatic compaction, a *Compact now* button, and a hint when the context is nearly full.
+- **Room to read**: the conversation uses the width of the window (*Settings → Appearance → Conversation width*: standard, wide or full). Code blocks are syntax-highlighted and have a copy button; `⌘F` finds text inside the current conversation; a button jumps back to the latest message after scrolling up.
+- **The small things**: right-click menus for copy and paste, the window reopens where you left it, unsent drafts survive a restart, `↑` in an empty input recalls your last message, a failed answer can be retried with one click and says in plain words what went wrong, and quitting asks first while an answer is still running.
 - **Find a conversation**: `⌘K` searches titles, project names and everything said in your conversations; several words narrow it down. Opening a result jumps to the message that matched. With nothing typed it lists recent conversations, so it doubles as a quick switcher.
 - **Keep conversations in order**: pin the ones you keep coming back to (they stay at the top of the sidebar, and can be dragged into any order), drag a conversation onto another project when it was started in the wrong folder, double-click one to rename it, or right-click for all of these. A moved conversation continues in the new project's folder and shows up under that project in the pi CLI too; files it already wrote stay where they are.
 - **Reply point by point**: select any part of an answer and click *Quote*; it appears in the input as its own highlighted card with a reply field underneath. Quote as many passages as you like, answer each one, and send them together. The quoted text itself cannot be edited by accident, only removed.
@@ -79,6 +81,7 @@ pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extens
 | `⌘O` | Add a project folder |
 | `⌘,` | Settings |
 | `⌘K` | Search conversations |
+| `⌘F` | Find in the current conversation |
 | `⌘B` | Show or hide the sidebar |
 | `⌥⌘B` | Show or hide the side panel |
 | `⌘/` | Open commands |

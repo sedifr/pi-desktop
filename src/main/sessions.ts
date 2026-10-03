@@ -3,6 +3,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import type { Msg, SearchHit, SessionData, SessionMeta, Usage, UsageTotals } from '@shared/types'
 import { t } from '@shared/i18n'
+import { titleFrom } from '@shared/title'
 import { AGENT_DIR, DESKTOP_DIR, readJson, writeJson } from './env'
 
 const SESSIONS_DIR = path.join(AGENT_DIR, 'sessions')
@@ -119,7 +120,7 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
         images.push({ path: m.details.path, prompt: typeof m.details.prompt === 'string' ? m.details.prompt : undefined, tool: m.toolName })
       }
       meta.messageCount++
-      if (m.role === 'user' && !meta.firstUserText) meta.firstUserText = textOf(m.content).slice(0, 200)
+      if (m.role === 'user' && !meta.firstUserText) meta.firstUserText = titleFrom(textOf(m.content)).slice(0, 200)
       count(m.usage, m.model ?? '@other', e.timestamp)
     } else if (e.type === 'session_info' && typeof e.name === 'string') {
       meta.name = e.name
@@ -131,7 +132,7 @@ function scanFile(file: string, stat: fs.Stats): CacheEntry | undefined {
 }
 
 let cache: Record<string, CacheEntry> | undefined
-const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v5.json')
+const cacheFile = () => path.join(app.getPath('userData'), 'session-index-v6.json')
 
 function refresh(): Record<string, CacheEntry> {
   cache ??= readJson<Record<string, CacheEntry>>(cacheFile(), {})

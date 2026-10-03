@@ -1,6 +1,6 @@
-import { type ReactNode, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ContentBlock, Msg } from '@shared/types'
-import { type Conv, type ToolRun, activityOf, clearJump, copyText, forkFrom, openInBrowser, previewImage, quoteInto, useApp } from './store'
+import { type Conv, type ToolRun, activityOf, clearJump, copyText, forkFrom, openInBrowser, previewImage, quoteInto, retryLast, setFindOpen, useApp } from './store'
 import { Icon, ImageContext, Markdown } from './ui'
 import { t } from '@shared/i18n'
 
@@ -38,6 +38,21 @@ function textOf(content: Msg['content']): string {
     .filter((b) => b.type === 'text')
     .map((b) => b.text ?? '')
     .join('\n')
+}
+
+/**
+ * 提供商报回来的错误多半是一段给程序看的原文。认得出是哪一类的，前面加一句人话说明该怎么办；
+ * 原文照样留在后面，方便查。
+ */
+function explain(raw: string): string {
+  const hint = /\b401\b|authentication|invalid.{0,12}(api.?key|token)|unauthorized|token_invalidated/i.test(raw)
+    ? t('这个模型的登录失效了，或者 API Key 不对。到「设置 → 模型」重新登录或换一个 Key，也可以先换个模型。')
+    : /\b429\b|rate.?limit|quota|insufficient.{0,10}(balance|credit|quota)|\u4f59\u989d/i.test(raw)
+      ? t('请求太频繁，或者这个账号的额度用完了。等一会儿再试，或者换个模型。')
+      : /fetch failed|ENOTFOUND|ECONNRE|ETIMEDOUT|network|socket hang up|EAI_AGAIN/i.test(raw)
+        ? t('连不上这个模型的服务器。看看网络或代理，然后再试一次。')
+        : undefined
+  return hint ? `${hint}\n${raw}` : raw
 }
 
 /** 把一串消息整理成「用户消息 / 一轮回答 / 提示条」 */
@@ -78,7 +93,7 @@ function buildBlocks(messages: Msg[]): Block[] {
       turn.model = msg.model
       // 用户自己按了停止，有的提供商会把它报成一条「被中止」的错误，这不算出错
       const stopped = msg.stopReason === 'aborted' || (msg.stopReason === 'error' && ABORTED.test(msg.errorMessage ?? ''))
-      turn.error = msg.stopReason === 'error' && !stopped ? (msg.errorMessage ?? t('请求出错')) : undefined
+      turn.error = msg.stopReason === 'error' && !stopped ? explain(msg.errorMessage ?? t('请求出错')) : undefined
       turn.aborted = stopped
       for (const block of blocksOf(msg.content)) {
         if (block.type === 'thinking' && block.thinking?.trim()) turn.steps.push({ kind: 'thinking', text: block.thinking })
@@ -278,7 +293,7 @@ function LiveStatus({ conv, turn }: { conv: Conv; turn?: Extract<Block, { kind: 
   )
 }
 
-const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract<Block, { kind: 'turn' }>; live: boolean; toolRuns: Record<string, ToolRun>; cwd: string }) {
+const Turn = memo(function Turn({ block, live, toolRuns, cwd, onRetry }: { block: Extract<Block, { kind: 'turn' }>; live: boolean; toolRuns: Record<string, ToolRun>; cwd: string; onRetry?: () => void }) {
   const [open, setOpen] = useState<boolean | undefined>(undefined)
   const tools = block.steps.filter((s) => s.kind === 'tool').length
   // 进行中默认展开让人看到在做什么，结束后默认收起只留答案
@@ -330,7 +345,16 @@ const Turn = memo(function Turn({ block, live, toolRuns, cwd }: { block: Extract
           </button>
         </div>
       )}
-      {block.error && <div className="banner error">{block.error}</div>}
+      {block.error && (
+        <div className="banner error">
+          {block.error}
+          {onRetry && (
+            <button className="link-btn" title={t('把上一条消息原样再发一次')} onClick={onRetry}>
+              {t('再试一次')}
+            </button>
+          )}
+        </div>
+      )}
       {block.aborted && <div className="muted small">{t('已停止')}</div>}
     </div>
     </ImageContext.Provider>
@@ -547,6 +571,72 @@ export function Chat({ conv }: { conv: Conv }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 往上翻了一截之后，右下角给一个「回到最新」
+  const [away, setAway] = useState(false)
+  // 最后一轮出错、又没在回答时，可以点一下把上一条再发一次
+  const retryKey = !conv.streaming && !conv.pending.length ? conv.key : undefined
+  const retry = useCallback(() => void retryLast(conv.key), [conv.key])
+
+  // ---- 在这个对话里查找（⌘F） ----
+  const findOpen = useApp((s) => s.findOpen)
+  const findFocus = useApp((s) => s.findFocus)
+  const [query, setQuery] = useState('')
+  const [found, setFound] = useState<{ total: number; at: number }>({ total: 0, at: 0 })
+  const ranges = useRef<Range[]>([])
+  const findInput = useRef<HTMLInputElement>(null)
+  const paint = (at: number, scroll: boolean) => {
+    const list = ranges.current
+    const registry = (CSS as unknown as { highlights?: Map<string, unknown> }).highlights
+    const Mark = (window as unknown as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight
+    if (!registry || !Mark) return
+    registry.delete('pi-find')
+    registry.delete('pi-find-current')
+    if (!list.length) return
+    registry.set('pi-find', new Mark(...list))
+    registry.set('pi-find-current', new Mark(list[at]))
+    if (scroll) list[at].startContainer.parentElement?.scrollIntoView({ block: 'center' })
+  }
+  // 查找开着时把更早的消息也显示出来，不然只能搜到最后几十条
+  useEffect(() => {
+    if (findOpen && shown < blocks.length) setShown(blocks.length)
+  }, [findOpen, shown, blocks.length])
+  useEffect(() => {
+    findInput.current?.focus()
+    findInput.current?.select()
+  }, [findOpen, findFocus])
+  useEffect(() => {
+    const column = scroller.current?.querySelector('.chat-column')
+    const needle = query.trim().toLowerCase()
+    ranges.current = []
+    if (findOpen && column && needle) {
+      const walker = document.createTreeWalker(column, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node && ranges.current.length < 3000; node = walker.nextNode()) {
+        const text = (node.textContent ?? '').toLowerCase()
+        for (let from = text.indexOf(needle); from >= 0; from = text.indexOf(needle, from + needle.length)) {
+          const range = document.createRange()
+          range.setStart(node, from)
+          range.setEnd(node, from + needle.length)
+          ranges.current.push(range)
+        }
+      }
+    }
+    // 从最靠近底部的那一处开始看：一般要找的是最近说的
+    const at = Math.max(0, ranges.current.length - 1)
+    setFound({ total: ranges.current.length, at })
+    if (findOpen) stick.current = !ranges.current.length && stick.current
+    paint(at, ranges.current.length > 0)
+    // 对话内容变了（新消息、展开了更早的）也要重新找
+  }, [query, findOpen, blocks, shown])
+  useEffect(() => {
+    if (!findOpen) paint(0, false)
+  }, [findOpen])
+  const step = (delta: number) => {
+    if (!found.total) return
+    const at = (found.at + delta + found.total) % found.total
+    setFound({ total: found.total, at })
+    paint(at, true)
+  }
+
   const visible = blocks.slice(Math.max(0, blocks.length - shown))
   // 这是第几条用户消息（从 0 数），另开对话时要告诉 Pi
   const userIndexOf = (target: Block) => blocks.filter((block) => block.kind === 'user').indexOf(target as Extract<Block, { kind: 'user' }>)
@@ -558,10 +648,40 @@ export function Chat({ conv }: { conv: Conv }) {
       ref={scroller}
       onScroll={(event) => {
         const el = event.currentTarget
-        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+        const gap = el.scrollHeight - el.scrollTop - el.clientHeight
+        stick.current = gap < 80
+        if (away !== gap > 400) setAway(gap > 400)
         if (picked) readSelection()
       }}
     >
+      {findOpen && (
+        <div className="find-anchor">
+          <div className="find-bar">
+            <Icon name="search" size={13} />
+            <input
+              ref={findInput}
+              value={query}
+              placeholder={t('在这个对话里找')}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return
+                if (event.key === 'Enter') step(event.shiftKey ? -1 : 1)
+                else if (event.key === 'Escape') setFindOpen(false)
+              }}
+            />
+            <span className="find-count">{query.trim() ? (found.total ? `${found.at + 1}/${found.total}` : t('没有')) : ''}</span>
+            <button className="icon-btn" title={t('上一处（Shift+回车）')} onClick={() => step(-1)}>
+              <Icon name="up" size={12} />
+            </button>
+            <button className="icon-btn" title={t('下一处（回车）')} onClick={() => step(1)}>
+              <Icon name="down" size={12} />
+            </button>
+            <button className="icon-btn" title={t('关闭（Esc）')} onClick={() => setFindOpen(false)}>
+              <Icon name="x" size={12} />
+            </button>
+          </div>
+        </div>
+      )}
       {picked && (
         <button
           className="quote-btn"
@@ -590,7 +710,7 @@ export function Chat({ conv }: { conv: Conv }) {
             {block.kind === 'user' ? (
               <UserMessage msg={block.msg} onFork={conv.streaming ? undefined : () => void forkFrom(conv.key, userIndexOf(block), textOf(block.msg.content))} />
             ) : block.kind === 'turn' ? (
-              <Turn block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} />
+              <Turn block={block} live={conv.streaming && block === lastTurn} toolRuns={conv.toolRuns} cwd={conv.cwd} onRetry={retryKey && block === blocks[blocks.length - 1] ? retry : undefined} />
             ) : block.kind === 'shell' ? (
               <ShellBlock msg={block.msg} />
             ) : (
@@ -608,6 +728,22 @@ export function Chat({ conv }: { conv: Conv }) {
         {conv.notice && !conv.streaming && <div className="banner">{conv.notice}</div>}
         {conv.error && <div className="banner error">{conv.error}</div>}
       </div>
+      {away && (
+        <div className="to-bottom-anchor">
+          <button
+            className="to-bottom"
+            title={t('回到最新的消息')}
+            onClick={() => {
+              const el = scroller.current
+              if (!el) return
+              stick.current = true
+              el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+            }}
+          >
+            <Icon name="down" size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

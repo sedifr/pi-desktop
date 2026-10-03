@@ -33,6 +33,7 @@ export function buildMenu(getWindow: () => BrowserWindow | undefined): void {
         { label: t('新对话'), accelerator: 'Cmd+N', click: send('new') },
         { label: t('添加项目文件夹…'), accelerator: 'Cmd+O', click: send('addProject') },
         { label: t('搜索对话…'), accelerator: 'Cmd+K', click: send('search') },
+        { label: t('在这个对话里查找…'), accelerator: 'Cmd+F', click: send('find') },
         { type: 'separator' },
         { role: 'close' }
       ]

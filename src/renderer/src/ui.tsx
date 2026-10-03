@@ -1,5 +1,6 @@
 import { createContext, memo, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
+import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { t } from '@shared/i18n'
 
@@ -119,12 +120,36 @@ function MdImage({ src, alt }: { src?: string; alt?: string }) {
 
 const LOCAL_URL = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i
 
+/** 一段代码：右上角悬停出现「复制」 */
+function CodeBlock({ children }: { children: ReactNode }) {
+  const pre = useRef<HTMLPreElement>(null)
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="code-block">
+      <button
+        className="code-copy"
+        onClick={() => {
+          window.pi.clipboardText(pre.current?.innerText.replace(/\n$/, '') ?? '')
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        }}
+      >
+        <Icon name={copied ? 'check' : 'copy'} size={12} />
+        {copied ? t('已复制') : t('复制')}
+      </button>
+      <pre ref={pre}>{children}</pre>
+    </div>
+  )
+}
+
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   const onLocalLink = useContext(ImageContext).openLink
   return (
     <div className="md">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        // 代码按语言上色。没标语言的不猜，认不出的语言照原样显示
+        rehypePlugins={[[rehypeHighlight, { detect: false, ignoreMissing: true }]]}
         // 图片地址自己处理（见 MdImage），不让默认规则把 file:// 之类的滤掉；链接仍按默认规则
         urlTransform={(url, key) => (key === 'src' ? url : defaultUrlTransform(url))}
         components={{
@@ -144,7 +169,8 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
               {children}
             </a>
           ),
-          img: ({ src, alt }) => <MdImage src={typeof src === 'string' ? src : undefined} alt={alt} />
+          img: ({ src, alt }) => <MdImage src={typeof src === 'string' ? src : undefined} alt={alt} />,
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>
         }}
       >
         {text}
