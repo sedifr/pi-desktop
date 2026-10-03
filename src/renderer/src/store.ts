@@ -51,6 +51,8 @@ export interface Conv {
   attachments: ImageAttachment[]
   /** 拖进来要给 Pi 参考的别的对话，发送时变成消息里的文件引用 */
   refs: SessionRef[]
+  /** 从回答里引用的段落，每段下面有自己的回复。发送时拼成「> 原文 + 回复」 */
+  quotes: QuoteReply[]
   widgets: Record<string, string[]>
   statuses: Record<string, string>
   /** 扩展在等回答的弹窗。可能同时来好几个，一个个答 */
@@ -133,7 +135,7 @@ export interface Prefs {
   paneWidth: number
 }
 
-export type PaneTab = 'changes' | 'browser' | 'terminal'
+export type PaneTab = 'files' | 'changes' | 'browser' | 'terminal'
 
 const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, sidebarCollapsed: false, notify: true, paneOpen: false, paneTab: 'changes', paneWidth: 460 }
 
@@ -245,6 +247,7 @@ function blankConv(key: string, cwd: string): Conv {
     pending: [],
     attachments: [],
     refs: [],
+    quotes: [],
     uiRequests: [],
     queued: [],
     widgets: {},
@@ -836,20 +839,40 @@ export async function attachSession(key: string, file: string): Promise<void> {
   }
 }
 
+/** 引用的一段原文，和我对这一段的回复 */
+export interface QuoteReply {
+  id: number
+  text: string
+  reply: string
+}
+
+let quoteSeq = 0
 /**
- * 把回答里选中的一段文字引用到输入框。每次引用都接在已有内容后面另起一段，
- * 所以可以引用好几段，在每段下面各写各的回复，一次发出去。
+ * 把回答里选中的一段文字引用到输入框。每段引用是输入框里一个单独的框，下面带它自己的回复栏，
+ * 所以可以引用好几段、逐段回复，一次发出去；原文在框里改不了，不会和自己打的字混在一起。
  */
 export function quoteInto(key: string, text: string): void {
-  const conv = state.convs[key]
   const clean = text.replace(/\r/g, '').trim()
-  if (!conv || !clean) return
-  const quote = clean
-    .split('\n')
-    .map((line) => (line.trim() ? `> ${line}` : '>'))
-    .join('\n')
-  const draft = conv.draft.replace(/\s+$/, '')
-  setDraft(key, `${draft}${draft ? '\n\n' : ''}${quote}\n`)
+  if (!state.convs[key] || !clean) return
+  set({ view: 'chat' })
+  updateConv(key, (c) => (c.quotes = [...c.quotes, { id: ++quoteSeq, text: clean, reply: '' }]), true)
+}
+
+export function setQuoteReply(key: string, id: number, reply: string): void {
+  // 和输入框一样立刻更新，不然会打断输入法选字
+  updateConv(key, (c) => (c.quotes = c.quotes.map((quote) => (quote.id === id ? { ...quote, reply } : quote))), true)
+}
+
+export function removeQuote(key: string, id: number): void {
+  updateConv(key, (c) => (c.quotes = c.quotes.filter((quote) => quote.id !== id)))
+}
+
+/** 把项目里的一个文件或文件夹 @ 进输入框，Pi 会去读它 */
+export function mentionFile(key: string, file: string): void {
+  const conv = state.convs[key]
+  if (!conv || !file) return
+  const draft = conv.draft
+  setDraft(key, `${draft}${draft && !/\s$/.test(draft) ? ' ' : ''}@${file} `)
   signal('focus')
 }
 
@@ -1082,7 +1105,8 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
   const text = conv.draft.trim()
   const images = conv.attachments
   const refs = conv.refs
-  if (!text && !images.length && !refs.length) return
+  const quotes = conv.quotes
+  if (!text && !images.length && !refs.length && !quotes.length) return
 
   const command = /^\/(\S+)\s*([\s\S]*)$/.exec(text)
   if (command && (NATIVE_COMMANDS as readonly string[]).includes(command[1])) {
@@ -1093,10 +1117,24 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
 
   // ! 开头是直接运行一条命令，!! 是运行但不把结果带给模型
   const bang = /^(!!?)\s*(\S[\s\S]*)$/.exec(text)
-  if (bang && !images.length) return runShell(key, bang[2], bang[1] === '!!')
+  if (bang && !images.length && !quotes.length) return runShell(key, bang[2], bang[1] === '!!')
 
-  // 引用的对话放在正文后面：开头要留给 / 指令
-  const body = [text, ...refs.map((ref) => `${t('参考这个对话的记录：')}@${ref.path}`)].filter(Boolean).join('\n')
+  // 引用的段落写成「> 原文」，下面跟着对它的回复；模型和人都看得懂
+  const quoted = quotes.map((quote) =>
+    [
+      quote.text
+        .split('\n')
+        .map((line) => (line.trim() ? `> ${line}` : '>'))
+        .join('\n'),
+      quote.reply.trim()
+    ]
+      .filter(Boolean)
+      .join('\n')
+  )
+  // 正文以 / 开头是指令，得留在最前面；否则先逐段回复，再说别的
+  const main = (text.startsWith('/') ? [text, ...quoted] : [...quoted, text]).filter(Boolean).join('\n\n')
+  // 引用的对话放在最后
+  const body = [main, ...refs.map((ref) => `${t('参考这个对话的记录：')}@${ref.path}`)].filter(Boolean).join('\n')
   const pending: PendingMsg = { text: body, images }
   if (!conv.streaming) markStart(key)
   updateConv(
@@ -1105,6 +1143,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
       c.draft = ''
       c.attachments = []
       c.refs = []
+      c.quotes = []
       c.error = undefined
       if (c.streaming) c.queued = [...c.queued, pending]
       else c.pending = [...c.pending, pending]
@@ -1127,6 +1166,7 @@ export async function send(key: string, behavior: 'steer' | 'followUp' = 'steer'
       c.draft = [text, c.draft].filter((part) => part.trim()).join('\n\n')
       c.attachments = [...images, ...c.attachments]
       c.refs = [...refs, ...c.refs]
+      c.quotes = [...quotes, ...c.quotes]
       c.error = errorText(error)
     })
   }

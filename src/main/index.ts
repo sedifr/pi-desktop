@@ -9,7 +9,7 @@ import { AgentManager } from './agents'
 import { cleanRunDir, forget, getGlobal, getItems, rekey, resetSession, saveAs, setGlobal, setStates } from './caps'
 import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary } from './catalog'
 import { getConfig, setConfig } from './config'
-import { searchFiles } from './files'
+import { listDir, searchFiles } from './files'
 import { fileDiff, listChanges, openFile, revealFile } from './changes'
 import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
 import { mcpOverview, preferDeferred, removeMcp, saveMcp } from './mcp'
@@ -342,6 +342,7 @@ function registerIpc(): void {
     return status
   })
   handle('files:search', (cwd: string, query: string) => searchFiles(cwd, query))
+  handle('files:list', (cwd: string, rel: string) => listDir(cwd, String(rel ?? '')))
   ipcMain.on('conv:uiResponse', (_event, key: string, payload: Record<string, unknown>) => agents.uiResponse(key, payload))
   ipcMain.on('conv:close', (_event, key: string) => agents.close(key))
 

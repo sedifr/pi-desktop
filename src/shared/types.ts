@@ -53,6 +53,20 @@ export interface SessionMeta {
   usage: Usage
 }
 
+/** 项目文件夹里的一项 */
+export interface DirEntry {
+  name: string
+  /** 相对项目文件夹的路径 */
+  path: string
+  dir: boolean
+}
+
+export interface DirListing {
+  entries: DirEntry[]
+  /** 太多没列完时，还剩几项 */
+  more: number
+}
+
 /** 搜索对话时的一条结果 */
 export interface SearchHit {
   file: string
@@ -441,6 +455,8 @@ export interface PiApi {
   templateSave(input: TemplateInput): Promise<void>
   templateTrash(file: string, cwd?: string): Promise<void>
   filesSearch(cwd: string, query: string): Promise<string[]>
+  /** 列出项目里一个文件夹的内容。rel 是相对项目文件夹的路径，空字符串是项目文件夹本身 */
+  filesList(cwd: string, rel: string): Promise<DirListing>
   trustGet(cwd: string): Promise<TrustStatus>
   /** 记下对这个项目的决定；null 是清掉记录 */
   trustSet(cwd: string, decision: boolean | null): Promise<TrustStatus>

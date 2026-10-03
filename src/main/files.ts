@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { t } from '@shared/i18n'
+import type { DirListing } from '@shared/types'
 
 const MAX_FILES = 20_000
 const SKIP = new Set(['node_modules', '.git', '.venv', 'venv', '__pycache__', 'dist', 'out', 'build', '.next', '.cache'])
@@ -69,4 +71,34 @@ export async function searchFiles(cwd: string, query: string): Promise<string[]>
     .sort((a, b) => b.score - a.score)
     .slice(0, 30)
     .map((item) => item.file)
+}
+
+const HIDDEN = new Set(['.git', '.DS_Store'])
+const MAX_ENTRIES = 400
+
+/**
+ * 列出项目里一个文件夹的内容，给右侧面板的文件树用。文件夹排前面，一层一层按需读；
+ * 一个文件夹里东西太多时只列前面一部分。
+ */
+export function listDir(cwd: string, rel: string): DirListing {
+  const root = path.resolve(cwd)
+  const full = path.resolve(root, rel)
+  if (full !== root && !full.startsWith(root + path.sep)) throw new Error(t('这个文件不在项目文件夹里'))
+  const entries = fs
+    .readdirSync(full, { withFileTypes: true })
+    .filter((entry) => !HIDDEN.has(entry.name))
+    .map((entry) => {
+      let dir = entry.isDirectory()
+      // 指向文件夹的替身也当文件夹
+      if (entry.isSymbolicLink()) {
+        try {
+          dir = fs.statSync(path.join(full, entry.name)).isDirectory()
+        } catch {
+          // 断掉的替身，当文件列出来
+        }
+      }
+      return { name: entry.name, path: path.relative(root, path.join(full, entry.name)), dir }
+    })
+    .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name, undefined, { numeric: true }))
+  return { entries: entries.slice(0, MAX_ENTRIES), more: Math.max(0, entries.length - MAX_ENTRIES) }
 }

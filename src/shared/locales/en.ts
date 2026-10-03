@@ -605,5 +605,16 @@ export const en: Record<string, string> = {
   '参考这个对话的记录：': 'Refer to the transcript of this conversation: ',
   '这个对话的文字记录会交给 Pi 参考：{path}': 'The transcript of this conversation will be given to pi as reference: {path}',
   '引用': 'Quote',
-  '把选中的文字引用到输入框。可以接着引用别的段落，在每段下面各写各的回复': 'Quote the selection in the input. Quote more passages and write a reply under each one'
+  '把选中的文字引用到输入框。可以接着引用别的段落，在每段下面各写各的回复': 'Quote the selection in the input. Quote more passages and write a reply under each one',
+  '点一下，把它 @ 进输入框：{path}': 'Click to @ it in the input: {path}',
+  '已 @': 'Added',
+  '把这个文件夹 @ 进输入框': '@ this folder in the input',
+  '空的': 'Empty',
+  '还有 {n} 项没列出来，可以用上面的搜索找': '{n} more not listed; use the search above',
+  '搜文件名': 'Search file names',
+  '清空': 'Clear',
+  '没有找到这个名字的文件': 'No file with that name',
+  '点文件就把它 @ 进输入框，也可以拖进聊天窗口。在输入框里直接打 @ 也能搜文件。': 'Click a file to @ it in the input, or drag it into the chat. Typing @ in the input searches files too.',
+  '不引用这一段了': 'Remove this quote',
+  '回复这一段…': 'Reply to this passage…'
 }

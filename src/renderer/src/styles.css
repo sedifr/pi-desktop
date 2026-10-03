@@ -413,11 +413,76 @@ button {
   cursor: default;
   user-select: none;
 }
+/* 输入框里引用的段落：一段一个框，下面是对它的回复 */
+.quotes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-bottom: 10px;
+}
+.quote-card {
+  position: relative;
+  padding: 8px 10px 8px 14px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  border: 0.5px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.quote-card::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.quote-text {
+  padding-right: 22px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  user-select: text;
+}
+.quote-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--text-3);
+}
+.quote-remove:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.composer textarea.quote-reply {
+  margin-top: 7px;
+  padding: 5px 9px;
+  border-radius: var(--r-xs);
+  background: var(--bg);
+  font-size: 13.5px;
+  max-height: 120px;
+}
 /* 用户消息里引用的原文 */
 .user-quote {
   margin: 2px 0 6px;
-  padding: 1px 0 1px 10px;
-  border-left: 2px solid var(--border-strong);
+  padding: 4px 10px 4px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px var(--r-xs) var(--r-xs) 4px;
+  background: var(--accent-soft);
   color: var(--text-2);
   font-size: 0.93em;
   display: -webkit-box;
@@ -2396,6 +2461,94 @@ body.dragging .pane-body {
   text-align: center;
   color: var(--text-3);
   line-height: 1.7;
+}
+
+/* 项目里的文件 */
+.files-root {
+  flex: none;
+  max-width: 45%;
+  color: var(--text);
+  font-weight: 600;
+}
+.files-path {
+  font-size: 11.5px;
+  direction: rtl;
+  text-align: left;
+}
+.files-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  margin: 0 2px 8px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--bg-soft);
+  color: var(--text-3);
+}
+.files-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding-right: 6px;
+  border-radius: var(--r-xs);
+  font-size: 13px;
+  cursor: default;
+  user-select: none;
+}
+.file-row:hover {
+  background: var(--bg-hover);
+}
+.file-row > svg {
+  flex: none;
+  color: var(--text-3);
+}
+.file-row.dim {
+  color: var(--text-3);
+}
+.file-row.note {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.file-row.note:hover {
+  background: none;
+}
+.file-row.added {
+  background: var(--accent-soft);
+}
+.file-row:hover .icon-btn.hover-only {
+  display: flex;
+}
+.file-gap {
+  flex: none;
+  width: 11px;
+}
+.file-at {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.file-added {
+  flex: none;
+  font-size: 11px;
+  color: var(--accent);
+}
+.files-hint {
+  margin-top: 14px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-3);
 }
 
 /* 改动的文件 */

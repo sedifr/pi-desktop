@@ -38,6 +38,7 @@ const api: PiApi = {
   templateSave: call('templates:save'),
   templateTrash: call('templates:trash'),
   filesSearch: call('files:search'),
+  filesList: call('files:list'),
   trustGet: call('trust:get'),
   trustSet: call('trust:set'),
   pathForFile: (file) => webUtils.getPathForFile(file),

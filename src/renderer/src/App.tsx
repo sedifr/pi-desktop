@@ -5,6 +5,7 @@ import { Composer } from './Composer'
 import { Gallery, ImagePreview } from './Gallery'
 import { Pane } from './Pane'
 import { Settings } from './Settings'
+import { FILE_DRAG } from './Files'
 import { SearchPalette } from './Search'
 import { SESSION_DRAG, Sidebar } from './Sidebar'
 import {
@@ -14,6 +15,7 @@ import {
   attachSession,
   type Conv,
   isSubagent,
+  mentionFile,
   openSession,
   rename,
   runCommand,
@@ -359,18 +361,22 @@ export function App() {
       <main
         className="main"
         onDragOver={(event) => {
-          if (!takesSession || !event.dataTransfer.types.includes(SESSION_DRAG)) return
+          const types = event.dataTransfer.types
+          if (!takesSession || (!types.includes(SESSION_DRAG) && !types.includes(FILE_DRAG))) return
           event.preventDefault()
           event.dataTransfer.dropEffect = 'copy'
-          if (!sessionOver) setSessionOver(true)
+          if (types.includes(SESSION_DRAG) && !sessionOver) setSessionOver(true)
         }}
         onDragLeave={(event) => !event.currentTarget.contains(event.relatedTarget as Node | null) && setSessionOver(false)}
         onDrop={(event) => {
           const file = event.dataTransfer.getData(SESSION_DRAG)
+          const projectFile = event.dataTransfer.getData(FILE_DRAG)
           setSessionOver(false)
-          if (!file || !takesSession || !conv) return
+          if ((!file && !projectFile) || !takesSession || !conv) return
           event.preventDefault()
-          void attachSession(conv.key, file)
+          // 从右侧面板的文件树拖进来的文件：@ 进输入框
+          if (projectFile) mentionFile(conv.key, projectFile)
+          else void attachSession(conv.key, file)
         }}
       >
         {sessionOver && <div className="drop-hint">{t('松开，把这个对话交给 Pi 参考')}</div>}

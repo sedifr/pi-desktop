@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { t } from '@shared/i18n'
 import { Browser } from './Browser'
 import { Changes } from './Changes'
+import { Files } from './Files'
 import { type Conv, type PaneTab, setPrefs, useApp } from './store'
 import { TerminalView } from './Terminal'
 import { Icon } from './ui'
 
 const TABS: { id: PaneTab; label: string; icon: string }[] = [
+  { id: 'files', label: t('文件'), icon: 'folder' },
   { id: 'changes', label: t('改动'), icon: 'diff' },
   { id: 'browser', label: t('浏览器'), icon: 'globe' },
   { id: 'terminal', label: t('终端'), icon: 'terminal' }
@@ -15,8 +17,8 @@ const TABS: { id: PaneTab; label: string; icon: string }[] = [
 const MIN_WIDTH = 320
 
 /**
- * 聊天框右边的面板：改动的文件、内置浏览器、终端，用上面的页签切换。
- * 三页都一直留着不销毁，只是把没在看的藏起来——网页不用重新加载，终端里的内容也还在。
+ * 聊天框右边的面板：项目里的文件、改动的文件、内置浏览器、终端，用上面的页签切换。
+ * 页面都一直留着不销毁，只是把没在看的藏起来——网页不用重新加载，终端里的内容、文件树展开到哪也还在。
  */
 export function Pane({ conv, visible: open }: { conv: Conv; visible: boolean }) {
   const tab = useApp((s) => s.prefs.paneTab)
@@ -25,6 +27,12 @@ export function Pane({ conv, visible: open }: { conv: Conv; visible: boolean }) 
   // 每个项目文件夹一个终端。看过哪个项目的终端，就一直给它留着
   const [terminals, setTerminals] = useState<string[]>([])
   const wantTerminal = open && tab === 'terminal'
+  // 文件页看过一次之后就留着，切到别的页签再回来，展开到哪还在
+  const wantFiles = open && tab === 'files'
+  const [filesUsed, setFilesUsed] = useState(false)
+  useEffect(() => {
+    if (wantFiles) setFilesUsed(true)
+  }, [wantFiles])
   useEffect(() => {
     if (wantTerminal) setTerminals((current) => (current.includes(conv.cwd) ? current : [...current, conv.cwd]))
   }, [wantTerminal, conv.cwd])
@@ -66,6 +74,7 @@ export function Pane({ conv, visible: open }: { conv: Conv; visible: boolean }) 
         </button>
       </header>
       <div className="pane-body">
+        <div className={`pane-page ${tab === 'files' ? 'on' : ''}`}>{filesUsed && <Files key={conv.cwd} conv={conv} active={wantFiles} />}</div>
         <div className={`pane-page ${tab === 'changes' ? 'on' : ''}`}>{tab === 'changes' && open && <Changes conv={conv} />}</div>
         <div className={`pane-page ${tab === 'browser' ? 'on' : ''}`}>
           <Browser />

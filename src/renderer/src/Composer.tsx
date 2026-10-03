@@ -15,13 +15,16 @@ import {
   newConv,
   openSettings,
   projectDirs,
+  type QuoteReply,
   recallQueue,
   removeAttachment,
+  removeQuote,
   removeRef,
   runCommand,
   send,
   setDraft,
   setModel,
+  setQuoteReply,
   setThinking,
   toast,
   toggleFavoriteModel,
@@ -289,6 +292,47 @@ function readImage(file: File): Promise<ImageAttachment> {
 
 type Open = 'caps' | 'model' | 'thinking' | 'project' | 'access' | 'plus'
 
+/**
+ * 输入框里的一段引用：一个带底色的框，上面是原文（改不了，只能整段移除），下面是对这一段的回复。
+ * 刚引用进来时光标直接落在它的回复栏里。
+ */
+function QuoteCard({ convKey, quote }: { convKey: string; quote: QuoteReply }) {
+  const reply = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = reply.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [quote.reply])
+  return (
+    <div className="quote-card">
+      <div className="quote-text" title={quote.text}>
+        {quote.text}
+      </div>
+      <button className="quote-remove" title={t('不引用这一段了')} onClick={() => removeQuote(convKey, quote.id)}>
+        <Icon name="x" size={10} />
+      </button>
+      <textarea
+        ref={reply}
+        autoFocus
+        rows={1}
+        className="quote-reply"
+        value={quote.reply}
+        placeholder={t('回复这一段…')}
+        onChange={(event) => setQuoteReply(convKey, quote.id, event.target.value)}
+        onKeyDown={(event) => {
+          // 输入法正在选字时，回车是给输入法的
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault()
+            void send(convKey, event.altKey ? 'followUp' : 'steer')
+          }
+        }}
+      />
+    </div>
+  )
+}
+
 export function Composer({ conv }: { conv: Conv }) {
   const defaults = useApp((s) => s.defaults)
   const models = useApp((s) => s.models)
@@ -460,7 +504,7 @@ export function Composer({ conv }: { conv: Conv }) {
   const statuses = Object.entries(conv.statuses)
     .filter(([key]) => key !== 'mcp')
     .map(([, text]) => text)
-  const canSend = conv.draft.trim().length > 0 || conv.attachments.length > 0 || conv.refs.length > 0
+  const canSend = conv.draft.trim().length > 0 || conv.attachments.length > 0 || conv.refs.length > 0 || conv.quotes.length > 0
   // 发过消息的对话已经绑定在它的项目上，不能再换
   const canSwitchProject = !conv.messages.length && !conv.pending.length && !conv.streaming && !conv.loading
   const busy = conv.streaming || Boolean(conv.shellRunning)
@@ -561,6 +605,13 @@ export function Composer({ conv }: { conv: Conv }) {
           void attach([...event.dataTransfer.files])
         }}
       >
+        {conv.quotes.length > 0 && (
+          <div className="quotes">
+            {conv.quotes.map((quote) => (
+              <QuoteCard key={quote.id} convKey={conv.key} quote={quote} />
+            ))}
+          </div>
+        )}
         {(conv.attachments.length > 0 || conv.refs.length > 0) && (
           <div className="attachments">
             {conv.refs.map((ref, index) => (
