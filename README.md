@@ -24,7 +24,7 @@
   <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-![A conversation in Pi Desktop, with the user's own buttons above the input box](docs/screenshots/main.png)
+![A 30-second tour: switching skills on and off, your own buttons, the side panel, hiding and moving parts, your own background](docs/demo.gif)
 
 Pi Desktop is an unofficial window onto pi. It works on pi's own sessions and settings, so everything is shared with the pi CLI, and it carries its own copy of pi — there is nothing else to install.
 
@@ -32,9 +32,16 @@ pi is small on purpose: four tools, a short prompt, and whatever you choose to a
 
 ## Install
 
-Download the `.dmg` from the [latest release](https://github.com/sedifr/pi-desktop/releases/latest) and drag **Pi Desktop** into Applications. It needs an Apple silicon Mac with macOS 13 or later.
+Download the `.dmg` from the [latest release](https://github.com/sedifr/pi-desktop/releases/latest) and drag **Pi Desktop** into Applications, or use Homebrew:
 
-The build is not signed by Apple, so macOS refuses it the first time. Open **System Settings → Privacy & Security** and click **Open Anyway**, or run:
+```bash
+brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop
+brew install --cask pi-desktop
+```
+
+It needs an Apple silicon Mac with macOS 13 or later.
+
+The build is not signed by Apple, so macOS refuses it the first time, whichever way you installed it. Open **System Settings → Privacy & Security** and click **Open Anyway**, or run:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"
@@ -58,6 +65,8 @@ Rather build it yourself? See [Run from source](#run-from-source).
 
 ### Talk to pi
 
+![A conversation: the steps pi took folded into one line, then its answer](docs/screenshots/main.png)
+
 - **Every session, by project** — shared with the CLI; `⌘K` searches everything that was said.
 - **See it working** — live thinking, tool output, and a status line that tells thinking from stuck.
 - **Steer, queue, edit, regenerate** — replaced turns stay in the session as a branch.
@@ -65,6 +74,8 @@ Rather build it yourself? See [Run from source](#run-from-source).
 - **Attach documents** — PDF, Word, PowerPoint and Excel become text before pi reads them.
 
 ### Around the conversation
+
+![The side panel showing the uncommitted changes of the project, one file opened as a diff](docs/screenshots/panel.png)
 
 - **Side panel** — the project's files, uncommitted changes, a browser that fits pages to the panel, a terminal.
 - **Models and usage** — subscriptions, API keys, compatible endpoints; cost and context at a glance.
@@ -112,16 +123,20 @@ npx electron .
 - [Customizing](resources/customize-guide.md) — the files behind buttons, styles and palettes (the guide pi gets)
 - [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
-## Status
+## Status and roadmap
 
-Early, and macOS only. Known limits:
+Early, and macOS only. The interface is available in English and Simplified Chinese.
 
-- The download is not notarized, so it cannot update itself; *Settings → About → Check for updates* tells you when there is a new release.
-- Windows and Linux are untested.
-- Built-in parts of the interface can be hidden but not yet moved between places.
-- The app speaks pi's protocol only. The ideas are general; an adapter for other agents does not exist.
+Not there yet:
 
-The interface is available in English and Simplified Chinese.
+- **Notarized builds.** There is no Apple developer certificate behind the project, so the app cannot update itself; *Settings → About → Check for updates* tells you when there is a new release, and `brew upgrade --cask pi-desktop` fetches it.
+- **Moving built-in parts.** They can be hidden or switched to the other side, but not yet placed somewhere else the way your own buttons can.
+- **Going back to a replaced branch.** Editing a message keeps the old turns in the session file; the interface has no way back to them yet.
+- **Other agents.** The app speaks pi's protocol only. The ideas are general; an adapter does not exist.
+
+Not planned: Windows and Linux builds.
+
+Found a bug, or missing something? [Open an issue](https://github.com/sedifr/pi-desktop/issues/new/choose) — there is a form for each.
 
 ## License
 

@@ -2,6 +2,13 @@
 
 Notable changes to Pi Desktop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Install with Homebrew: `brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop`, then `brew install --cask pi-desktop`.
+- A demo at the top of the README, screenshots of the Chinese interface, and the scripts that take them (`scripts/demo/`).
+
 ## [0.1.1] - 2026-10-03
 
 The first version with a downloadable build.
@@ -65,5 +72,6 @@ The first public version. Everything is new; this is what it covers.
 - English and Simplified Chinese interface.
 - Packaging with electron-builder (ad hoc signed), and a manual check for updates.
 
+[Unreleased]: https://github.com/sedifr/pi-desktop/compare/v0.1.1...HEAD
 [0.1.1]: https://github.com/sedifr/pi-desktop/releases/tag/v0.1.1
 [0.1.0]: https://github.com/sedifr/pi-desktop/tree/v0.1.0

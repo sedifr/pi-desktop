@@ -24,19 +24,24 @@
   <a href="./README.md">English</a>
 </p>
 
-![Pi Desktop 里的一次对话，输入框上方是用户自己加的按钮](docs/screenshots/main.png)
+![30 秒看一遍：开关技能、自己的按钮、右侧面板、把部件藏起来和换位置、自己的背景图](docs/demo.zh-CN.gif)
 
 Pi Desktop 是 pi 的一个非官方窗口。它用的就是 pi 自己的会话和设置，所以和 pi 命令行完全共用；应用自带一份 pi，不用另外装任何东西。
 
 pi 是有意做小的：四个工具，一段很短的提示词，再加上你自己选择加的东西。这个应用让它保持这样。每个技能、MCP 服务、工具都是一个看得见的开关；界面没有主题，也没有你没放过的按钮。
 
-截图里的界面是英文的，应用可以在「设置 → 通用」里换成中文。
-
 ## 安装
 
-到[最新发布](https://github.com/sedifr/pi-desktop/releases/latest)里下载 `.dmg`，把 **Pi Desktop** 拖进「应用程序」。需要 Apple 芯片的 Mac、macOS 13 或更新。
+到[最新发布](https://github.com/sedifr/pi-desktop/releases/latest)里下载 `.dmg`，把 **Pi Desktop** 拖进「应用程序」；或者用 Homebrew：
 
-安装包没有 Apple 的签名，第一次打开时 macOS 会拒绝。打开「系统设置 → 隐私与安全性」点「仍要打开」，或者运行：
+```bash
+brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop
+brew install --cask pi-desktop
+```
+
+需要 Apple 芯片的 Mac、macOS 13 或更新。
+
+安装包没有 Apple 的签名，不管用哪种办法装，第一次打开时 macOS 都会拒绝。打开「系统设置 → 隐私与安全性」点「仍要打开」，或者运行：
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"
@@ -50,7 +55,7 @@ xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"
 
 ### 每次对话自己组装
 
-![一次对话的技能，每个是一张带一句简介的卡片](docs/screenshots/skills.png)
+![一次对话的技能，每个是一张带一句简介的卡片](docs/screenshots/zh-CN/skills.png)
 
 - **卡片，不是菜单**——技能、MCP 服务、工具全部平铺，每个带一句用你自己的话写的简介。
 - **自动、开、关**——只对这次对话、对一个项目，或者对全部生效。
@@ -60,6 +65,8 @@ xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"
 
 ### 和 pi 对话
 
+![一次对话：pi 做过的步骤收成一行，下面是它的回答](docs/screenshots/zh-CN/main.png)
+
 - **所有会话，按项目归类**——和命令行共用；`⌘K` 搜索对话里说过的每一句话。
 - **看得见它在干活**——思考实时滚动，工具显示最新输出，底部一行让你分得清是在想还是卡住了。
 - **指挥、排队、修改、重新生成**——被换掉的那几轮留在会话里，是另一条分支。
@@ -68,6 +75,8 @@ xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"
 
 ### 对话旁边
 
+![右侧面板里是项目没提交的改动，其中一个文件展开成了差异](docs/screenshots/zh-CN/panel.png)
+
 - **右侧面板**——项目里的文件、没提交的改动、会把网页缩到面板宽度的浏览器、终端。
 - **模型和用量**——订阅账号、API Key、兼容接口；费用和上下文占比一眼可见。
 - **还有**——生成过的图片集中在一页、能看 AI 开的子代理、多窗口、做完发通知。
@@ -75,8 +84,8 @@ xattr -dr com.apple.quarantine "/Applications/Pi Desktop.app"
 ### 自己定界面
 
 <p>
-  <img src="docs/screenshots/layout.png" alt="设置：自己的按钮和它们放在哪" width="49%">
-  <img src="docs/screenshots/appearance.png" alt="同一个对话，铺了背景图，颜色从图里取" width="49%">
+  <img src="docs/screenshots/zh-CN/layout.png" alt="设置：自己的按钮和它们放在哪" width="49%">
+  <img src="docs/screenshots/zh-CN/appearance.png" alt="同一个对话，铺了背景图，颜色从图里取" width="49%">
 </p>
 
 - **自己的按钮**——六个位置可以放；一句话、一个技能、一条命令、界面上的一个功能，或者切换模型。
@@ -114,14 +123,20 @@ npx electron .
 - [定制界面](resources/customize-guide.md)——按钮、样式、配色背后的文件（pi 拿到的就是这份，英文）
 - [更新日志](CHANGELOG.md) · [参与贡献](CONTRIBUTING.md) · [安全](SECURITY.md)
 
-## 现状
+## 现状和路线
 
-早期版本，只支持 macOS。已知的限制：
+早期版本，只支持 macOS。界面有中文和英文两种，在「设置 → 通用」里切换。
 
-- 安装包没有经过 Apple 公证，所以不能自己更新；「设置 → 关于 → 检查更新」会告诉你有没有新版本。
-- Windows 和 Linux 没有测过。
-- 界面上自带的部件可以藏起来，但还不能在几个位置之间挪。
-- 应用只认 pi 的协议。想法是通用的，但给别的 Agent 用的适配层还没有。
+还没有的：
+
+- **经过公证的安装包。** 项目没有 Apple 开发者证书，所以应用不能自己更新；「设置 → 关于 → 检查更新」会告诉你有没有新版本，用 Homebrew 装的可以 `brew upgrade --cask pi-desktop`。
+- **挪动自带的部件。** 现在只能藏起来或者换到另一边，还不能像自己的按钮那样放到别的位置。
+- **回到被换掉的分支。** 修改已发的消息后，原来那几轮还留在会话文件里，但界面上还没有回去的入口。
+- **别的 Agent。** 应用只认 pi 的协议。想法是通用的，适配层还没有。
+
+不打算做的：Windows 和 Linux 版。
+
+发现了 bug，或者缺了什么？[提一个 issue](https://github.com/sedifr/pi-desktop/issues/new/choose)，两种情况各有一张表单。
 
 ## 许可证
 

@@ -52,7 +52,8 @@ There is no unit test suite yet. Changes are verified by using the app: say in t
 | `src/renderer/src/` | The interface (React). `store.ts` holds all state and actions; one file per area (`Chat.tsx`, `Composer.tsx`, `Sidebar.tsx`, `Settings.tsx`, …); `styles.css` is the single stylesheet |
 | `src/shared/` | Types and logic used on both sides: the IPC contract (`types.ts`), translations (`i18n.ts`, `locales/en.ts`), buttons and palettes |
 | `resources/` | Scripts run as child processes (sign-in helper, PDF text extraction) and the guide handed to pi for changing the interface |
-| `scripts/` | Project tooling (`check-i18n.mjs`) |
+| `scripts/` | Project tooling: `check-i18n.mjs`, and `demo/` for the screenshots and the demo in the README |
+| `Casks/` | The Homebrew cask; the repository doubles as its own tap |
 
 ## Conventions
 
@@ -73,9 +74,29 @@ There is no unit test suite yet. Changes are verified by using the app: say in t
 
 **Commits** are in English, with a subject line that says what changed for the user.
 
+## Screenshots and the demo
+
+The pictures in `docs/` are taken from a throwaway home directory with made-up projects, sessions, skills and buttons — never from real conversations. To retake them (the GIF needs `ffmpeg`):
+
+```bash
+node scripts/demo/home.mjs en /tmp/pi-demo/en
+HOME=/tmp/pi-demo/en PI_CODING_AGENT_DIR=/tmp/pi-demo/en/.pi/agent PI_DESKTOP_DEBUG=1 \
+  npx electron-vite dev --remoteDebuggingPort 9339
+
+# in a second terminal, once the window is up
+node scripts/demo/stills.mjs /tmp/pi-demo/en en "$PWD/docs/screenshots"
+node scripts/demo/tour.mjs /tmp/pi-demo/en en /tmp/pi-demo/frames-en
+scripts/demo/gif.sh /tmp/pi-demo/frames-en docs/demo.gif
+```
+
+For the Chinese set, use `zh` instead of `en`, and write to `docs/screenshots/zh-CN` and `docs/demo.zh-CN.gif`. `tour.mjs` is the storyboard of the demo; when a part of the interface it clicks is renamed, it stops and names the element it could not find.
+
 ## Releasing
 
-`npm run dist` builds `Pi Desktop.app`, a `.dmg` and a `.zip` into `release/`. The app is signed ad hoc; there is no Apple developer certificate behind the project, so builds are not notarized. If the checkout is inside a folder synced by iCloud Drive, build to a folder outside it: `npm run dist -- -c.directories.output=/tmp/pi-desktop-release`.
+1. Set the version (`npm version x.y.z --no-git-tag-version`), add the entry to `CHANGELOG.md`, commit, tag `vx.y.z`, push both.
+2. `npm run dist` builds `Pi Desktop.app`, a `.dmg` and a `.zip` into `release/`. The app is signed ad hoc; there is no Apple developer certificate behind the project, so builds are not notarized. If the checkout is inside a folder synced by iCloud Drive, build to a folder outside it: `npm run dist -- -c.directories.output=/tmp/pi-desktop-release`.
+3. Create the GitHub release from the tag and attach the `.dmg` and the `.zip`. A tag that has been published is not moved; a fix after it is a new version.
+4. Update `Casks/pi-desktop.rb`: the `version` and the `sha256` of the new `.dmg` (`shasum -a 256`). The file name in `url` is `Pi.Desktop-…` for 0.1.1 and `Pi-Desktop-…` from the next version on. `brew style Casks/pi-desktop.rb` checks the file.
 
 ## License
 

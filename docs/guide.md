@@ -14,6 +14,10 @@ What you need after installing: the first steps, how project trust works, the fi
 
 If you already use the pi CLI, your existing sessions, models, skills and MCP servers show up right away.
 
+## Updating
+
+The app does not update itself. *Settings → About → Check for updates* tells you when there is a new release; download it and replace the app, or, if you installed with Homebrew, run `brew upgrade --cask pi-desktop`. Your sessions and settings live in `~/.pi/agent/` and are not touched.
+
 ## Project trust
 
 pi loads a project's own configuration (`.pi/skills`, `.pi/prompts`, `.pi/extensions`, `.pi/mcp.json`, and so on) only after you trust that folder. When a project has such files and no decision is saved, the app shows a prompt above the input box. Choosing *Trust and load* saves the decision in pi's `~/.pi/agent/trust.json`, the same file the CLI uses. You can change it later from the `···` menu in the title bar. Project extensions can run code on your computer, so only trust projects whose source you know.
