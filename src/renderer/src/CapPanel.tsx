@@ -22,7 +22,7 @@ export function capCount(items: CapItem[] | undefined, kind: CapKind): number | 
   return items?.filter((item) => item.kind === kind && item.state !== 'off').length
 }
 
-const LOCKED_HINT = t('按对话开关 MCP 服务需要 pi-mcp-adapter 这个扩展。没装它时，这里的服务对所有对话都一样，要改就去「设置 → MCP」')
+const LOCKED_HINT = t('这一项对所有对话都一样，没法在这里单独开关。要改就去「设置 → MCP」')
 
 /** 自带的四个工具的名字和说明跟着界面语言走，不让改 */
 const FIXED = new Set(['tool:read', 'tool:bash', 'tool:edit', 'tool:write'])
@@ -122,6 +122,14 @@ export function CapPanel({ conv, kind, onKind, onClose }: { conv: Conv; kind: Ca
       () => loadCaps(conv.key),
       (error) => toast(errorText(error), 'error')
     )
+  // 把能关的全关掉，只留 Pi 自带的读、改、写、运行四个工具。这样开场带的东西最少，需要什么再单独打开
+  const leanest = () => {
+    const changes: Record<string, CapState> = {}
+    for (const item of all ?? []) if (!item.locked && !FIXED.has(item.id) && item.state !== 'off') changes[item.id] = 'off'
+    if (!Object.keys(changes).length) return toast(t('已经是最精简的了'))
+    void changeCaps(conv.key, changes)
+    toast(t('技能、MCP 和扩展都关掉了，从下一条消息起生效。想以后每次都这样开场，点「设为全局默认」'))
+  }
   const setAllSkills = (target: 'auto' | 'off') => {
     const changes: Record<string, CapState> = {}
     for (const item of all ?? []) if (item.kind === 'skill') changes[item.id] = target
@@ -187,6 +195,9 @@ export function CapPanel({ conv, kind, onKind, onClose }: { conv: Conv; kind: Ca
       )}
       <div className="cap-foot">
         <span className="muted small grow">{conv.caps?.dirty ? t('改动会从下一条消息起生效') : t('这里的改动只影响这次对话')}</span>
+        <button className="link-btn" title={t('这次对话把技能、MCP 和扩展全部关掉，只留读写文件和运行命令。开场带的东西最少，需要什么再单独打开')} onClick={leanest}>
+          {t('最精简')}
+        </button>
         {kind === 'mcp' && (
           <button
             className="link-btn"

@@ -179,13 +179,16 @@ export async function launchArgs(key: string, cwd: string): Promise<Launch> {
   const bundled = items.filter((item) => item.id.startsWith(DESKTOP_EXT_PREFIX))
   const extensions = items.filter((item) => item.id.startsWith('ext:') && !item.id.startsWith(DESKTOP_EXT_PREFIX))
   for (const ext of bundled) if (ext.state !== 'off' && ext.path) args.push('-e', ext.path)
-  const adapterInstalled = extensions.some((ext) => ext.id.includes('mcp-adapter'))
-  if (extensions.some((ext) => ext.state !== ext.defaultState)) {
+  const adapter = extensions.find((ext) => ext.id.includes('mcp-adapter'))
+  // 装着适配器、但设置里选了 Pi 自带的接法：这时不能让 Pi 自己去加载全部扩展（那样适配器会顶替自带的 MCP），
+  // 要由这里一个个点名，把适配器漏掉
+  const useBuiltinMcp = !adapter || adapter.locked === true
+  if ((adapter && useBuiltinMcp) || extensions.some((ext) => ext.state !== ext.defaultState)) {
     args.push('--no-extensions')
     // Pi 1.0 起，--no-extensions 会连内置扩展一起关掉，这里把它们加回来。
     for (const builtin of BUILTIN_EXTENSIONS) args.push('-e', `builtin:${builtin}`)
-    // 内置的 MCP：装了外挂适配器时由适配器负责（适配器关了就等于这次不用 MCP），没装时要加回来，不然 MCP 就整个没了
-    if (!adapterInstalled) args.push('-e', 'builtin:mcp')
+    // 自带的 MCP：用适配器时由适配器负责（适配器关了就等于这次不用 MCP），不用适配器时要加回来，不然 MCP 就整个没了
+    if (useBuiltinMcp) args.push('-e', 'builtin:mcp')
     for (const ext of extensions) {
       if (ext.state === 'off') continue
       for (const file of ext.paths ?? (ext.path ? [ext.path] : [])) args.push('-e', file)
@@ -196,7 +199,7 @@ export async function launchArgs(key: string, cwd: string): Promise<Launch> {
   if (disabledTools.length) args.push('--exclude-tools', disabledTools.join(','))
 
   const servers = items.filter((item) => item.id.startsWith('mcp:'))
-  const adapterOn = extensions.some((ext) => ext.id.includes('mcp-adapter') && ext.state !== 'off')
+  const adapterOn = Boolean(adapter && !useBuiltinMcp && adapter.state !== 'off')
   if (adapterOn && servers.some((server) => server.state !== server.defaultState)) {
     const config = readJson<{ mcpServers?: Record<string, Record<string, unknown>> }>(MCP_CONFIG, {})
     for (const server of servers) {

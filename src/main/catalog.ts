@@ -286,6 +286,19 @@ function listDesktopExtensions(): ExtensionInfo[] {
 
 // ---- MCP ----
 
+const ADAPTER = /mcp-adapter/
+
+/** 装没装 pi-mcp-adapter 扩展 */
+export function adapterInstalled(): boolean {
+  return listExtensions().some((ext) => ADAPTER.test(ext.name) && ext.enabled)
+}
+
+/** 现在实际用哪种 MCP 接法：设置里选了就听设置的，没选就看装没装那个扩展 */
+export function mcpEngine(extensions = listExtensions()): 'builtin' | 'adapter' {
+  const installed = extensions.some((ext) => ADAPTER.test(ext.name) && ext.enabled)
+  return installed && getConfig().mcpEngine !== 'builtin' ? 'adapter' : 'builtin'
+}
+
 export const MCP_CONFIG = path.join(AGENT_DIR, 'mcp.json')
 
 function listMcpServers(): { name: string; enabled: boolean; hint: string; description?: string }[] {
@@ -327,7 +340,7 @@ export async function loadCatalog(cwd: string): Promise<CatalogItem[]> {
 
   const extensions = listExtensions()
   // 按对话开关 MCP 服务靠的是 pi-mcp-adapter 这个扩展；Pi 自带的 MCP 只认配置文件里写的
-  const adapter = extensions.some((ext) => /mcp-adapter/.test(ext.name) && ext.enabled)
+  const adapter = mcpEngine(extensions) === 'adapter'
   for (const server of listMcpServers()) {
     const id = `mcp:${server.name}`
     items.push({ id, kind: 'mcp', ...describe(id, server.name, server.hint), description: server.description, defaultState: server.enabled ? 'on' : 'off', tri: false, locked: !adapter })
@@ -339,7 +352,18 @@ export async function loadCatalog(cwd: string): Promise<CatalogItem[]> {
   }
   for (const ext of extensions) {
     const id = `ext:${ext.name}`
-    items.push({ id, kind: 'tool', ...describe(id, ext.name, firstSentence(ext.description)), path: ext.path, paths: ext.paths, defaultState: ext.enabled ? 'on' : 'off', tri: false })
+    // 设置里选了 Pi 自带的 MCP 接法时，那个扩展不加载，也不让在对话里单独打开（两种接法同时在会打架）
+    const parked = ADAPTER.test(ext.name) && !adapter
+    items.push({
+      id,
+      kind: 'tool',
+      ...describe(id, ext.name, firstSentence(ext.description)),
+      path: ext.path,
+      paths: ext.paths,
+      defaultState: ext.enabled && !parked ? 'on' : 'off',
+      tri: false,
+      locked: parked || undefined
+    })
   }
   // 项目自带的扩展只在项目被信任时才会加载，没信任时不列出来
   if ((await trustStatus(cwd).catch(() => undefined))?.trusted) {

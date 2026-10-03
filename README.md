@@ -20,13 +20,13 @@ An unofficial desktop app for the [pi coding agent](https://github.com/earendil-
 - **Queue and take back**: messages sent during an answer wait in a queue you can take back into the input box. Stopping an answer returns the queue too.
 - **Context under control**: a switch for automatic compaction, a *Compact now* button, and a hint when the context is nearly full.
 - **Know when it is done**: a system notification when an answer finishes while the window is in the background, and a dot in the sidebar for conversations that finished out of sight.
-- **MCP servers**: add, edit, and remove servers in *Settings → MCP*. Secrets in environment variables and headers are never shown back.
+- **MCP servers**: add, edit, and remove servers in *Settings → MCP*, and choose how each server's tools reach the model (found when needed, called from scripts, or all declared up front). Secrets in environment variables and headers are never shown back. If the `pi-mcp-adapter` extension is installed, the same page switches between it and pi's built-in MCP support.
 - **Your own words**: every skill, MCP server, and tool shows a one-line description you can rewrite in place, so you remember what it is for. For items that have none yet, a button lets a model draft them.
 - **Install skills**: *Settings → Install skills* installs and removes pi packages (npm, git, or a local folder) — the same as `pi install` — and lets you add extra skill folders.
 - **Side panel**: next to the conversation, a panel with three tabs — *Changes* (uncommitted changes in the project, with the files pi touched marked, and a diff per file), *Browser* (a small built-in browser for pages running on your Mac; localhost links in answers open there), and *Terminal* (a real shell in the project folder).
 - **Images in one place**: the *Images* page lists every image generated in any conversation and project — browse, search, open the conversation that made one, copy, save a copy, or move a batch to the Trash. Images an answer mentions by local path are shown inline.
 - **See sub-agents**: when the AI starts sub-agents, a chip next to the title lists them; open one to read what it did, and jump back to the main conversation.
-- **Pick what a conversation can use**: turn each skill, MCP server, and tool on or off per conversation, then save the setup as the default for the project or for everything. Skills have three states: *auto* (the model decides), *on* (always loaded), *off* (hidden from the model).
+- **Pick what a conversation can use**: turn each skill, MCP server, and tool on or off per conversation, then save the setup as the default for the project or for everything. Skills have three states: *auto* (the model decides), *on* (always loaded), *off* (hidden from the model). *Leanest* turns everything off in one click, so a conversation starts with almost nothing but pi itself; switch on what you need, or save that as the default.
 - **Usage at a glance**: cost, tokens, cache hit rate, and context usage for the conversation, plus totals for today and this month.
 - **Models**: sign in with a subscription, add an API key, or add an OpenAI- or Anthropic-compatible endpoint. A dot next to each provider shows whether its sign-in still works. Search the model menu and star the models you use most.
 
@@ -114,7 +114,7 @@ The interface is available in English and Simplified Chinese (*Settings → Appe
 
 - macOS only. Windows and Linux are untested.
 - No installer yet.
-- Switching MCP servers per conversation relies on the `pi-mcp-adapter` extension. Without it the servers are listed but apply to every conversation.
+- Switching MCP servers per conversation relies on the `pi-mcp-adapter` extension, which declares every tool up front and so costs tokens in every conversation. pi's built-in MCP support finds tools on demand and costs almost nothing, but its servers apply to every conversation.
 - Turning an extension off for a conversation restarts pi with the extensions the app knows about. Packages declared only in a project's `.pi/settings.json` are not carried over in that case.
 - OAuth sign-in for remote MCP servers is not in the app yet; do it once from the pi CLI.
 

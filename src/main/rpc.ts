@@ -38,6 +38,8 @@ export class PiProcess extends EventEmitter {
     else delete env.PI_DESKTOP_IMAGE_DIR
     // 取环境变量要一会儿；这期间如果已经被要求结束，就不用起了
     if (this.killed) return this.finish()
+    // 调试时把启动参数打出来：Pi 启动后会把自己的进程名改成 pi，从进程列表里看不到参数
+    if (process.env.PI_DESKTOP_DEBUG === '1') console.log('[pi-desktop] pi args:', this.args.join(' '))
     const child = spawn(nodeExecPath(), ['-r', cleanEnvPath(), piCliPath(), '--mode', 'rpc', ...this.args], {
       cwd: this.cwd,
       env,

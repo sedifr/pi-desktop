@@ -12,7 +12,7 @@ import { getConfig, setConfig } from './config'
 import { searchFiles } from './files'
 import { fileDiff, listChanges, openFile, revealFile } from './changes'
 import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
-import { listMcp, removeMcp, saveMcp } from './mcp'
+import { mcpOverview, preferDeferred, removeMcp, saveMcp } from './mcp'
 import { installPackage, listPackages, removePackage } from './packages'
 import { generateSummaries, itemsWithoutSummary } from './summarize'
 import { buildMenu } from './menu'
@@ -234,7 +234,13 @@ function registerIpc(): void {
   handle('summaries:missing', async () => (await itemsWithoutSummary()).length)
   handle('summaries:generate', (model: string) => generateSummaries(model, (done, total) => send('summaries:progress', done, total)))
   // MCP 服务变了以后，闲着的 Pi 进程下次用时重启才连得上新的
-  handle('mcp:list', () => listMcp())
+  handle('mcp:list', () => mcpOverview())
+  handle('mcp:engine', (engine: 'builtin' | 'adapter') => {
+    setConfig({ mcpEngine: engine })
+    if (engine === 'builtin') preferDeferred()
+    agents.restartIdle()
+    return mcpOverview()
+  })
   handle('mcp:save', (input: McpServerInput) => {
     saveMcp(input)
     agents.restartIdle()

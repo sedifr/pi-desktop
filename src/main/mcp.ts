@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { t } from '@shared/i18n'
-import type { McpServerInfo, McpServerInput } from '@shared/types'
-import { MCP_CONFIG } from './catalog'
+import type { McpExposure, McpOverview, McpServerInfo, McpServerInput } from '@shared/types'
+import { MCP_CONFIG, adapterInstalled, mcpEngine } from './catalog'
 import { readJsonForEdit, writeJson } from './env'
 
 type Entry = Record<string, unknown>
@@ -25,8 +25,34 @@ export function listMcp(): McpServerInfo[] {
     description: typeof entry.description === 'string' ? entry.description : '',
     envKeys: keysOf(entry.env),
     headerKeys: keysOf(entry.headers),
-    enabled: entry.enabled !== false && entry.disabled !== true
+    enabled: entry.enabled !== false && entry.disabled !== true,
+    exposure: exposureOf(entry.exposure)
   }))
+}
+
+function exposureOf(value: unknown): McpExposure {
+  return value === 'deferred' || value === 'direct' ? value : 'codemode'
+}
+
+export function mcpOverview(): McpOverview {
+  return { servers: listMcp(), adapterInstalled: adapterInstalled(), engine: mcpEngine() }
+}
+
+/**
+ * 换成 Pi 自带的接法时，没指定过方式的服务一律设成「用到时再找」：
+ * 模型先按名字搜到工具再直接调用，比默认的「写脚本调用」步骤少，技能里点名要用某个工具时也更对得上。
+ */
+export function preferDeferred(): void {
+  const config = readJsonForEdit<McpFile>(MCP_CONFIG)
+  const servers = config.mcpServers ?? {}
+  let changed = false
+  for (const entry of Object.values(servers)) {
+    if (entry.exposure === undefined) {
+      entry.exposure = 'deferred'
+      changed = true
+    }
+  }
+  if (changed) write(config)
 }
 
 function write(config: McpFile): void {
@@ -66,6 +92,7 @@ export function saveMcp(input: McpServerInput): void {
   for (const key of ['env', 'headers']) if (entry[key] && !keysOf(entry[key]).length) delete entry[key]
   if (input.description.trim()) entry.description = input.description.trim()
   else delete entry.description
+  if (input.exposure) entry.exposure = input.exposure
 
   if (input.originalName && input.originalName !== name) {
     // 改名时留在原来的位置上

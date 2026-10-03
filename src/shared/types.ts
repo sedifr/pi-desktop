@@ -329,6 +329,18 @@ export interface PackageInfo {
 }
 
 /** 一个 MCP 服务。环境变量和请求头里可能有密钥，所以只给名字 */
+/** Pi 自带的 MCP 把一个服务的工具交给模型的方式 */
+export type McpExposure = 'codemode' | 'deferred' | 'direct'
+
+/** 设置里「MCP」页需要知道的整体情况 */
+export interface McpOverview {
+  servers: McpServerInfo[]
+  /** 有没有装 pi-mcp-adapter 扩展。没装就只有自带的一种接法，不用选 */
+  adapterInstalled: boolean
+  /** 现在实际用的是哪种接法 */
+  engine: 'builtin' | 'adapter'
+}
+
 export interface McpServerInfo {
   name: string
   /** stdio 是在本机启动一个程序，http 是连一个网址 */
@@ -340,6 +352,8 @@ export interface McpServerInfo {
   envKeys: string[]
   headerKeys: string[]
   enabled: boolean
+  /** 用 Pi 自带的接法时，这个服务的工具怎么交给模型。没写就是 Pi 的默认：写脚本调用 */
+  exposure: McpExposure
 }
 
 export interface McpServerInput {
@@ -353,6 +367,8 @@ export interface McpServerInput {
   description: string
   /** 环境变量（stdio）或请求头（http）。不传表示保持原样 */
   secrets?: Record<string, string>
+  /** 不传表示保持原样 */
+  exposure?: McpExposure
 }
 
 /** 桌面端自己的设置，存在 Pi 数据目录下的 desktop/config.json */
@@ -361,6 +377,12 @@ export interface DesktopConfig {
   extraSkillDirs: string[]
   /** 常用模型，形如「提供商/模型」。在模型菜单里排在最前面 */
   favoriteModels: string[]
+  /**
+   * MCP 用哪种接法。builtin 是 Pi 自带的（工具用到时才找，省 token，但服务对所有对话都一样）；
+   * adapter 是 pi-mcp-adapter 扩展（可以按对话开关服务，但每次对话都要带上全部工具的说明）。
+   * 不设时：装了那个扩展就用它，没装就用自带的。
+   */
+  mcpEngine?: 'builtin' | 'adapter'
   /** 新生成的图片统一存到这个文件夹。不设就由出图的工具自己决定（一般是各项目里的 pi-images） */
   imageDir?: string
 }
@@ -455,7 +477,9 @@ export interface PiApi {
   summariesGenerate(model: string): Promise<number>
   onSummaryProgress(cb: (done: number, total: number) => void): () => void
 
-  mcpList(): Promise<McpServerInfo[]>
+  mcpList(): Promise<McpOverview>
+  /** 换 MCP 的接法 */
+  mcpEngineSet(engine: 'builtin' | 'adapter'): Promise<McpOverview>
   mcpSave(input: McpServerInput): Promise<void>
   mcpRemove(name: string): Promise<void>
 

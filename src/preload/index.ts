@@ -94,6 +94,7 @@ const api: PiApi = {
     return () => ipcRenderer.removeListener('summaries:progress', listener)
   },
   mcpList: call('mcp:list'),
+  mcpEngineSet: call('mcp:engine'),
   mcpSave: call('mcp:save'),
   mcpRemove: call('mcp:remove'),
   summarySet: call('summary:set'),
