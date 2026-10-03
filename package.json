@@ -107,7 +107,8 @@
     },
     "dmg": {
       "title": "Pi Desktop"
-    }
+    },
+    "artifactName": "Pi-Desktop-${version}-${arch}.${ext}"
   },
   "author": "sedifr"
 }

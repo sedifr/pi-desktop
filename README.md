@@ -59,7 +59,7 @@ The complete list is in [docs/features.md](docs/features.md).
 
 ### Download
 
-Get `Pi Desktop-…-arm64.dmg` from the [latest release](https://github.com/sedifr/pi-desktop/releases/latest), open it, and drag **Pi Desktop** into Applications. It needs an Apple silicon Mac with macOS 13 or later, and nothing else: the app carries its own copy of pi.
+Download the `.dmg` from the [latest release](https://github.com/sedifr/pi-desktop/releases/latest), open it, and drag **Pi Desktop** into Applications. It needs an Apple silicon Mac with macOS 13 or later, and nothing else: the app carries its own copy of pi.
 
 The build is not signed with an Apple developer certificate, so macOS refuses to open it the first time. Either:
 

@@ -61,7 +61,7 @@ pi 有意做得很小，剩下的交给用的人自己定。这个应用对界�
 
 ### 下载安装
 
-到[最新发布](https://github.com/sedifr/pi-desktop/releases/latest)里下载 `Pi Desktop-…-arm64.dmg`，打开后把 **Pi Desktop** 拖进「应用程序」。需要 Apple 芯片的 Mac、macOS 13 或更新，不需要别的：应用自带一份 pi。
+到[最新发布](https://github.com/sedifr/pi-desktop/releases/latest)里下载 `.dmg` 文件，打开后把 **Pi Desktop** 拖进「应用程序」。需要 Apple 芯片的 Mac、macOS 13 或更新，不需要别的：应用自带一份 pi。
 
 安装包没有用 Apple 的开发者证书签名，所以第一次打开时 macOS 会拒绝。两种办法任选一种：
 
