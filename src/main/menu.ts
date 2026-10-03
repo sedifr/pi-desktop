@@ -59,6 +59,8 @@ export function buildMenu(getWindow: () => BrowserWindow | undefined, newWindow:
       submenu: [
         { label: t('显示或隐藏侧栏'), accelerator: 'Cmd+B', click: send('toggleSidebar') },
         { label: t('显示或隐藏右侧面板'), accelerator: 'Alt+Cmd+B', click: send('togglePane') },
+        // 自己把界面调乱了、连设置都点不到时，从这里一下回到原样
+        { label: t('恢复默认外观'), click: send('resetLook') },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },

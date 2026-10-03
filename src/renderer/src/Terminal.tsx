@@ -99,9 +99,11 @@ export function TerminalView({ cwd, active }: { cwd: string; active: boolean }) 
     const scheme = matchMedia('(prefers-color-scheme: dark)')
     const retheme = () => (xterm.options.theme = themeNow())
     scheme.addEventListener('change', retheme)
+    window.addEventListener('pi-look', retheme)
 
     return () => {
       scheme.removeEventListener('change', retheme)
+      window.removeEventListener('pi-look', retheme)
       observer.disconnect()
       typing.dispose()
       offData()

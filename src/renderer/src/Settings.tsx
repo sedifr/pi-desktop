@@ -6,12 +6,14 @@ import { Mcp } from './Mcp'
 import { Tile, nextState } from './CapPanel'
 import { installing } from './installing'
 import { Market } from './Market'
+import { Personalize } from './Personalize'
 import { type ChatWidth, type SettingsTab, setAutoTitle, api, commandsChanged, errorText, getState, setPrefs, setSettingsTab, setView, toast, useApp } from './store'
 import { Icon } from './ui'
 import { t } from '@shared/i18n'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'look', label: t('外观') },
+  { id: 'custom', label: t('个性化') },
   { id: 'caps', label: t('技能与工具') },
   { id: 'market', label: t('插件市场') },
   { id: 'sources', label: t('安装技能') },
@@ -502,6 +504,7 @@ export function Settings() {
           <div className={`settings-column ${tab === 'caps' || tab === 'market' ? 'wide' : ''}`}>
             {tab === 'look' && <Look />}
             {tab === 'caps' && <Caps />}
+            {tab === 'custom' && <Personalize />}
             {tab === 'market' && <Market />}
             {tab === 'sources' && (
               <>

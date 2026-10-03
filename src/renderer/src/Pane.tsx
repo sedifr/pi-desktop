@@ -62,7 +62,7 @@ export function Pane({ conv, visible: open }: { conv: Conv; visible: boolean }) 
       <header className="pane-head">
         <div className="segmented no-drag">
           {TABS.map((item) => (
-            <button key={item.id} className={tab === item.id ? 'on' : ''} onClick={() => setPrefs({ paneTab: item.id })}>
+            <button key={item.id} data-part={`pane-${item.id}`} className={tab === item.id ? 'on' : ''} onClick={() => setPrefs({ paneTab: item.id })}>
               <Icon name={item.icon} size={13} />
               {item.label}
             </button>

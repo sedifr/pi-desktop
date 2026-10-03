@@ -766,7 +766,7 @@ export function Composer({ conv }: { conv: Conv }) {
             </button>
             {open === 'model' && <ModelPicker conv={conv} onClose={close} />}
           </div>
-          <div className="anchor">
+          <div className="anchor" data-part="comp-thinking">
             <button className="chip" data-popover-trigger="composer" onClick={() => toggle('thinking')}>
               {t('推理 {level}', { level: thinking ? (THINKING_LABEL[thinking] ?? thinking) : t('默认') })}
               <Icon name="down" size={11} />
@@ -785,7 +785,7 @@ export function Composer({ conv }: { conv: Conv }) {
           )}
         </div>
       </div>
-      <div className="composer-strip">
+      <div className="composer-strip" data-part="comp-strip">
         <div className="anchor">
           <button className="strip-btn" data-popover-trigger="composer" title={conv.cwd} disabled={!canSwitchProject} onClick={() => toggle('project')}>
             <Icon name="folder" size={14} />

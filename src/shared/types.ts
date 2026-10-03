@@ -1,3 +1,4 @@
+import type { Palette, Skin } from './skins'
 // 主进程和界面共用的类型
 
 export type CapState = 'auto' | 'on' | 'off'
@@ -243,7 +244,7 @@ export interface TemplateInput {
 }
 
 /** 系统菜单和快捷键触发的动作 */
-export type MenuAction = 'settings' | 'new' | 'search' | 'find' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
+export type MenuAction = 'settings' | 'new' | 'search' | 'find' | 'resetLook' | 'addProject' | 'stop' | 'commands' | 'model' | 'rename' | 'copyLast' | 'compact' | 'export' | 'toggleSidebar' | 'togglePane'
 
 export interface SessionStats {
   userMessages: number
@@ -525,6 +526,22 @@ export interface PiApi {
   templateSave(input: TemplateInput): Promise<void>
   templateTrash(file: string, cwd?: string): Promise<void>
   filesSearch(cwd: string, query: string): Promise<string[]>
+  /** 弹出选文件的窗口挑一张背景图。返回拷进来之后的路径，和从图里取出的代表色。取消了就什么都不返回 */
+  wallpaperPick(): Promise<{ path: string; color?: string; tone?: [number, number] } | undefined>
+  /** 把拖进来的一张图片当背景 */
+  wallpaperUse(file: string): Promise<{ path: string; color?: string; tone?: [number, number] }>
+  wallpaperClear(): Promise<void>
+  /** 从一张图里取一个有代表性的颜色 */
+  wallpaperColor(file: string): Promise<string | undefined>
+  /** 读桌面端文件夹里的 custom.css。没有就是空的 */
+  customCssRead(): Promise<string>
+  /** 在访达里指出 custom.css；还没有就先建一个带说明的 */
+  customCssReveal(): void
+  /** 用户自己放在皮肤文件夹里的皮肤 */
+  skinsList(): Promise<Skin[]>
+  /** 以给的颜色为底稿新建一个皮肤文件，并在访达里指给人看 */
+  skinNew(light: Palette, dark: Palette): Promise<string>
+  skinsReveal(): void
   /** 看有没有更新的版本。只在用户点了之后才去问 */
   updateCheck(): Promise<UpdateInfo>
   /** 在 Pi 的包目录里找包。topic 是只看带某个关键词的，from 是从第几个开始 */

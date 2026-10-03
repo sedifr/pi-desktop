@@ -18,11 +18,12 @@ const ITEMS: { kind: CapKind; icon: string; title: string }[] = [
 export function Rail({ conv }: { conv: Conv }) {
   const [open, setOpen] = useState<CapKind>()
   return (
-    <nav className="rail">
+    <nav className="rail" data-part="rail">
       {ITEMS.map((item) => (
         <button
           key={item.kind}
           className={`rail-btn ${open === item.kind ? 'active' : ''}`}
+          data-part={`rail-${item.kind}`}
           data-popover-trigger="rail"
           title={item.title}
           onClick={() => setOpen(open === item.kind ? undefined : item.kind)}
@@ -30,8 +31,8 @@ export function Rail({ conv }: { conv: Conv }) {
           <Icon name={item.icon} size={16} />
         </button>
       ))}
-      <span className="rail-sep" />
-      <button className="rail-btn" title={t('插件市场：找别人做好的技能和扩展')} onClick={() => openSettings('market')}>
+      <span className="rail-sep" data-part="rail-market" />
+      <button className="rail-btn" data-part="rail-market" title={t('插件市场：找别人做好的技能和扩展')} onClick={() => openSettings('market')}>
         <Icon name="store" size={16} />
       </button>
       {open && <CapPanel rail conv={conv} kind={open} onKind={setOpen} onClose={() => setOpen(undefined)} />}

@@ -328,18 +328,18 @@ export function Sidebar() {
         <Icon name="edit" />
         {t('新对话')}
       </button>
-      <button className="nav-item" title={t('按标题、项目名和对话里说过的话找对话')} onClick={() => setSearchOpen(true)}>
+      <button className="nav-item" data-part="side-search" title={t('按标题、项目名和对话里说过的话找对话')} onClick={() => setSearchOpen(true)}>
         <Icon name="search" />
         <span className="grow">{t('搜索')}</span>
         <kbd>⌘K</kbd>
       </button>
-      <button className={`nav-item ${view === 'images' ? 'active' : ''}`} title={t('所有对话生成过的图片')} onClick={() => setView(view === 'images' ? 'chat' : 'images')}>
+      <button className={`nav-item ${view === 'images' ? 'active' : ''}`} data-part="side-images" title={t('所有对话生成过的图片')} onClick={() => setView(view === 'images' ? 'chat' : 'images')}>
         <Icon name="image" />
         {t('图片')}
       </button>
       <div className="sidebar-scroll">
         {pinned.length > 0 && (
-          <div className={`pin-area ${over === PIN_AREA && drag && !pinnedIds.includes(drag.id) ? 'drop' : ''}`} {...pinZone(PIN_AREA)}>
+          <div className={`pin-area ${over === PIN_AREA && drag && !pinnedIds.includes(drag.id) ? 'drop' : ''}`} data-part="side-pinned" {...pinZone(PIN_AREA)}>
             <div className="sidebar-label">{t('置顶的对话')}</div>
             {pinned.map((meta) => row(meta, true))}
           </div>

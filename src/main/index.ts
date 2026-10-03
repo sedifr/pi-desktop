@@ -13,6 +13,9 @@ import { extractDoc, pdfBytes } from './docs'
 import { searchMarket } from './market'
 import { suggestTitle } from './titles'
 import { checkUpdate } from './update'
+import { listSkins, newSkin, readCustomCss, revealCustomCss, revealSkins } from './skins'
+import { clearWallpaper, dominantColor, pickWallpaper, useWallpaper } from './wallpaper'
+import type { Palette } from '@shared/skins'
 import { listDir, searchFiles } from './files'
 import { fileDiff, listChanges, openFile, revealFile } from './changes'
 import { IMAGE_EXT, copyImage, listImages, revealImage, saveImageAs, trashImages } from './images'
@@ -439,6 +442,15 @@ function registerIpc(): void {
   })
   handle('files:search', (cwd: string, query: string) => searchFiles(cwd, query))
   handle('update:check', () => checkUpdate())
+  handle('wallpaper:pick', () => pickWallpaper(win && !win.isDestroyed() ? win : undefined))
+  handle('wallpaper:use', (file: string) => useWallpaper(String(file)))
+  handle('wallpaper:clear', () => clearWallpaper())
+  handle('wallpaper:color', (file: string) => (IMAGE_EXT.test(String(file)) ? dominantColor(String(file)) : undefined))
+  handle('customCss:read', () => readCustomCss())
+  ipcMain.on('customCss:reveal', () => revealCustomCss())
+  handle('skins:list', () => listSkins())
+  handle('skins:new', (light: Palette, dark: Palette) => newSkin(light, dark))
+  ipcMain.on('skins:reveal', () => revealSkins())
   handle('market:search', (query: string, topic: string, from: number) => searchMarket(String(query ?? ''), String(topic ?? ''), Number(from) || 0))
   handle('doc:text', (file: string) => extractDoc(String(file)))
   handle('doc:pdfBytes', (file: string) => pdfBytes(String(file)))

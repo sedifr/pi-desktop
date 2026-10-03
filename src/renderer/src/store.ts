@@ -1,3 +1,5 @@
+import type { Skin } from '@shared/skins'
+import { DEFAULT_LOOK, type Look, applyLook } from './skins'
 import { titleFrom } from '@shared/title'
 import { useSyncExternalStore } from 'react'
 import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, DesktopConfig, ImageAttachment, MenuAction, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, TrustStatus, Usage } from '@shared/types'
@@ -113,6 +115,10 @@ export interface AppState {
   /** 正在标题栏里改名的对话 */
   renamingKey?: string
   signal?: UiSignal
+  /** 皮肤文件夹里的配色文件 */
+  userSkins: Skin[]
+  /** custom.css 的内容 */
+  customCss: string
   /** 搜索对话的窗口开着 */
   searchOpen?: boolean
   /** 在当前对话里查找的那一栏开着。findFocus 每按一次 ⌘F 加一，让输入框重新拿到光标 */
@@ -124,7 +130,7 @@ export interface AppState {
   config?: DesktopConfig
 }
 
-export type SettingsTab = 'look' | 'caps' | 'market' | 'sources' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
+export type SettingsTab = 'look' | 'custom' | 'caps' | 'market' | 'sources' | 'commands' | 'mcp' | 'accounts' | 'keys' | 'about'
 
 export type ChatWidth = 'normal' | 'wide' | 'full'
 /** 每一档对话区最宽到多少。窗口不够宽时都会自动铺满 */
@@ -138,6 +144,16 @@ export interface Prefs {
   fontSize: number
   /** 对话正文和输入框占多宽：标准、宽、铺满整个窗口 */
   chatWidth: ChatWidth
+  /** 自己定的外观：背景图、强调色、色调、配色文件 */
+  look: Look
+  /** 不想看到的界面部件（见「设置 → 个性化」里的清单） */
+  hidden: string[]
+  /** 左边那列图标放在聊天区的哪一边 */
+  railSide: 'left' | 'right'
+  /** 对话列表那一栏放在窗口的哪一边 */
+  sidebarSide: 'left' | 'right'
+  /** 加载桌面端文件夹里的 custom.css */
+  customCss: boolean
   sidebarCollapsed: boolean
   /** 窗口不在前台时，回答做完了用系统通知提醒 */
   notify: boolean
@@ -149,7 +165,7 @@ export interface Prefs {
 
 export type PaneTab = 'files' | 'changes' | 'browser' | 'terminal'
 
-const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, chatWidth: 'wide', sidebarCollapsed: false, notify: true, paneOpen: false, paneTab: 'changes', paneWidth: 460 }
+const DEFAULT_PREFS: Prefs = { language: 'system', theme: 'system', fontSize: 14, chatWidth: 'wide', look: DEFAULT_LOOK, hidden: [], railSide: 'left', sidebarSide: 'left', customCss: false, sidebarCollapsed: false, notify: true, paneOpen: false, paneTab: 'changes', paneWidth: 460 }
 
 /** 读一项存在本地的界面设置。坏了或者形状不对就用默认值，不能让它把整个界面拖垮 */
 function stored<T>(key: string, fallback: T, ok: (value: unknown) => boolean): T {
@@ -169,6 +185,8 @@ let state: AppState = {
   models: {},
   extraProjects: stored<string[]>('extraProjects', [], (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')),
   view: 'chat',
+  userSkins: [],
+  customCss: '',
   imagesVersion: 0,
   settingsTab: 'look',
   authStatus: stored<Record<string, AuthStatus>>('authStatus', {}, isRecord),
@@ -601,6 +619,8 @@ function applyPrefs(prefs: Prefs): void {
   api.setTheme(prefs.theme)
   document.documentElement.style.setProperty('--chat-size', `${prefs.fontSize}px`)
   document.documentElement.style.setProperty('--chat-max', CHAT_WIDTH[prefs.chatWidth] ?? CHAT_WIDTH.wide)
+  applyLook({ ...DEFAULT_LOOK, ...prefs.look }, state.userSkins, (file) => `pi-img://local/${encodeURIComponent(file)}`)
+  applyParts(prefs)
 }
 
 export function setPrefs(patch: Partial<Prefs>): void {
@@ -704,6 +724,8 @@ function handleMenu(action: MenuAction): void {
       return void addProject()
     case 'search':
       return setSearchOpen(!state.searchOpen)
+    case 'resetLook':
+      return resetLook()
     case 'find':
       return set({ view: 'chat', findOpen: true, findFocus: (state.findFocus ?? 0) + 1 })
     case 'toggleSidebar':
@@ -756,6 +778,8 @@ export async function init(): Promise<void> {
     }
   })
   listeners.add(saveDraftsSoon)
+  void loadSkins()
+  void loadCustomCss()
   const cwd = localStorage.getItem('lastCwd') ?? sessions[0]?.cwd
   if (cwd) newConv(cwd)
 }
@@ -866,6 +890,74 @@ async function maybeAutoTitle(key: string): Promise<void> {
   } catch {
     // 起不出来就算了，标题还是第一句话
   }
+}
+
+/** 左边那列里的四个图标。全都不要时，这一列本身也收掉 */
+const RAIL_PARTS = ['rail-skill', 'rail-mcp', 'rail-tool', 'rail-market']
+
+const styleTag = (id: string): HTMLElement => {
+  let style = document.getElementById(id)
+  if (!style) {
+    style = document.createElement('style')
+    style.id = id
+    document.head.appendChild(style)
+  }
+  return style
+}
+
+/**
+ * 把「哪些部件不显示、放在哪一边、要不要加载自己写的样式」落到页面上。
+ * 部件只是被藏起来，没有从程序里拿掉；想要回来随时打开。
+ */
+function applyParts(prefs: Prefs): void {
+  const hidden = new Set((prefs.hidden ?? []).filter((id) => /^[\w-]+$/.test(id)))
+  if (RAIL_PARTS.every((id) => hidden.has(id))) hidden.add('rail')
+  styleTag('pi-parts').textContent = [...hidden].map((id) => `[data-part="${id}"]{display:none !important}`).join('')
+  const root = document.documentElement
+  root.dataset.rail = prefs.railSide === 'right' ? 'right' : 'left'
+  root.dataset.side = prefs.sidebarSide === 'right' ? 'right' : 'left'
+  // 自己写的样式排在最后，才盖得过自带的
+  const custom = styleTag('pi-custom-css')
+  custom.textContent = prefs.customCss ? state.customCss : ''
+  document.head.appendChild(custom)
+}
+
+/** 显示或隐藏一个界面部件 */
+export function togglePart(id: string): void {
+  const hidden = state.prefs.hidden ?? []
+  setPrefs({ hidden: hidden.includes(id) ? hidden.filter((item) => item !== id) : [...hidden, id] })
+}
+
+/** 重新读 custom.css */
+export async function loadCustomCss(): Promise<void> {
+  try {
+    set({ customCss: await api.customCssRead() })
+  } catch {
+    set({ customCss: '' })
+  }
+  applyPrefs(state.prefs)
+}
+
+/** 外观全部回到出厂的样子：背景图、颜色、部件开关、位置、自己写的样式都还原 */
+export function resetLook(): void {
+  void api.wallpaperClear().catch(() => {})
+  setPrefs({ look: DEFAULT_LOOK, hidden: [], railSide: 'left', sidebarSide: 'left', customCss: false })
+  toast(t('外观已恢复默认'))
+}
+
+/** 改外观的定制。只传要改的那几项 */
+export function setLook(patch: Partial<Look>): void {
+  setPrefs({ look: { ...DEFAULT_LOOK, ...state.prefs.look, ...patch } })
+}
+
+/** 重新读皮肤文件夹里的配色文件 */
+export async function loadSkins(): Promise<void> {
+  try {
+    set({ userSkins: await api.skinsList() })
+  } catch {
+    set({ userSkins: [] })
+  }
+  applyPrefs(state.prefs)
 }
 
 export async function setAutoTitle(value: string): Promise<void> {

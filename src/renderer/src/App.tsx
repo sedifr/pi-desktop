@@ -212,7 +212,7 @@ function Header({ conv }: { conv: Conv }) {
         </button>
       )}
       {children.length > 0 && (
-        <div className="anchor no-drag">
+        <div className="anchor no-drag" data-part="head-agents">
           <button className="chip" data-popover-trigger="header-agents" title={t('这个对话里 AI 开出来的子代理')} onClick={() => setAgents(!agents)}>
             <Icon name="branch" size={13} />
             {t('子代理 {n}', { n: children.length })}
@@ -242,12 +242,12 @@ function Header({ conv }: { conv: Conv }) {
       )}
       <span className="grow" />
       {!paneOpen && (
-        <button className="icon-btn no-drag" title={t('打开右侧面板：改动的文件、浏览器、终端（⌥⌘B）')} onClick={() => setPrefs({ paneOpen: true })}>
+        <button className="icon-btn no-drag" data-part="head-pane" title={t('打开右侧面板：改动的文件、浏览器、终端（⌥⌘B）')} onClick={() => setPrefs({ paneOpen: true })}>
           <Icon name="panel" size={15} />
         </button>
       )}
       {usage && (
-        <div className="anchor no-drag">
+        <div className="anchor no-drag" data-part="head-usage">
           <button className={`chip ${percent != null && percent >= 85 ? 'warn' : ''}`} data-popover-trigger="header" onClick={() => setOpen(!open)}>
             <Icon name="chart" size={14} />
             {fmtCost(usage.cost)}
