@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { CapItem, CapState } from '@shared/types'
 import { DESKTOP_EXT_PREFIX, type CatalogItem, MCP_CONFIG, loadCatalog, skillsUnknown } from './catalog'
-import { DESKTOP_DIR, HOME, readJson, readOwnJson, writeJson } from './env'
+import { DESKTOP_DIR, HOME, readJson, readOwnJson, toolLoadoutPath, writeJson } from './env'
 
 type Overrides = Record<string, CapState>
 
@@ -156,7 +156,8 @@ export interface Launch {
 /** 把当前的能力设置翻译成 Pi 的启动参数 */
 export async function launchArgs(key: string, cwd: string): Promise<Launch> {
   const items = await getItems(key, cwd)
-  const args: string[] = []
+  // 排在所有扩展前面，见文件里的说明
+  const args: string[] = ['-e', toolLoadoutPath()]
 
   const skills = items.filter((item) => item.id.startsWith('skill:'))
   // 平时由这里说了算：关掉 Pi 自己的发现，把开着的技能一个个交给它。
@@ -195,7 +196,12 @@ export async function launchArgs(key: string, cwd: string): Promise<Launch> {
     }
   }
 
-  const disabledTools = items.filter((item) => item.id.startsWith('tool:') && item.state === 'off').map((item) => item.id.slice(5))
+  const tools = items.filter((item) => item.id.startsWith('tool:'))
+  // Pi 1.3 起，接着旧对话时沿用对话里记下的那组工具。开着的要点名加回来，
+  // 不然一个对话设过「只读」，之后改成「完全访问」也拿不回运行命令和改文件
+  const enabledTools = tools.filter((item) => item.state !== 'off').map((item) => item.id.slice(5))
+  if (enabledTools.length) args.push('--tools', enabledTools.map((name) => `+${name}`).join(','))
+  const disabledTools = tools.filter((item) => item.state === 'off').map((item) => item.id.slice(5))
   if (disabledTools.length) args.push('--exclude-tools', disabledTools.join(','))
 
   const servers = items.filter((item) => item.id.startsWith('mcp:'))

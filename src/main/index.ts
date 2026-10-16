@@ -220,6 +220,8 @@ function registerIpc(): void {
   const afterAccountChange = async (work: Promise<void>) => {
     await work
     agents.restartIdle()
+    // 新登录的提供商，顺便取一下它最新的模型
+    void refreshModels()
   }
   handle('providers', () => accounts.listProviders())
   handle('auth:login', (provider: string, type: AuthType) =>
@@ -485,6 +487,24 @@ function registerIpc(): void {
   handle('caps:globalSet', (changes: Record<string, CapState>) => setGlobal(changes))
 }
 
+/**
+ * 各家出了新模型，Pi 是从 pi.dev 的模型目录里知道的。桌面端开着时每隔一阵去取一次（Pi 自己四小时内不重复取），
+ * 有新模型就让闲着的进程下次用时重启，模型菜单里才会出现。设了 PI_OFFLINE 的话 Pi 不联网，这里也就什么都不做
+ */
+let refreshingModels: Promise<void> | undefined
+function refreshModels(): Promise<void> {
+  refreshingModels ??= accounts
+    .refreshModelCatalog()
+    .then((added) => {
+      if (!added.length) return
+      agents.restartIdle()
+      broadcast('models:added', added)
+    })
+    .catch((error) => console.warn('[pi-desktop] model catalog refresh failed:', error))
+    .finally(() => (refreshingModels = undefined))
+  return refreshingModels
+}
+
 void app.whenReady().then(() => {
   if (!PRIMARY) return
   protocol.handle('pi-img', (request) => {
@@ -502,6 +522,8 @@ void app.whenReady().then(() => {
   // 按钮、自己写的样式、配色文件被改了（不管是谁改的），所有窗口马上重新读
   watchDesktopFiles((what) => broadcast('desktop:file', what))
   createWindow()
+  setTimeout(() => void refreshModels(), 5_000)
+  setInterval(() => void refreshModels(), 4 * 60 * 60 * 1000 + 60_000)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

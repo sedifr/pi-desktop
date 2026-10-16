@@ -23,6 +23,11 @@ export function cleanEnvPath(): string {
   return path.join(app.getAppPath(), 'resources', 'clean-env.cjs')
 }
 
+/** 每次启动 Pi 都带上的小扩展：接着旧对话时，把这次新打开的扩展的工具补上 */
+export function toolLoadoutPath(): string {
+  return path.join(app.getAppPath(), 'resources', 'tool-loadout.ts')
+}
+
 export function piVersion(): string {
   try {
     return JSON.parse(fs.readFileSync(path.join(piPackageDir(), 'package.json'), 'utf8')).version

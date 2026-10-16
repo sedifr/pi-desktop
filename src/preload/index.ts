@@ -58,6 +58,11 @@ const api: PiApi = {
     ipcRenderer.on('desktop:file', listener)
     return () => ipcRenderer.removeListener('desktop:file', listener)
   },
+  onModelsAdded: (cb) => {
+    const listener = (_event: unknown, added: string[]) => cb(added)
+    ipcRenderer.on('models:added', listener)
+    return () => ipcRenderer.removeListener('models:added', listener)
+  },
   wallpaperPick: call('wallpaper:pick'),
   wallpaperUse: call('wallpaper:use'),
   wallpaperClear: call('wallpaper:clear'),

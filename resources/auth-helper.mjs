@@ -6,6 +6,7 @@
 //   auth-helper.mjs login <提供商> <api_key|oauth>
 //   auth-helper.mjs logout <提供商>
 //   auth-helper.mjs check <提供商>
+//   auth-helper.mjs refresh
 //
 // 输出是按行分隔的 JSON。login 过程中需要用户输入时发 {t:"prompt"}，
 // 主进程从标准输入回一行 {id, value} 或 {id, cancel:true}。
@@ -43,6 +44,19 @@ async function list(runtime) {
     }
   })
   emit({ t: 'list', providers })
+}
+
+// 联网取各家最新的模型目录，存进 Pi 自己的 models-store.json（命令行也用这一份）。
+// Pi 只在交互界面里做这件事，桌面端用的 RPC 模式不会做，所以由这里补上。四小时内取过的，Pi 自己会跳过
+async function refresh(runtime) {
+  const ids = () => runtime.getModels().map((model) => `${model.provider}/${model.id}`)
+  const before = new Set(ids())
+  const result = await runtime.refresh({ allowNetwork: true, signal: AbortSignal.timeout(30_000) })
+  emit({
+    t: 'refreshed',
+    added: ids().filter((id) => !before.has(id)),
+    errors: [...result.errors].map(([provider, error]) => ({ provider, message: String(error?.message ?? error).slice(0, 300) }))
+  })
 }
 
 async function login(runtime) {
@@ -156,6 +170,7 @@ try {
   else if (command === 'login') await login(runtime)
   else if (command === 'logout') await runtime.logout(providerId)
   else if (command === 'check') await check(runtime)
+  else if (command === 'refresh') await refresh(runtime)
   else throw new Error(MSG.unknownCommand + command)
   emit({ t: 'done' })
   process.exit(0)

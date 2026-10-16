@@ -829,6 +829,8 @@ export const en: Record<string, string> = {
   '恢复默认布局': 'Reset layout',
   '通用': 'General',
   '布局': 'Layout',
+  '模型列表更新了，新增 {n} 个：{list}': 'Model list updated, {n} new: {list}',
+  '、': ', ',
   '技能和工具': 'Skills & tools',
   '插件': 'Plugins',
   '窗口在后台时，用系统通知提醒': 'A system notification when the window is in the background',

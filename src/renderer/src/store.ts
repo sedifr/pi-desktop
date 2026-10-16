@@ -792,6 +792,11 @@ export async function init(): Promise<void> {
   void loadButtons()
   // 这几个文件不管是谁改的（设置页、编辑器、Pi），改完马上跟上
   api.onDesktopFile((what) => void (what === 'buttons' ? loadButtons() : what === 'css' ? loadCustomCss() : loadSkins()))
+  // 各家出了新模型：模型菜单下次打开就有，这里说一声
+  api.onModelsAdded((added) => {
+    const names = added.slice(0, 4).map((id) => id.slice(id.indexOf('/') + 1))
+    toast(t('模型列表更新了，新增 {n} 个：{list}', { n: added.length, list: names.join(t('、')) + (added.length > names.length ? '…' : '') }))
+  })
   const cwd = localStorage.getItem('lastCwd') ?? sessions[0]?.cwd
   if (cwd) newConv(cwd)
 }

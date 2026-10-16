@@ -339,6 +339,7 @@ export type AuthFlowEvent =
   | { t: 'status'; state: AuthStatus['state']; message?: string; model?: string }
   | { t: 'prompt'; id: number; prompt: AuthPrompt }
   | { t: 'prompt_cancel'; id: number }
+  | { t: 'refreshed'; added: string[]; errors: { provider: string; message: string }[] }
   | { t: 'notify'; event: AuthNotice }
   | { t: 'done' }
   | { t: 'error'; message: string }
@@ -547,6 +548,8 @@ export interface PiApi {
   customizeGuide(): Promise<string>
   /** 桌面端文件夹里决定界面长相的文件被改了：按钮、自己写的样式、配色文件 */
   onDesktopFile(cb: (what: 'buttons' | 'css' | 'skins') => void): () => void
+  /** 联网更新模型目录后，新出现的模型（「提供商/模型」） */
+  onModelsAdded(cb: (added: string[]) => void): () => void
   wallpaperPick(): Promise<{ path: string; color?: string; tone?: [number, number] } | undefined>
   /** 把拖进来的一张图片当背景 */
   wallpaperUse(file: string): Promise<{ path: string; color?: string; tone?: [number, number] }>

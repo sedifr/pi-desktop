@@ -2,7 +2,16 @@
 
 Notable changes to Pi Desktop. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.2] - 2026-10-16
+
+### Changed
+
+- pi 1.3.0 inside (was 1.0.0). It knows the newer models — Claude Haiku, Sonnet and Opus 5.5, GPT-6 Luna and Sol and GPT-6.1 Sol, Gemini 3.5 to 3.8 and Gemini 4 Argon — and brings pi's own fixes since 1.0.0.
+- New models also arrive without a new version of the app: while it is open, the app asks pi to refresh its model catalog from pi.dev (pi skips it if it did so within four hours), and says which models were added.
+
+### Fixed
+
+- Since pi 1.3, a conversation picks up the tools it had last time. A conversation once set to *Read only* kept that after being switched to *Full access*, and an extension turned on in an existing conversation did not get its tools. The app now names the tools it wants each time it starts pi.
 
 ### Added
 
@@ -72,6 +81,6 @@ The first public version. Everything is new; this is what it covers.
 - English and Simplified Chinese interface.
 - Packaging with electron-builder (ad hoc signed), and a manual check for updates.
 
-[Unreleased]: https://github.com/sedifr/pi-desktop/compare/v0.1.1...HEAD
+[0.1.2]: https://github.com/sedifr/pi-desktop/releases/tag/v0.1.2
 [0.1.1]: https://github.com/sedifr/pi-desktop/releases/tag/v0.1.1
 [0.1.0]: https://github.com/sedifr/pi-desktop/tree/v0.1.0

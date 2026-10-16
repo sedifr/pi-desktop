@@ -56,6 +56,16 @@ export async function listProviders(): Promise<ProviderInfo[]> {
   return providers
 }
 
+/** 联网更新各家的模型目录。返回新出现的模型；连不上的提供商跳过，不算失败 */
+export async function refreshModelCatalog(): Promise<string[]> {
+  let added: string[] = []
+  const { done } = await runHelper(['refresh'], (message) => {
+    if (message.t === 'refreshed') added = message.added
+  })
+  await done
+  return added
+}
+
 export async function checkProvider(provider: string): Promise<AuthStatus> {
   let status: AuthStatus = { state: 'error', message: t('检测没有完成'), at: Date.now() }
   try {
