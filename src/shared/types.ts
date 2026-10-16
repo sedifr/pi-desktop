@@ -510,6 +510,8 @@ export interface DesktopConfig {
   imageDir?: string
   /** 余额低于这个数就提醒，按提供商分。没设的不提醒 */
   balanceAlerts?: Record<string, number>
+  /** 每家最近一次提醒是哪天，一天最多提醒一次 */
+  balanceAlerted?: Record<string, string>
 }
 
 export interface PiApi {

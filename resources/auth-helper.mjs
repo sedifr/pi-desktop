@@ -25,7 +25,7 @@ const MSG = {
   cancelled: EN ? 'Cancelled' : '已取消',
   noCredential: EN ? 'No usable credential' : '没有可用的登录凭证',
   requestFailed: EN ? 'Request failed' : '请求失败',
-  timeout: EN ? 'No response within 30 seconds' : '30 秒内没有响应',
+  timeout: EN ? 'No response within 60 seconds' : '60 秒内没有响应',
   unknownCommand: EN ? 'Unknown command: ' : '未知命令：'
 }
 
@@ -48,7 +48,7 @@ async function list(runtime) {
       methods,
       // Key 写在终端配置里（比如 GEMINI_API_KEY）的，这里改不了，只能告诉用户是哪个变量
       configured: stored.get(provider.id) ?? (!status.configured ? null : status.source === 'environment' ? 'env' : 'config'),
-      ...(status.source === 'environment' && status.label ? { envVar: status.label } : {})
+      ...(status.source === 'environment' && /^[A-Z][A-Z0-9_]+$/.test(status.label ?? '') ? { envVar: status.label } : {})
     }
   })
   emit({ t: 'list', providers })
@@ -58,8 +58,11 @@ async function list(runtime) {
 // Pi 只在交互界面里做这件事，桌面端用的 RPC 模式不会做，所以由这里补上。四小时内取过的，Pi 自己会跳过
 async function refresh(runtime) {
   const ids = () => runtime.getModels().map((model) => `${model.provider}/${model.id}`)
+  // 先把上次存下的目录读进来，不然存着的模型每次都会被当成新出的
+  await runtime.refresh({ allowNetwork: false })
   const before = new Set(ids())
-  const result = await runtime.refresh({ allowNetwork: true, signal: AbortSignal.timeout(30_000) })
+  // 不指定 allowNetwork：设了 PI_OFFLINE 时 Pi 自己就不联网
+  const result = await runtime.refresh({ signal: AbortSignal.timeout(30_000) })
   emit({
     t: 'refreshed',
     added: ids().filter((id) => !before.has(id)),
@@ -218,23 +221,32 @@ async function check(runtime) {
   // 包的入口是 dist/index.js，命令行在它旁边
   const cli = path.join(path.dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))), 'cli.js')
   const args = [cli, '-p', '--no-session', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--no-mcp', '--no-tools', '--thinking', 'off', '--model', `${model.provider}/${model.id}`, 'Reply with the single word ok.']
-  const { code, output } = await new Promise((resolve) => {
+  const { code, output, timedOut } = await new Promise((resolve) => {
     const child = spawn(process.execPath, args, { cwd: process.env.HOME, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
     let output = ''
+    let timedOut = false
     child.stdout.on('data', (chunk) => (output += chunk))
     child.stderr.on('data', (chunk) => (output += chunk))
-    const timer = setTimeout(() => child.kill(), 60_000)
-    child.on('error', (error) => resolve({ code: -1, output: String(error) }))
-    child.on('exit', (code) => {
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill()
+      // 收到退出信号却迟迟不走的，几秒后强行结束
+      setTimeout(() => child.kill('SIGKILL'), 5_000).unref()
+    }, 60_000)
+    child.on('error', (error) => resolve({ code: -1, output: String(error), timedOut }))
+    // 等输出都读完再看结果（exit 时最后一点报错可能还没读到）
+    child.on('close', (code) => {
       clearTimeout(timer)
-      resolve({ code: code ?? -1, output })
+      resolve({ code: code ?? -1, output, timedOut })
     })
   })
-  if (code === 0) return emit({ t: 'status', state: 'ok', model: model.id })
-  // 报错一般在最后一行；前面可能有些和这次无关的提醒
+  if (code === 0 && !timedOut) return emit({ t: 'status', state: 'ok', model: model.id })
+  if (timedOut) return emit({ t: 'status', state: 'error', message: MSG.timeout, model: model.id })
+  // 给人看的是最后一行（报错一般在那里）；判断是哪类问题看整段输出，前面那些和这次无关的提醒除外
   const lines = output.trim().split('\n').filter((line) => line.trim() && !/^Warning:/.test(line))
-  const failure = (lines.at(-1) ?? '').trim() || (code === null || code < 0 ? MSG.timeout : MSG.requestFailed)
-  const state = QUOTA_ERROR.test(failure) ? 'quota' : AUTH_ERROR.test(failure) ? 'invalid' : 'error'
+  const failure = (lines.at(-1) ?? '').trim() || MSG.requestFailed
+  const all = lines.join('\n')
+  const state = QUOTA_ERROR.test(all) ? 'quota' : AUTH_ERROR.test(all) ? 'invalid' : 'error'
   emit({ t: 'status', state, message: failure.slice(0, 300), model: model.id })
 }
 

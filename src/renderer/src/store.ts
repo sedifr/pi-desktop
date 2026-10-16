@@ -669,7 +669,7 @@ export function setSettingsTab(tab: SettingsTab): void {
 }
 
 /** 额度用完、余额不足：登录没问题，是钱或用量不够 */
-const QUOTA_ERROR = /out of (extra )?usage|usage limit|insufficient[ _](credit|balance|quota|funds)|credit balance|exceeded your current quota|quota exceeded|\b402\b|payment required|billing/i
+const QUOTA_ERROR = /out of (extra )?usage|credits are depleted|prepayment|usage limit|insufficient[ _](credit|balance|quota|funds)|credit balance|exceeded your current quota|quota exceeded|\b402\b|payment required|billing/i
 const AUTH_ERROR = /\b(401|403)\b|unauthori[sz]ed|forbidden|invalidated|invalid[^.]{0,20}(api[ _-]?key|token|credential)|expired|authenticat|sign(ing)? in again|log ?in again|not logged in/i
 
 function setAuthStatus(provider: string, status: AuthStatus | undefined): void {

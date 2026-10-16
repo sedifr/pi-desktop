@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AuthFlowEvent, AuthNotice, AuthPrompt, AuthStatus, AuthType, BalanceInfo, CustomProviderDetail, CustomProviderInput, ProviderInfo } from '@shared/types'
 import { accountsChanged, api, checkProvider, clearAuthStatus, errorText, loadBalances, setBalanceAlert, toast, useApp } from './store'
 import { type DotState, Hint, Icon, StatusDot, money, relTime } from './ui'
@@ -32,7 +32,7 @@ function describeStatus(provider: ProviderInfo, status: AuthStatus | undefined, 
   if (status.state === 'ok') return { dot: 'ok', text: t('可用 · {when}检测', { when }) }
   if (status.state === 'quota') return { dot: 'invalid', text: t('额度用完了'), detail: readable(status.message) }
   if (status.state === 'invalid') {
-    const fix = provider.configured === 'oauth' ? t('点「重新登录」') : provider.configured === 'api_key' ? t('点「换 Key」') : provider.configured === 'env' ? t('需要改终端配置里的 {name}', { name: provider.envVar ?? 'Key' }) : t('需要改接口配置里的 Key')
+    const fix = provider.configured === 'oauth' ? t('点「重新登录」') : provider.configured === 'api_key' ? t('点「换 Key」') : provider.configured === 'env' ? (provider.envVar ? t('需要改终端配置里的 {name}', { name: provider.envVar }) : t('需要改本机环境里的凭证')) : t('需要改接口配置里的 Key')
     return { dot: 'invalid', text: t('已失效，{fix}', { fix }), detail: readable(status.message) }
   }
   return { dot: 'error', text: t('没检测成'), detail: readable(status.message) }
@@ -54,11 +54,14 @@ function BalanceCell({ provider }: { provider: ProviderInfo }) {
   const info = useApp((s) => s.balances?.items.find((item) => item.provider === provider.id))
   const line = useApp((s) => s.config?.balanceAlerts?.[provider.id])
   const [editing, setEditing] = useState(false)
+  // 按 Esc 时输入框会因为被卸掉而失去焦点，靠这个标记分清是取消还是保存
+  const cancelled = useRef(false)
   if (!info) return null
   const open = () => info.link && api.openExternal(info.link)
   const detail = balanceDetail(info)
   const save = (text: string) => {
     setEditing(false)
+    if (cancelled.current) return
     const value = text.trim() === '' ? null : Number(text)
     if (value === null || (Number.isFinite(value) && value >= 0)) void setBalanceAlert(provider.id, value)
   }
@@ -83,11 +86,21 @@ function BalanceCell({ provider }: { provider: ProviderInfo }) {
             onBlur={(event) => save(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') event.currentTarget.blur()
-              if (event.key === 'Escape') setEditing(false)
+              if (event.key === 'Escape') {
+                cancelled.current = true
+                setEditing(false)
+              }
             }}
           />
         ) : (
-          <button className="balance-bell" title={t('余额低于这个数时提醒，留空不提醒')} onClick={() => setEditing(true)}>
+          <button
+            className="balance-bell"
+            title={t('余额低于这个数时提醒，留空不提醒')}
+            onClick={() => {
+              cancelled.current = false
+              setEditing(true)
+            }}
+          >
             <Icon name="bell" size={12} />
             {line ?? '—'}
           </button>
@@ -319,7 +332,7 @@ export function Accounts() {
         <button
           className="link-btn"
           onClick={() => {
-            connected.forEach((provider) => void checkProvider(provider.id))
+            connected.filter((provider) => provider.models > 0).forEach((provider) => void checkProvider(provider.id))
             void loadBalances(true)
           }}
         >
@@ -331,7 +344,7 @@ export function Accounts() {
       {connected.map((provider) => {
         const status = describeStatus(provider, authStatus[provider.id], Boolean(authChecking[provider.id]))
         // 登录方式、模型数、检测时间放在鼠标悬停里；行上只在出了问题时说一句
-        const kind = provider.configured === 'env' ? t('终端里的 {name}', { name: provider.envVar ?? 'Key' }) : KIND_LABEL[provider.configured!]
+        const kind = provider.configured === 'env' ? (provider.envVar ? t('终端里的 {name}', { name: provider.envVar }) : t('本机环境里的凭证')) : KIND_LABEL[provider.configured!]
         const tip = [kind, t('{n} 个模型', { n: provider.models }), status.text, status.detail].filter(Boolean).join('\n')
         // 额度用完时，右边的余额那一栏已经说明白了，这里不重复
         const explained = authStatus[provider.id]?.state === 'quota' && balances?.some((item) => item.provider === provider.id && (item.amount !== undefined || item.note))
@@ -360,6 +373,12 @@ export function Accounts() {
                 {t('换 Key')}
               </button>
             )}
+            {provider.configured === 'env' &&
+              provider.methods.map((method) => (
+                <button key={method.type} className="btn" title={method.name} onClick={() => void start(provider, method.type)}>
+                  {method.type === 'oauth' ? (method.subscription ? t('登录订阅账号') : t('浏览器登录')) : t('填 API Key')}
+                </button>
+              ))}
             {provider.configured === 'config' && (
               <button
                 className="btn"

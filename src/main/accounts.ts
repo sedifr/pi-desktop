@@ -10,7 +10,8 @@ const MODELS_FILE = path.join(AGENT_DIR, 'models.json')
 const helperPath = () => path.join(app.getAppPath(), 'resources', 'auth-helper.mjs')
 
 /** 登录、退出、列表都交给一个用 Pi SDK 写的小脚本去做，这里只负责启动它和转发消息 */
-async function runHelper(args: string[], onMessage?: (message: AuthFlowEvent) => void): Promise<{ child: ChildProcessWithoutNullStreams; done: Promise<void> }> {
+/** timeoutMs：不需要用户操作的命令给个上限，到点结束，免得界面一直停在「检测中」 */
+async function runHelper(args: string[], onMessage?: (message: AuthFlowEvent) => void, timeoutMs?: number): Promise<{ child: ChildProcessWithoutNullStreams; done: Promise<void> }> {
   const env = { ...(await shellEnv()), ELECTRON_RUN_AS_NODE: '1', PI_DESKTOP_LANG: getLang() }
   const child = spawn(nodeExecPath(), [helperPath(), ...args], { env, stdio: ['pipe', 'pipe', 'pipe'] })
   let buffer = ''
@@ -39,7 +40,16 @@ async function runHelper(args: string[], onMessage?: (message: AuthFlowEvent) =>
   child.stderr.on('data', (chunk: Buffer) => (stderr = (stderr + chunk.toString('utf8')).slice(-2000)))
   const done = new Promise<void>((resolve, reject) => {
     child.on('error', reject)
-    child.on('exit', () => {
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          failure ??= t('操作没有完成')
+          child.kill()
+          setTimeout(() => child.kill('SIGKILL'), 5_000).unref()
+        }, timeoutMs)
+      : undefined
+    // 等输出都读完（exit 时最后几行可能还没读到）
+    child.on('close', () => {
+      if (timer) clearTimeout(timer)
       if (finished) resolve()
       else reject(new Error(failure ?? (stderr.trim() || t('操作没有完成'))))
     })
@@ -49,9 +59,13 @@ async function runHelper(args: string[], onMessage?: (message: AuthFlowEvent) =>
 
 export async function listProviders(): Promise<ProviderInfo[]> {
   let providers: ProviderInfo[] = []
-  const { done } = await runHelper(['list'], (message) => {
-    if (message.t === 'list') providers = message.providers
-  })
+  const { done } = await runHelper(
+    ['list'],
+    (message) => {
+      if (message.t === 'list') providers = message.providers
+    },
+    60_000
+  )
   await done
   return providers
 }
@@ -59,9 +73,13 @@ export async function listProviders(): Promise<ProviderInfo[]> {
 /** 联网更新各家的模型目录。返回新出现的模型；连不上的提供商跳过，不算失败 */
 export async function refreshModelCatalog(): Promise<string[]> {
   let added: string[] = []
-  const { done } = await runHelper(['refresh'], (message) => {
-    if (message.t === 'refreshed') added = message.added
-  })
+  const { done } = await runHelper(
+    ['refresh'],
+    (message) => {
+      if (message.t === 'refreshed') added = message.added
+    },
+    90_000
+  )
   await done
   return added
 }
@@ -69,9 +87,13 @@ export async function refreshModelCatalog(): Promise<string[]> {
 /** 各家的余额，查不到的只带链接 */
 export async function readBalances(): Promise<BalanceInfo[]> {
   let items: BalanceInfo[] = []
-  const { done } = await runHelper(['balances'], (message) => {
-    if (message.t === 'balances') items = message.items
-  })
+  const { done } = await runHelper(
+    ['balances'],
+    (message) => {
+      if (message.t === 'balances') items = message.items
+    },
+    90_000
+  )
   await done
   return items
 }
@@ -79,9 +101,14 @@ export async function readBalances(): Promise<BalanceInfo[]> {
 export async function checkProvider(provider: string): Promise<AuthStatus> {
   let status: AuthStatus = { state: 'error', message: t('检测没有完成'), at: Date.now() }
   try {
-    const { done } = await runHelper(['check', provider], (message) => {
-      if (message.t === 'status') status = { state: message.state, message: message.message, model: message.model, at: Date.now() }
-    })
+    // 检测自己最多等 60 秒，再加上起进程的时间
+    const { done } = await runHelper(
+      ['check', provider],
+      (message) => {
+        if (message.t === 'status') status = { state: message.state, message: message.message, model: message.model, at: Date.now() }
+      },
+      90_000
+    )
     await done
   } catch (error) {
     status = { state: 'error', message: error instanceof Error ? error.message : String(error), at: Date.now() }

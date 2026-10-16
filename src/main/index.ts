@@ -3,7 +3,7 @@ import path from 'node:path'
 import { type Lang, resolveLang, setLang, t } from '@shared/i18n'
 import { pathToFileURL } from 'node:url'
 import { BrowserWindow, Menu, type MenuItemConstructorOptions, type WebContents, app, clipboard, dialog, ipcMain, nativeTheme, net, protocol, screen, shell, webContents } from 'electron'
-import type { AuthType, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
+import type { AuthType, BalanceInfo, CapSnapshot, CapState, ConvEvent, CustomProviderInput, Defaults, ImageAttachment, McpServerInput, OpenTarget, TemplateInput, Theme } from '@shared/types'
 import * as accounts from './accounts'
 import { AgentManager } from './agents'
 import { cleanRunDir, forget, getGlobal, getItems, rekey, resetSession, saveAs, setGlobal, setStates } from './caps'
@@ -235,7 +235,7 @@ function registerIpc(): void {
     if (value === null || !Number.isFinite(value)) delete alerts[provider]
     else alerts[provider] = value
     const config = setConfig({ balanceAlerts: alerts })
-    checkAlerts((info) => broadcast('balance:low', info))
+    checkAlerts(alertLow)
     return config
   })
   handle('auth:login', (provider: string, type: AuthType) =>
@@ -501,17 +501,19 @@ function registerIpc(): void {
   handle('caps:globalSet', (changes: Record<string, CapState>) => setGlobal(changes))
 }
 
+/** 余额：查完告诉所有窗口；低于提醒线的弹一次 */
+const refreshBalance = () => refreshBalances((state) => broadcast('balances', state), alertLow)
+/** 弹一次余额提醒；没有窗口能显示就返回 false，留到下次 */
+function alertLow(info: BalanceInfo): boolean {
+  if (!BrowserWindow.getAllWindows().some((each) => !each.isDestroyed())) return false
+  broadcast('balance:low', info)
+  return true
+}
+
 /**
  * 各家出了新模型，Pi 是从 pi.dev 的模型目录里知道的。桌面端开着时每隔一阵去取一次（Pi 自己四小时内不重复取），
  * 有新模型就让闲着的进程下次用时重启，模型菜单里才会出现。设了 PI_OFFLINE 的话 Pi 不联网，这里也就什么都不做
  */
-/** 余额：查完告诉所有窗口；低于提醒线的弹一次 */
-const refreshBalance = () =>
-  refreshBalances(
-    (state) => broadcast('balances', state),
-    (info) => broadcast('balance:low', info)
-  )
-
 let refreshingModels: Promise<void> | undefined
 function refreshModels(): Promise<void> {
   refreshingModels ??= accounts

@@ -832,6 +832,8 @@ export const en: Record<string, string> = {
   '模型列表更新了，新增 {n} 个：{list}': 'Model list updated, {n} new: {list}',
   '、': ', ',
   '终端里的 {name}': '{name} from your shell',
+  '本机环境里的凭证': 'Credentials from this Mac',
+  '需要改本机环境里的凭证': 'change the credentials on this Mac',
   '额度用完了': 'Out of credit',
   '额外用量已关': 'Extra usage off',
   '查看余额': 'Balance',
