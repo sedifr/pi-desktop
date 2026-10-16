@@ -9,7 +9,8 @@ const DEFAULTS: DesktopConfig = { extraSkillDirs: [], favoriteModels: [], pinned
 export function getConfig(): DesktopConfig {
   const stored = readOwnJson<Partial<DesktopConfig>>(CONFIG_FILE, {})
   const list = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [])
-  return { ...DEFAULTS, ...stored, extraSkillDirs: list(stored.extraSkillDirs), favoriteModels: list(stored.favoriteModels), pinned: list(stored.pinned) }
+  const alerts = Object.fromEntries(Object.entries(stored.balanceAlerts ?? {}).filter(([, value]) => typeof value === 'number' && Number.isFinite(value)))
+  return { ...DEFAULTS, ...stored, extraSkillDirs: list(stored.extraSkillDirs), favoriteModels: list(stored.favoriteModels), pinned: list(stored.pinned), balanceAlerts: alerts }
 }
 
 export function setConfig(patch: Partial<DesktopConfig>): DesktopConfig {

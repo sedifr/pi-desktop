@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AuthFlowEvent, ConvEvent, MenuAction, PiApi } from '@shared/types'
+import type { AuthFlowEvent, BalanceInfo, BalanceState, ConvEvent, MenuAction, PiApi } from '@shared/types'
 
 const call =
   (channel: string) =>
@@ -57,6 +57,18 @@ const api: PiApi = {
     const listener = (_event: unknown, what: 'buttons' | 'css' | 'skins') => cb(what)
     ipcRenderer.on('desktop:file', listener)
     return () => ipcRenderer.removeListener('desktop:file', listener)
+  },
+  balances: call('balances'),
+  setBalanceAlert: call('balance:alert'),
+  onBalances: (cb) => {
+    const listener = (_event: unknown, state: BalanceState) => cb(state)
+    ipcRenderer.on('balances', listener)
+    return () => ipcRenderer.removeListener('balances', listener)
+  },
+  onBalanceLow: (cb) => {
+    const listener = (_event: unknown, info: BalanceInfo) => cb(info)
+    ipcRenderer.on('balance:low', listener)
+    return () => ipcRenderer.removeListener('balance:low', listener)
   },
   onModelsAdded: (cb) => {
     const listener = (_event: unknown, added: string[]) => cb(added)

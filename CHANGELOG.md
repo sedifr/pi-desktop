@@ -11,6 +11,7 @@ Notable changes to Pi Desktop. The format follows [Keep a Changelog](https://kee
 
 ### Fixed
 
+- *Settings → Models* is quieter: a row shows the name, a status dot and the balance; how the provider is connected, its number of models and when it was checked moved into the tooltip.
 - *Settings → Models* showed a provider connected through an environment variable (such as `GEMINI_API_KEY` set in the shell) as not connected, or offered it the *Edit* and *Remove* buttons of a custom endpoint. It now says which variable the key comes from.
 - *Check* could call a login usable while real conversations were refused. It sent a bare request, and some services bill by what a request looks like: a Claude subscription counts requests that carry pi's system prompt as third-party use, paid from its *extra usage*. The check now sends a one-word conversation through pi itself, and a used-up credit shows as *Out of credit* — in the settings and in the model menu — instead of a generic failure.
 - Providers that offer no chat models (only classifiers) are no longer checked and marked invalid.
@@ -18,6 +19,7 @@ Notable changes to Pi Desktop. The format follows [Keep a Changelog](https://kee
 
 ### Added
 
+- Balances in *Settings → Models*. DeepSeek, Kimi, OpenRouter and the extra usage of a Claude subscription show what is left; set a line under it and the app reminds you once a day, with a link to top up. Providers whose balance cannot be read get a link to their balance or usage page.
 - Install with Homebrew: `brew tap sedifr/pi-desktop https://github.com/sedifr/pi-desktop`, then `brew install --cask sedifr/pi-desktop/pi-desktop`.
 - A demo at the top of the README, screenshots of the Chinese interface, and the scripts that take them (`scripts/demo/`).
 

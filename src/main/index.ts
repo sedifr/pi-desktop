@@ -8,6 +8,7 @@ import * as accounts from './accounts'
 import { AgentManager } from './agents'
 import { cleanRunDir, forget, getGlobal, getItems, rekey, resetSession, saveAs, setGlobal, setStates } from './caps'
 import { DESKTOP_EXT_DIR, MCP_CONFIG, forgetAllProbes, forgetProbe, setSummary } from './catalog'
+import { balanceState, checkAlerts, refreshBalances } from './balance'
 import { getConfig, setConfig } from './config'
 import { extractDoc, pdfBytes } from './docs'
 import { searchMarket } from './market'
@@ -220,10 +221,23 @@ function registerIpc(): void {
   const afterAccountChange = async (work: Promise<void>) => {
     await work
     agents.restartIdle()
-    // 新登录的提供商，顺便取一下它最新的模型
+    // 新登录的提供商，顺便取一下它最新的模型和余额
     void refreshModels()
+    void refreshBalance()
   }
   handle('providers', () => accounts.listProviders())
+  handle('balances', (refresh?: boolean) => {
+    const now = balanceState()
+    return refresh || !now || Date.now() - now.at > 5 * 60_000 ? refreshBalance() : now
+  })
+  handle('balance:alert', (provider: string, value: number | null) => {
+    const alerts = { ...getConfig().balanceAlerts }
+    if (value === null || !Number.isFinite(value)) delete alerts[provider]
+    else alerts[provider] = value
+    const config = setConfig({ balanceAlerts: alerts })
+    checkAlerts((info) => broadcast('balance:low', info))
+    return config
+  })
   handle('auth:login', (provider: string, type: AuthType) =>
     afterAccountChange(
       accounts.login(provider, type, (event) => {
@@ -491,6 +505,13 @@ function registerIpc(): void {
  * 各家出了新模型，Pi 是从 pi.dev 的模型目录里知道的。桌面端开着时每隔一阵去取一次（Pi 自己四小时内不重复取），
  * 有新模型就让闲着的进程下次用时重启，模型菜单里才会出现。设了 PI_OFFLINE 的话 Pi 不联网，这里也就什么都不做
  */
+/** 余额：查完告诉所有窗口；低于提醒线的弹一次 */
+const refreshBalance = () =>
+  refreshBalances(
+    (state) => broadcast('balances', state),
+    (info) => broadcast('balance:low', info)
+  )
+
 let refreshingModels: Promise<void> | undefined
 function refreshModels(): Promise<void> {
   refreshingModels ??= accounts
@@ -524,6 +545,8 @@ void app.whenReady().then(() => {
   createWindow()
   setTimeout(() => void refreshModels(), 5_000)
   setInterval(() => void refreshModels(), 4 * 60 * 60 * 1000 + 60_000)
+  setTimeout(() => void refreshBalance(), 15_000)
+  setInterval(() => void refreshBalance(), 30 * 60_000)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

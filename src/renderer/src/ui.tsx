@@ -24,6 +24,7 @@ const ICONS: Record<string, ReactNode> = {
   diff: <path d="M5 2.5v6M2 5.5h6M2.5 12h5M11 4v8.5M9 10.5l2 2 2-2" />,
   globe: <path d="M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM2.5 8h11M8 2.5c1.6 1.5 2.4 3.3 2.4 5.5S9.6 12 8 13.5C6.4 12 5.6 10.2 5.6 8S6.4 4 8 2.5z" />,
   external: <path d="M9 3h4v4M13 3 7.5 8.5M11.5 9.5v3h-8v-8h3" />,
+  bell: <path d="M4 11V7.2a4 4 0 0 1 8 0V11l1 1.2H3L4 11zM6.6 13.6a1.5 1.5 0 0 0 2.8 0" />,
   image: <path d="M2.5 3.5h11v9h-11zM2.5 10.5l3-3 2.5 2.5 2-2 3.5 3.5M10.2 6.2a.6.6 0 1 0 0-.01" />,
   star: <path d="M8 2.2l1.75 3.6 3.95.55-2.86 2.77.68 3.93L8 11.2l-3.52 1.85.68-3.93L2.3 6.35l3.95-.55L8 2.2z" />,
   chart: <path d="M8 2a6 6 0 1 0 6 6H8V2zM10.5 2.6A6 6 0 0 1 13.4 5.5h-2.9V2.6z" />,
@@ -98,6 +99,14 @@ export function Icon({ name, size = 16 }: { name: string; size?: number }) {
       {ICONS[name]}
     </svg>
   )
+}
+
+/** 余额的写法：人民币 ¥，美元 $，别的币种写在后面 */
+export function money(amount: number, currency?: string): string {
+  const value = amount.toFixed(2)
+  if (currency === 'CNY') return `¥${value}`
+  if (!currency || currency === 'USD') return `$${value}`
+  return `${value} ${currency}`
 }
 
 /** 界面不能直接读本机文件，图片走主进程给的这个地址 */

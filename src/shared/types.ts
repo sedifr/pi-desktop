@@ -326,6 +326,28 @@ export interface AuthNotice {
 }
 
 /** 一个提供商的登录现在能不能用。ok 可用；invalid 登录失效或 Key 不对；error 没检测成（网络、限流等） */
+/** 一家提供商的余额。查得到就有 amount，查不到就只有 link */
+export interface BalanceInfo {
+  provider: string
+  /** 充值或查看余额的页面 */
+  link?: string
+  amount?: number
+  currency?: string
+  /** 没有数字、但有话要说：extra_usage_off 是 Claude 订阅的「额外用量」关着 */
+  note?: 'extra_usage_off'
+  /** 订阅的用量百分比（Claude） */
+  usage?: { session?: number; weekly?: number }
+  /** 另外发的额度（Claude） */
+  credits?: { amount: number; currency: string; until?: string }[]
+  /** 这次没查成 */
+  error?: string
+}
+
+export interface BalanceState {
+  items: BalanceInfo[]
+  at: number
+}
+
 export interface AuthStatus {
   /** quota：登录没问题，额度或余额不够 */
   state: 'ok' | 'invalid' | 'quota' | 'error'
@@ -343,6 +365,7 @@ export type AuthFlowEvent =
   | { t: 'prompt'; id: number; prompt: AuthPrompt }
   | { t: 'prompt_cancel'; id: number }
   | { t: 'refreshed'; added: string[]; errors: { provider: string; message: string }[] }
+  | { t: 'balances'; items: BalanceInfo[] }
   | { t: 'notify'; event: AuthNotice }
   | { t: 'done' }
   | { t: 'error'; message: string }
@@ -485,6 +508,8 @@ export interface DesktopConfig {
   mcpEngine?: 'builtin' | 'adapter'
   /** 新生成的图片统一存到这个文件夹。不设就由出图的工具自己决定（一般是各项目里的 pi-images） */
   imageDir?: string
+  /** 余额低于这个数就提醒，按提供商分。没设的不提醒 */
+  balanceAlerts?: Record<string, number>
 }
 
 export interface PiApi {
@@ -553,6 +578,13 @@ export interface PiApi {
   onDesktopFile(cb: (what: 'buttons' | 'css' | 'skins') => void): () => void
   /** 联网更新模型目录后，新出现的模型（「提供商/模型」） */
   onModelsAdded(cb: (added: string[]) => void): () => void
+  /** 各家的余额。refresh 为 true 时现查，否则给最近一次的结果（太旧也会现查） */
+  balances(refresh?: boolean): Promise<BalanceState | undefined>
+  /** 设一家的余额提醒线，null 是不提醒 */
+  setBalanceAlert(provider: string, value: number | null): Promise<DesktopConfig>
+  onBalances(cb: (state: BalanceState) => void): () => void
+  /** 余额低于提醒线（每家每天最多一次） */
+  onBalanceLow(cb: (info: BalanceInfo) => void): () => void
   wallpaperPick(): Promise<{ path: string; color?: string; tone?: [number, number] } | undefined>
   /** 把拖进来的一张图片当背景 */
   wallpaperUse(file: string): Promise<{ path: string; color?: string; tone?: [number, number] }>

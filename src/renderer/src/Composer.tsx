@@ -37,7 +37,7 @@ import {
 } from './store'
 import { Slot } from './Buttons'
 import { TrustBanner } from './Trust'
-import { Icon, Popover, StatusDot, baseName } from './ui'
+import { Icon, Popover, StatusDot, baseName, money } from './ui'
 import { contextPercent, usageOf } from './usage'
 
 const THINKING_LABEL: Record<string, string> = { off: t('关'), minimal: t('最低'), low: t('低'), medium: t('中'), high: t('高'), xhigh: t('很高'), max: t('最高') }
@@ -49,6 +49,8 @@ function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
   const authStatus = useApp((s) => s.authStatus)
   const authChecking = useApp((s) => s.authChecking)
   const favorites = useApp((s) => s.config?.favoriteModels)
+  const balances = useApp((s) => s.balances?.items)
+  const lines = useApp((s) => s.config?.balanceAlerts)
   const [query, setQuery] = useState('')
   useEffect(() => ensureStarted(conv.key), [conv.key])
 
@@ -123,6 +125,11 @@ function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
             {provider}
             {authStatus[provider]?.state === 'invalid' && <span className="status-invalid">　{t('已失效')}</span>}
             {authStatus[provider]?.state === 'quota' && <span className="status-invalid">　{t('额度用完了')}</span>}
+            {(() => {
+              const balance = balances?.find((item) => item.provider === provider)
+              const line = lines?.[provider]
+              return balance?.amount !== undefined && line !== undefined && balance.amount < line ? <span className="status-error">　{money(balance.amount, balance.currency)}</span> : null
+            })()}
           </div>
           {list.map((model) => row(model, false))}
         </div>

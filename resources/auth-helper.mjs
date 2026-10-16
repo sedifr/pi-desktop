@@ -7,6 +7,7 @@
 //   auth-helper.mjs logout <提供商>
 //   auth-helper.mjs check <提供商>
 //   auth-helper.mjs refresh
+//   auth-helper.mjs balances
 //
 // 输出是按行分隔的 JSON。login 过程中需要用户输入时发 {t:"prompt"}，
 // 主进程从标准输入回一行 {id, value} 或 {id, cancel:true}。
@@ -66,6 +67,85 @@ async function refresh(runtime) {
   })
 }
 
+// 余额：查得到的给数字，查不到的只给充值或查看余额的页面。
+// oauth 表示这个查法只认哪种登录（订阅登录和 API Key 走的是两套账）
+const getJson = async (url, headers) => {
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+const bearer = (key) => ({ Authorization: `Bearer ${key}` })
+const kimi = (base, currency) => async (key) => ({ amount: Number((await getJson(`${base}/v1/users/me/balance`, bearer(key))).data?.available_balance), currency })
+const money = (value) => (value && typeof value.amount_minor === 'number' ? value.amount_minor / 10 ** (value.exponent ?? 2) : undefined)
+const BALANCE = {
+  deepseek: {
+    link: 'https://platform.deepseek.com/top_up',
+    oauth: false,
+    read: async (key) => {
+      const infos = (await getJson('https://api.deepseek.com/user/balance', bearer(key))).balance_infos ?? []
+      const pick = infos.find((info) => info.currency === 'CNY' && Number(info.total_balance) > 0) ?? infos.find((info) => Number(info.total_balance) > 0) ?? infos[0]
+      return pick ? { amount: Number(pick.total_balance), currency: pick.currency } : {}
+    }
+  },
+  'moonshotai-cn': { link: 'https://platform.kimi.com/console/pay', oauth: false, read: kimi('https://api.moonshot.cn', 'CNY') },
+  moonshotai: { link: 'https://platform.kimi.ai/console/pay', oauth: false, read: kimi('https://api.moonshot.ai', 'USD') },
+  openrouter: {
+    link: 'https://openrouter.ai/settings/credits',
+    oauth: false,
+    read: async (key) => {
+      const data = (await getJson('https://openrouter.ai/api/v1/credits', bearer(key))).data ?? {}
+      return { amount: Number(data.total_credits) - Number(data.total_usage), currency: 'USD' }
+    }
+  },
+  // Claude 订阅：用的是 Claude Code 自己查用量的接口，官方没写进文档，读不到就只给链接
+  anthropic: {
+    link: (oauth) => (oauth ? 'https://claude.ai/settings/usage' : 'https://platform.claude.com/settings/billing'),
+    oauth: true,
+    read: async (token) => {
+      const data = await getJson('https://api.anthropic.com/api/oauth/usage', { ...bearer(token), 'anthropic-beta': 'oauth-2025-04-20' })
+      const result = { usage: { session: data.five_hour?.utilization, weekly: data.seven_day?.utilization } }
+      // 另外发的额度，字段名是内部代号，只认带着剩余金额的
+      result.credits = Object.values(data)
+        .filter((value) => value && typeof value === 'object' && typeof value.remaining_dollars === 'number' && value.limit_dollars)
+        .map((value) => ({ amount: value.remaining_dollars, currency: 'USD', until: value.resets_at?.slice(0, 10) }))
+      // Pi 里的对话从「额外用量」里扣，余额看这一项
+      if (!data.extra_usage?.is_enabled) result.note = 'extra_usage_off'
+      else {
+        const spend = data.spend ?? {}
+        const left = money(spend.balance) ?? (money(spend.limit) !== undefined && money(spend.used) !== undefined ? money(spend.limit) - money(spend.used) : undefined)
+        if (left !== undefined) Object.assign(result, { amount: left, currency: spend.used?.currency ?? 'USD' })
+      }
+      return result
+    }
+  },
+  google: { link: 'https://aistudio.google.com/billing' },
+  'openai-codex': { link: 'https://chatgpt.com/codex/settings/usage' },
+  openai: { link: 'https://platform.openai.com/settings/organization/billing/overview' }
+}
+
+async function balances(runtime) {
+  await runtime.refresh({ allowNetwork: false })
+  const stored = new Set((await runtime.listCredentials()).map((credential) => credential.providerId))
+  const connected = runtime.getProviders().filter((provider) => BALANCE[provider.id] && (stored.has(provider.id) || runtime.getProviderAuthStatus(provider.id).configured))
+  const items = await Promise.all(
+    connected.map(async ({ id }) => {
+      const spec = BALANCE[id]
+      const oauth = runtime.isUsingOAuth(id)
+      const item = { provider: id, link: typeof spec.link === 'function' ? spec.link(oauth) : spec.link }
+      if (!spec.read || spec.oauth !== oauth) return item
+      try {
+        const key = (await runtime.getAuth(id))?.auth?.apiKey
+        if (key) Object.assign(item, await spec.read(key))
+      } catch (error) {
+        item.error = String(error instanceof Error ? error.message : error).slice(0, 200)
+      }
+      if (item.amount !== undefined && !Number.isFinite(item.amount)) delete item.amount
+      return item
+    })
+  )
+  emit({ t: 'balances', items })
+}
+
 async function login(runtime) {
   const abort = new AbortController()
   const waiting = new Map()
@@ -120,7 +200,7 @@ async function login(runtime) {
 }
 
 // 额度用完、余额不足这一类：登录本身没问题，是钱或用量不够
-const QUOTA_ERROR = /out of (extra )?usage|usage limit|insufficient[ _](credit|balance|quota|funds)|credit balance|exceeded your current quota|quota exceeded|\b402\b|payment required|billing/i
+const QUOTA_ERROR = /out of (extra )?usage|credits are depleted|prepayment|usage limit|insufficient[ _](credit|balance|quota|funds)|credit balance|exceeded your current quota|quota exceeded|\b402\b|payment required|billing/i
 const AUTH_ERROR = /\b(401|403)\b|unauthori[sz]ed|forbidden|invalidated|invalid[^.]{0,20}(api[ _-]?key|token|credential)|expired|authenticat|sign(ing)? in again|log ?in again|not logged in/i
 
 /**
@@ -166,6 +246,7 @@ try {
   else if (command === 'logout') await runtime.logout(providerId)
   else if (command === 'check') await check(runtime)
   else if (command === 'refresh') await refresh(runtime)
+  else if (command === 'balances') await balances(runtime)
   else throw new Error(MSG.unknownCommand + command)
   emit({ t: 'done' })
   process.exit(0)

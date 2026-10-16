@@ -1,9 +1,10 @@
 import type { AccessLevel, AppAction, UserButton } from '@shared/buttons'
 import type { Skin } from '@shared/skins'
 import { DEFAULT_LOOK, type Look, applyLook } from './skins'
+import { money } from './ui'
 import { titleFrom } from '@shared/title'
 import { useSyncExternalStore } from 'react'
-import type { AuthStatus, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, DesktopConfig, ImageAttachment, MenuAction, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, TrustStatus, Usage } from '@shared/types'
+import type { AuthStatus, BalanceInfo, BalanceState, CapSnapshot, CapState, ContentBlock, ConvEvent, ConvInfo, Defaults, DesktopConfig, ImageAttachment, MenuAction, ModelInfo, Msg, PiApi, SessionMeta, SessionStats, Theme, TrustStatus, Usage } from '@shared/types'
 import { type Lang, getLang, resolveLang, t } from '@shared/i18n'
 
 declare global {
@@ -85,6 +86,8 @@ export interface Toast {
   id: number
   text: string
   kind: 'info' | 'warning' | 'error'
+  /** 提示后面跟一个链接，点了用系统浏览器打开 */
+  link?: { label: string; url: string }
 }
 
 export interface AppState {
@@ -135,6 +138,8 @@ export interface AppState {
   jump?: { key: string; entryId: string }
   /** 桌面端自己的设置（额外技能文件夹、常用模型） */
   config?: DesktopConfig
+  /** 各家的余额（查不到的只有链接） */
+  balances?: BalanceState
 }
 
 /** 设置里的页。sources 是「插件」页里的「已安装」那一半，和 market 共用左边同一项 */
@@ -256,10 +261,10 @@ export function useApp<T>(selector: (s: AppState) => T): T {
 export const getState = (): AppState => state
 
 let toastSeq = 0
-export function toast(text: string, kind: Toast['kind'] = 'info'): void {
+export function toast(text: string, kind: Toast['kind'] = 'info', link?: Toast['link']): void {
   const id = ++toastSeq
-  set({ toasts: [...state.toasts, { id, text, kind }] })
-  setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), kind === 'error' ? 8000 : 4000)
+  set({ toasts: [...state.toasts, { id, text, kind, link }] })
+  setTimeout(() => set({ toasts: state.toasts.filter((t) => t.id !== id) }), kind === 'error' || link ? 8000 : 4000)
 }
 
 export const errorText = (error: unknown): string => {
@@ -796,6 +801,11 @@ export async function init(): Promise<void> {
   void loadButtons()
   // 这几个文件不管是谁改的（设置页、编辑器、Pi），改完马上跟上
   api.onDesktopFile((what) => void (what === 'buttons' ? loadButtons() : what === 'css' ? loadCustomCss() : loadSkins()))
+  api.onBalances((balances) => set({ balances }))
+  api.onBalanceLow((info) => {
+    if (info.amount === undefined) return
+    toast(t('{name} 余额 {amount}', { name: balanceName(info.provider), amount: money(info.amount, info.currency) }), 'warning', info.link ? { label: t('充值'), url: info.link } : undefined)
+  })
   // 各家出了新模型：模型菜单下次打开就有，这里说一声
   api.onModelsAdded((added) => {
     const names = added.slice(0, 4).map((id) => id.slice(id.indexOf('/') + 1))
@@ -817,6 +827,29 @@ export function activate(key: string): void {
 
 export function setConfig(config: DesktopConfig): void {
   set({ config })
+}
+
+/** 提醒里用的名字 */
+const BALANCE_NAME: Record<string, string> = { deepseek: 'DeepSeek', 'moonshotai-cn': 'Kimi', moonshotai: 'Kimi', openrouter: 'OpenRouter', anthropic: 'Claude' }
+export const balanceName = (provider: string): string => BALANCE_NAME[provider] ?? provider
+
+/** 读一遍余额。refresh 为 true 时现查 */
+export async function loadBalances(refresh = false): Promise<void> {
+  const balances = await api.balances(refresh).catch(() => undefined)
+  if (balances) set({ balances })
+}
+
+export function balanceOf(provider: string): BalanceInfo | undefined {
+  return state.balances?.items.find((item) => item.provider === provider)
+}
+
+/** 设一家的余额提醒线；null 是不提醒 */
+export async function setBalanceAlert(provider: string, value: number | null): Promise<void> {
+  try {
+    setConfig(await api.setBalanceAlert(provider, value))
+  } catch (error) {
+    toast(errorText(error), 'error')
+  }
 }
 
 /** 在右侧面板的浏览器里打开一个地址 */

@@ -432,6 +432,11 @@ export function App() {
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`}>
             {t.text}
+            {t.link && (
+              <button className="toast-link" onClick={() => api.openExternal(t.link!.url)}>
+                {t.link.label} <Icon name="external" size={11} />
+              </button>
+            )}
           </div>
         ))}
       </div>

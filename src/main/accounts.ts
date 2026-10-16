@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, shell } from 'electron'
 import { getLang, t } from '@shared/i18n'
-import type { AuthFlowEvent, AuthStatus, CustomProviderDetail, CustomProviderInput, ProviderInfo } from '@shared/types'
+import type { AuthFlowEvent, AuthStatus, BalanceInfo, CustomProviderDetail, CustomProviderInput, ProviderInfo } from '@shared/types'
 import { AGENT_DIR, nodeExecPath, readJsonForEdit, shellEnv, writeJson } from './env'
 
 const MODELS_FILE = path.join(AGENT_DIR, 'models.json')
@@ -64,6 +64,16 @@ export async function refreshModelCatalog(): Promise<string[]> {
   })
   await done
   return added
+}
+
+/** 各家的余额，查不到的只带链接 */
+export async function readBalances(): Promise<BalanceInfo[]> {
+  let items: BalanceInfo[] = []
+  const { done } = await runHelper(['balances'], (message) => {
+    if (message.t === 'balances') items = message.items
+  })
+  await done
+  return items
 }
 
 export async function checkProvider(provider: string): Promise<AuthStatus> {
