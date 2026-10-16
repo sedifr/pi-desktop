@@ -24,12 +24,15 @@ function readable(message: string | undefined): string | undefined {
 
 /** 把检测结果变成圆点颜色和一句说明 */
 function describeStatus(provider: ProviderInfo, status: AuthStatus | undefined, checking: boolean): { dot: DotState; text: string; detail?: string } {
+  // 只有分类之类的模型，没法拿一句对话去检测
+  if (provider.models === 0) return { dot: 'none', text: t('没有对话模型') }
   if (checking) return { dot: 'checking', text: t('检测中…') }
   if (!status) return { dot: 'none', text: t('还没检测') }
   const when = relTime(status.at)
   if (status.state === 'ok') return { dot: 'ok', text: t('可用 · {when}检测', { when }) }
+  if (status.state === 'quota') return { dot: 'invalid', text: t('额度用完了'), detail: readable(status.message) }
   if (status.state === 'invalid') {
-    const fix = provider.configured === 'oauth' ? t('点「重新登录」') : provider.configured === 'api_key' ? t('点「换 Key」') : t('需要改接口配置里的 Key')
+    const fix = provider.configured === 'oauth' ? t('点「重新登录」') : provider.configured === 'api_key' ? t('点「换 Key」') : provider.configured === 'env' ? t('需要改终端配置里的 {name}', { name: provider.envVar ?? 'Key' }) : t('需要改接口配置里的 Key')
     return { dot: 'invalid', text: t('已失效，{fix}', { fix }), detail: readable(status.message) }
   }
   return { dot: 'error', text: t('没检测成'), detail: readable(status.message) }
@@ -199,7 +202,7 @@ export function Accounts() {
   // 打开页面时，给已连接但没检测过、或检测结果太旧的提供商各检测一次
   useEffect(() => {
     for (const provider of providers ?? []) {
-      if (!provider.configured) continue
+      if (!provider.configured || provider.models === 0) continue
       const status = authStatus[provider.id]
       if (!status || Date.now() - status.at > STALE_MS) void checkProvider(provider.id)
     }
@@ -266,13 +269,15 @@ export function Accounts() {
           <div className="set-label grow">
             {provider.name}
             <div className="muted small" title={status.detail}>
-              {KIND_LABEL[provider.configured!]} · {t('{n} 个模型', { n: provider.models })} · <span className={`status-${status.dot}`}>{status.text}</span>
+              {provider.configured === 'env' ? t('终端里的 {name}', { name: provider.envVar ?? 'Key' }) : KIND_LABEL[provider.configured!]} · {t('{n} 个模型', { n: provider.models })} · <span className={`status-${status.dot}`}>{status.text}</span>
             </div>
           </div>
           <div className="set-control">
-            <button className="link-btn" disabled={Boolean(authChecking[provider.id])} onClick={() => void checkProvider(provider.id)}>
-              {t('检测')}
-            </button>
+            {provider.models > 0 && (
+              <button className="link-btn" disabled={Boolean(authChecking[provider.id])} onClick={() => void checkProvider(provider.id)}>
+                {t('检测')}
+              </button>
+            )}
             {provider.configured === 'oauth' && (
               <button className="btn" onClick={() => void start(provider, 'oauth')}>
                 {t('重新登录')}
@@ -296,9 +301,11 @@ export function Accounts() {
                 {t('修改')}
               </button>
             )}
-            <button className="btn" onClick={() => void disconnect(provider)}>
-              {provider.configured === 'config' ? t('移除') : t('退出')}
-            </button>
+            {provider.configured !== 'env' && (
+              <button className="btn" onClick={() => void disconnect(provider)}>
+                {provider.configured === 'config' ? t('移除') : t('退出')}
+              </button>
+            )}
           </div>
         </div>
         )

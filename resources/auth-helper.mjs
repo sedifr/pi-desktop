@@ -10,6 +10,9 @@
 //
 // 输出是按行分隔的 JSON。login 过程中需要用户输入时发 {t:"prompt"}，
 // 主进程从标准输入回一行 {id, value} 或 {id, cancel:true}。
+import { spawn } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 
 const [, , command, providerId, authType] = process.argv
@@ -26,6 +29,8 @@ const MSG = {
 }
 
 async function list(runtime) {
+  // 用环境变量里的 Key 连上的提供商（比如 GEMINI_API_KEY），要等 Pi 查一遍才算「已连接」。不联网
+  await runtime.refresh({ allowNetwork: false })
   const stored = new Map((await runtime.listCredentials()).map((c) => [c.providerId, c.type]))
   const providers = runtime.getProviders().map((provider) => {
     const status = runtime.getProviderAuthStatus(provider.id)
@@ -40,7 +45,9 @@ async function list(runtime) {
       name: provider.name ?? provider.id,
       models: runtime.getModels(provider.id).length,
       methods,
-      configured: stored.get(provider.id) ?? (status.configured ? 'config' : null)
+      // Key 写在终端配置里（比如 GEMINI_API_KEY）的，这里改不了，只能告诉用户是哪个变量
+      configured: stored.get(provider.id) ?? (!status.configured ? null : status.source === 'environment' ? 'env' : 'config'),
+      ...(status.source === 'environment' && status.label ? { envVar: status.label } : {})
     }
   })
   emit({ t: 'list', providers })
@@ -112,55 +119,43 @@ async function login(runtime) {
   })
 }
 
+// 额度用完、余额不足这一类：登录本身没问题，是钱或用量不够
+const QUOTA_ERROR = /out of (extra )?usage|usage limit|insufficient[ _](credit|balance|quota|funds)|credit balance|exceeded your current quota|quota exceeded|\b402\b|payment required|billing/i
 const AUTH_ERROR = /\b(401|403)\b|unauthori[sz]ed|forbidden|invalidated|invalid[^.]{0,20}(api[ _-]?key|token|credential)|expired|authenticat|sign(ing)? in again|log ?in again|not logged in/i
 
 /**
- * 真的发一个最小的请求，看这个提供商的登录现在还能不能用。
+ * 真的用 Pi 发一句最短的对话，看这个提供商现在能不能用。
  * 只看本地凭证不够：令牌可能本地没过期，但已经被服务端作废了。
- * 一收到服务端的正常响应就立刻中断，基本不产生费用。
+ * 也不能自己拼一个最小请求：有的服务按请求的样子决定记哪笔账（比如 Claude 订阅，
+ * 带着 Pi 系统提示的请求算第三方应用，从「额外用量」里扣），最小请求能通过，真对话却会被拒。
+ * 用最便宜的模型、不带工具、只要回一个词，花费很少。
  */
 async function check(runtime) {
   const models = [...(await runtime.getAvailable(providerId))]
   if (!models.length) return emit({ t: 'status', state: 'invalid', message: MSG.noCredential })
   models.sort((a, b) => (a.cost?.input ?? 0) - (b.cost?.input ?? 0))
   const model = models[0]
-  const abort = new AbortController()
-  const timer = setTimeout(() => abort.abort(), 30_000)
-  let ok = false
-  let failure
-  try {
-    const stream = runtime.streamSimple(
-      model,
-      { messages: [{ role: 'user', content: 'ping', timestamp: Date.now() }] },
-      {
-        signal: abort.signal,
-        onResponse: (response) => {
-          if ((response?.status ?? 200) < 400) {
-            ok = true
-            abort.abort()
-          }
-        }
-      }
-    )
-    for await (const event of stream) {
-      if (ok) break
-      if (event.type === 'error') {
-        failure = event.error?.errorMessage ?? MSG.requestFailed
-        break
-      }
-      if (event.type !== 'start') {
-        ok = true
-        abort.abort()
-        break
-      }
-    }
-  } catch (error) {
-    if (!ok) failure = error instanceof Error ? error.message : String(error)
-  }
-  clearTimeout(timer)
-  if (ok) return emit({ t: 'status', state: 'ok', model: model.id })
-  failure ??= MSG.timeout
-  emit({ t: 'status', state: AUTH_ERROR.test(failure) ? 'invalid' : 'error', message: failure.slice(0, 300), model: model.id })
+  // 包的入口是 dist/index.js，命令行在它旁边
+  const cli = path.join(path.dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))), 'cli.js')
+  const args = [cli, '-p', '--no-session', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--no-mcp', '--no-tools', '--thinking', 'off', '--model', `${model.provider}/${model.id}`, 'Reply with the single word ok.']
+  const { code, output } = await new Promise((resolve) => {
+    const child = spawn(process.execPath, args, { cwd: process.env.HOME, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    let output = ''
+    child.stdout.on('data', (chunk) => (output += chunk))
+    child.stderr.on('data', (chunk) => (output += chunk))
+    const timer = setTimeout(() => child.kill(), 60_000)
+    child.on('error', (error) => resolve({ code: -1, output: String(error) }))
+    child.on('exit', (code) => {
+      clearTimeout(timer)
+      resolve({ code: code ?? -1, output })
+    })
+  })
+  if (code === 0) return emit({ t: 'status', state: 'ok', model: model.id })
+  // 报错一般在最后一行；前面可能有些和这次无关的提醒
+  const lines = output.trim().split('\n').filter((line) => line.trim() && !/^Warning:/.test(line))
+  const failure = (lines.at(-1) ?? '').trim() || (code === null || code < 0 ? MSG.timeout : MSG.requestFailed)
+  const state = QUOTA_ERROR.test(failure) ? 'quota' : AUTH_ERROR.test(failure) ? 'invalid' : 'error'
+  emit({ t: 'status', state, message: failure.slice(0, 300), model: model.id })
 }
 
 try {

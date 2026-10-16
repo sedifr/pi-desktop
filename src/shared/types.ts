@@ -303,8 +303,10 @@ export interface ProviderInfo {
   /** 这个提供商下有多少个模型 */
   models: number
   methods: { type: AuthType; name: string; subscription: boolean }[]
-  /** 已配置的方式；config 表示写在 models.json 里的自定义接口 */
-  configured: AuthType | 'config' | null
+  /** 已配置的方式；config 表示写在 models.json 里的自定义接口，env 表示 Key 在终端的环境变量里 */
+  configured: AuthType | 'config' | 'env' | null
+  /** configured 是 env 时，是哪个环境变量 */
+  envVar?: string
 }
 
 export interface AuthPrompt {
@@ -325,7 +327,8 @@ export interface AuthNotice {
 
 /** 一个提供商的登录现在能不能用。ok 可用；invalid 登录失效或 Key 不对；error 没检测成（网络、限流等） */
 export interface AuthStatus {
-  state: 'ok' | 'invalid' | 'error'
+  /** quota：登录没问题，额度或余额不够 */
+  state: 'ok' | 'invalid' | 'quota' | 'error'
   message?: string
   /** 检测时用的模型 */
   model?: string

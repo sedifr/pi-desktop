@@ -11,6 +11,9 @@ Notable changes to Pi Desktop. The format follows [Keep a Changelog](https://kee
 
 ### Fixed
 
+- *Settings → Models* showed a provider connected through an environment variable (such as `GEMINI_API_KEY` set in the shell) as not connected, or offered it the *Edit* and *Remove* buttons of a custom endpoint. It now says which variable the key comes from.
+- *Check* could call a login usable while real conversations were refused. It sent a bare request, and some services bill by what a request looks like: a Claude subscription counts requests that carry pi's system prompt as third-party use, paid from its *extra usage*. The check now sends a one-word conversation through pi itself, and a used-up credit shows as *Out of credit* — in the settings and in the model menu — instead of a generic failure.
+- Providers that offer no chat models (only classifiers) are no longer checked and marked invalid.
 - Since pi 1.3, a conversation picks up the tools it had last time. A conversation once set to *Read only* kept that after being switched to *Full access*, and an extension turned on in an existing conversation did not get its tools. The app now names the tools it wants each time it starts pi.
 
 ### Added

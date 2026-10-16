@@ -119,9 +119,10 @@ function ModelPicker({ conv, onClose }: { conv: Conv; onClose: () => void }) {
       {groups.map(([provider, list]) => (
         <div key={provider}>
           <div className="menu-label">
-            <StatusDot state={authChecking[provider] ? 'checking' : (authStatus[provider]?.state ?? 'none')} title={authStatus[provider]?.message} />
+            <StatusDot state={authChecking[provider] ? 'checking' : authStatus[provider]?.state === 'quota' ? 'invalid' : (authStatus[provider]?.state ?? 'none')} title={authStatus[provider]?.message} />
             {provider}
             {authStatus[provider]?.state === 'invalid' && <span className="status-invalid">　{t('已失效')}</span>}
+            {authStatus[provider]?.state === 'quota' && <span className="status-invalid">　{t('额度用完了')}</span>}
           </div>
           {list.map((model) => row(model, false))}
         </div>
