@@ -1,8 +1,8 @@
 cask "pi-desktop" do
-  version "0.1.1"
-  sha256 "7ca779c234a6ed4d59bda342179ea31cae549e296324d6496de36dd0711675d2"
+  version "0.1.2"
+  sha256 "4ab7aca695b2c5d4b36b5a6693b3854905a6158bd7a931d05f18bc83156f2eda"
 
-  url "https://github.com/sedifr/pi-desktop/releases/download/v#{version}/Pi.Desktop-#{version}-arm64.dmg"
+  url "https://github.com/sedifr/pi-desktop/releases/download/v#{version}/Pi-Desktop-#{version}-arm64.dmg"
   name "Pi Desktop"
   desc "Desktop app for the pi coding agent"
   homepage "https://github.com/sedifr/pi-desktop"
